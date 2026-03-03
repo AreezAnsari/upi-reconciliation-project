@@ -1,12 +1,16 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.RoleMasterDto;
@@ -18,6 +22,8 @@ import com.jpb.reconciliation.reconciliation.repository.RoleManageRepository;
 
 @Service
 public class RoleManageServiceImpl implements RoleManageService {
+
+	Logger logger = LoggerFactory.getLogger(RoleManageServiceImpl.class);
 
 	@Autowired
 	RoleManageRepository roleManageRepository;
@@ -61,9 +67,53 @@ public class RoleManageServiceImpl implements RoleManageService {
 		List<Object> roleData = new ArrayList<>();
 		Role getLoginRole = roleManageRepository.findByRoleId(verifiedRoleId);
 		roleData.add(getLoginRole);
-		
+
 		restWithStatusList = new RestWithStatusList("SUCCESS", "Login role user found.", roleData);
-		return new ResponseEntity<RestWithStatusList>(restWithStatusList,HttpStatus.OK);
+		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
 	}
 
+	@Override
+	@Transactional
+	public ResponseEntity<RestWithStatusList> createRole(String roleCode, String roleName, List<Long> menuIds,
+			String createdBy) {
+
+		logger.info("Creating role: code={}, name={}, menus={}", roleCode, roleName, menuIds);
+
+		// 1. Validate: duplicate role code check
+		if (roleManageRepository.existsByRoleCode(roleCode)) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RestWithStatusList("FAILURE",
+					"Role code '" + roleCode + "' already exists. Please use a unique code.", null));
+		}
+
+		// 2. Create and save role
+		Role newRole = new Role();
+		newRole.setRoleCode(roleCode.toUpperCase().trim());
+		newRole.setRoleName(roleName.trim());
+		newRole.setCreatedAt(LocalDateTime.now());
+		newRole.setCreatedBy(createdBy);
+		Role savedRole = roleManageRepository.save(newRole);
+
+		logger.info("Role saved with ID: {}", savedRole.getRoleId());
+         
+		// 3. Assign menus if provided
+		int menusAssigned = 0;
+		if (menuIds != null && !menuIds.isEmpty()) {
+			List<ReconMenuMaster> menus = menuMasterRepository.findAllById(menuIds);
+			if (menus.size() != menuIds.size()) {
+				logger.warn("Some menuIds were not found. Requested: {}, Found: {}", menuIds.size(), menus.size());
+			}
+//			menusAssigned = menuMasterRepository.assignMenusToRole(savedRole.getRoleId(), menuIds);
+			logger.info("Assigned {} menus to role {}", menusAssigned, savedRole.getRoleId());
+		}
+
+		List<Object> result = new ArrayList<>();
+//		result.add(buildRoleResponse(savedRole));
+
+		String message = menusAssigned > 0 ? "Role created successfully with " + menusAssigned + " menus assigned"
+				: "Role created successfully (no menus assigned)";
+
+		return ResponseEntity.status(HttpStatus.CREATED).body(new RestWithStatusList("SUCCESS", message, result));
+	}
+	
+	
 }

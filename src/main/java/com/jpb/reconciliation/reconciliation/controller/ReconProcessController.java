@@ -36,40 +36,36 @@ public class ReconProcessController {
 	private ReconProcessService reconProcessService;
 
 	@Autowired
-    private ReconProcessRequestValidator reconProcessRequestValidator;
+	private ReconProcessRequestValidator reconProcessRequestValidator;
 
-    @InitBinder("reconProcessRequest")
-    protected void initBinder(WebDataBinder binder) {
-        binder.addValidators(reconProcessRequestValidator);
-    }
+	@InitBinder("reconProcessRequest")
+	protected void initBinder(WebDataBinder binder) {
+		binder.addValidators(reconProcessRequestValidator);
+	}
 
-    /**
-     * Add new recon process with validation
-     * POST /api/recon/process/add
-     */
-    @PostMapping("/add")
-    public ResponseEntity<?> addReconProcess(
-            @Valid @RequestBody ReconProcessRequest request,
-            BindingResult bindingResult) {
-        
-        // Check for validation errors
-        if (bindingResult.hasErrors()) {
-            Map<String, String> errors = new HashMap<>();
-            bindingResult.getFieldErrors().forEach(error -> 
-                errors.put(error.getField(), error.getDefaultMessage())
-            );
-            return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
-        }
-        
-        try {
-            ReconProcessResponse response = reconProcessService.createReconProcess(request);
-            return new ResponseEntity<>(response, HttpStatus.CREATED);
-        } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
+	/**
+	 * Add new recon process with validation POST /api/recon/process/add
+	 */
+	@PostMapping("/add")
+	public ResponseEntity<?> addReconProcess(@Valid @RequestBody ReconProcessRequest request,
+			BindingResult bindingResult) {
+
+		// Check for validation errors
+		if (bindingResult.hasErrors()) {
+			Map<String, String> errors = new HashMap<>();
+			bindingResult.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+			return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+		}
+
+		try {
+			ReconProcessResponse response = reconProcessService.createReconProcess(request);
+			return new ResponseEntity<>(response, HttpStatus.CREATED);
+		} catch (Exception e) {
+			Map<String, String> error = new HashMap<>();
+			error.put("error", e.getMessage());
+			return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
 
 	/**
 	 * View recon process by ID GET /api/recon/process/view/{processId}

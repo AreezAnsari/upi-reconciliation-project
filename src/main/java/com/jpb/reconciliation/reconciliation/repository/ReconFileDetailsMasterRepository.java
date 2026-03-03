@@ -14,17 +14,23 @@ import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 @Repository
 public interface ReconFileDetailsMasterRepository extends JpaRepository<ReconFileDetailsMaster, Long> {
 
-	ReconFileDetailsMaster findByReconFileId(Long processId);
+    ReconFileDetailsMaster findByReconFileId(Long processId);
 
-	@Query("SELECT r FROM ReconFileDetailsMaster r WHERE r.rfdTranFileFlag = :flag")
-	List<ReconFileDetailsMaster> findByRfdTranFileFlag(@Param("flag") String flag);
+    @Query("SELECT r FROM ReconFileDetailsMaster r WHERE r.rfdTranFileFlag = :flag")
+    List<ReconFileDetailsMaster> findByRfdTranFileFlag(@Param("flag") String flag);
 
-	ReconFileDetailsMaster findByReconTemplateDetails_ReconTemplateId(Long reconTemp1);
+    // Original — single result (kept for other existing usages in your project)
+    ReconFileDetailsMaster findByReconTemplateDetails_ReconTemplateId(Long reconTemp1);
 
-	@Query("SELECT f FROM ReconFileDetailsMaster f WHERE "
-			+ "(:templateId IS NULL OR f.reconTemplateDetails.reconTemplateId = :templateId) AND "
-			+ "(:fileName IS NULL OR LOWER(f.reconFileName) LIKE LOWER(CONCAT('%', :fileName, '%')))")
-	Page<ReconFileDetailsMaster> findByFilters(@Param("templateId") Long templateId, @Param("fileName") String fileName,
-			Pageable pageable);
+    // NEW — returns ALL files for a template, safe when multiple files exist
+    // Used by ReportMastConfigService to avoid NonUniqueResultException
+    List<ReconFileDetailsMaster> findAllByReconTemplateDetails_ReconTemplateId(Long templateId);
 
+    @Query("SELECT f FROM ReconFileDetailsMaster f WHERE "
+            + "(:templateId IS NULL OR f.reconTemplateDetails.reconTemplateId = :templateId) AND "
+            + "(:fileName IS NULL OR LOWER(f.reconFileName) LIKE LOWER(CONCAT('%', :fileName, '%')))")
+    Page<ReconFileDetailsMaster> findByFilters(
+            @Param("templateId") Long templateId,
+            @Param("fileName") String fileName,
+            Pageable pageable);
 }

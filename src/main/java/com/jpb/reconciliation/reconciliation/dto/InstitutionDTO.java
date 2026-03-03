@@ -48,8 +48,6 @@ public class InstitutionDTO {
 
     private String logoPath;
 
-    // ─── Address ─────────────────────────────────────────────────────────────
-
     @NotBlank(message = "Address line 1 is required")
     private String addressLine1;
 
@@ -68,8 +66,6 @@ public class InstitutionDTO {
     @NotBlank(message = "Zip code is required")
     private String zipCode;
 
-    // ─── Contact ─────────────────────────────────────────────────────────────
-
     @NotBlank(message = "Contact name is required")
     private String contactName;
 
@@ -86,8 +82,6 @@ public class InstitutionDTO {
     private String technicalContactName;
     private String technicalPhoneNumber;
     private String technicalEmailAddress;
-
-    // ─── Configuration ────────────────────────────────────────────────────────
 
     private Boolean enableCaptcha;
     private Boolean enableBlockingUnsecureIp;

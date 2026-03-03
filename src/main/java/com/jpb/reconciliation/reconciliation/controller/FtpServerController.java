@@ -1,6 +1,5 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
-
 import java.util.List;
 
 import javax.validation.Valid;
@@ -19,62 +18,61 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.dto.FtpServerDTO;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.service.FtpServerService;
 
 @RestController
 @RequestMapping("/api/ftp-servers")
 public class FtpServerController {
 
-    @Autowired
-    private FtpServerService ftpServerService;
+	@Autowired
+	private FtpServerService ftpServerService;
 
-    // ─── CREATE ───────────────────────────────────────────────
-    // POST /api/ftp-servers
-    @PostMapping
-    public ResponseEntity<FtpServerDTO> createFtpServer(@Valid @RequestBody FtpServerDTO dto) {
-        FtpServerDTO created = ftpServerService.createFtpServer(dto);
-        return new ResponseEntity<>(created, HttpStatus.CREATED);
-    }
+	@PostMapping
+	public ResponseEntity<FtpServerDTO> createFtpServer(@Valid @RequestBody FtpServerDTO dto) {
+		FtpServerDTO created = ftpServerService.createFtpServer(dto);
+		return new ResponseEntity<>(created, HttpStatus.CREATED);
+	}
 
-    // ─── READ ALL ─────────────────────────────────────────────
-    // GET /api/ftp-servers
-    @GetMapping
-    public ResponseEntity<List<FtpServerDTO>> getAllFtpServers() {
-        List<FtpServerDTO> list = ftpServerService.getAllFtpServers();
-        return ResponseEntity.ok(list);
-    }
+	@GetMapping
+	public ResponseEntity<List<FtpServerDTO>> getAllFtpServers() {
+		List<FtpServerDTO> list = ftpServerService.getAllFtpServers();
+		return ResponseEntity.ok(list);
+	}
 
-    // ─── READ BY ID ───────────────────────────────────────────
-    // GET /api/ftp-servers/{id}
-    @GetMapping("/{id}")
-    public ResponseEntity<FtpServerDTO> getFtpServerById(@PathVariable Long id) {
-        FtpServerDTO dto = ftpServerService.getFtpServerById(id);
-        return ResponseEntity.ok(dto);
-    }
+	@GetMapping("/{id}")
+	public ResponseEntity<FtpServerDTO> getFtpServerById(@PathVariable Long id) {
+		FtpServerDTO dto = ftpServerService.getFtpServerById(id);
+		return ResponseEntity.ok(dto);
+	}
 
-    // ─── READ BY SERVER IP ────────────────────────────────────
-    // GET /api/ftp-servers/search?serverIp=10.44.75.35
-    @GetMapping("/search")
-    public ResponseEntity<List<FtpServerDTO>> getFtpServersByIp(@RequestParam String serverIp) {
-        List<FtpServerDTO> list = ftpServerService.getFtpServersByIp(serverIp);
-        return ResponseEntity.ok(list);
-    }
+	@GetMapping("/search")
+	public ResponseEntity<RestWithStatusList> getFtpServersByIp(@RequestParam String serverIp) {
+		RestWithStatusList restWithStatusList = null;
+		List<Object> searchData = null;
+		List<FtpServerDTO> list = ftpServerService.getFtpServersByIp(serverIp);
+		if (!list.isEmpty()) {
+			searchData.addAll(searchData);
+			restWithStatusList = new RestWithStatusList("SUCCESS", "Found FTP Server Data", searchData);
+		} else {
+			restWithStatusList = new RestWithStatusList("FAILURE", "Found FTP Server Data Not Found", searchData);
+			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.NOT_FOUND);
+		}
 
-    // ─── UPDATE (Full) ────────────────────────────────────────
-    // PUT /api/ftp-servers/{id}
-    @PutMapping("/{id}")
-    public ResponseEntity<FtpServerDTO> updateFtpServer(
-            @PathVariable Long id,
-            @Valid @RequestBody FtpServerDTO dto) {
-        FtpServerDTO updated = ftpServerService.updateFtpServer(id, dto);
-        return ResponseEntity.ok(updated);
-    }
+		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
+	}
 
-    // ─── DELETE ───────────────────────────────────────────────
-    // DELETE /api/ftp-servers/{id}
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteFtpServer(@PathVariable Long id) {
-        ftpServerService.deleteFtpServer(id);
-        return ResponseEntity.noContent().build();
-    }
+	@PutMapping("/{id}")
+	public ResponseEntity<FtpServerDTO> updateFtpServer(@PathVariable Long id, @Valid @RequestBody FtpServerDTO dto) {
+		FtpServerDTO updated = ftpServerService.updateFtpServer(id, dto);
+		return ResponseEntity.ok(updated);
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<RestWithStatusList> deleteFtpServer(@PathVariable Long id) {
+		RestWithStatusList restWithStatusList = null;
+		ftpServerService.deleteFtpServer(id);
+		restWithStatusList = new RestWithStatusList("SUCCESS", "FTP server deleted successfully", null);
+		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
+	}
 }

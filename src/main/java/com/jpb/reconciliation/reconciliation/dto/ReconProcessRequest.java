@@ -94,6 +94,7 @@ public class ReconProcessRequest {
 		private Long templateId;
 
 		private String templateName;
+		private String stageTabName;
 		private List<String> templateFields;
 	}
 

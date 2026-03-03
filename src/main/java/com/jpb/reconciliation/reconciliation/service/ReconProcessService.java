@@ -130,29 +130,52 @@ public class ReconProcessService {
 			}
 		}
 
-		// Map file type mappings
+		// Update file type mappings (Dynamic table + flag generation)
 		if (request.getFileTypeMappings() != null) {
+
 			for (ReconProcessRequest.FileTypeMapping mapping : request.getFileTypeMappings()) {
+
+				String stageTableName = null;
+
+				// Find matching template based on fileTypeNumber
+				if (request.getTemplateMappings() != null) {
+					for (ReconProcessRequest.TemplateMapping template : request.getTemplateMappings()) {
+
+						if (template.getTemplateNumber() == mapping.getFileTypeNumber()) {
+							stageTableName = template.getStageTabName();
+							break;
+						}
+					}
+				}
+
+				String[] dynamicNames = generateDynamicNames(stageTableName, request.getTranChannel());
+				String dataTableName = dynamicNames[0];
+				String recFlagName = dynamicNames[1];
+
 				switch (mapping.getFileTypeNumber()) {
+
 				case 1:
 					entity.setReconFileType1(mapping.getFileTypeId());
-					entity.setReconDataTableName1(mapping.getDataTableName());
-					entity.setReconFlagName1(mapping.getRecFlagName());
+					entity.setReconDataTableName1(dataTableName);
+					entity.setReconFlagName1(recFlagName);
 					break;
+
 				case 2:
 					entity.setReconFileType2(mapping.getFileTypeId());
-					entity.setReconDataTableName2(mapping.getDataTableName());
-					entity.setReconFlagName2(mapping.getRecFlagName());
+					entity.setReconDataTableName2(dataTableName);
+					entity.setReconFlagName2(recFlagName);
 					break;
+
 				case 3:
 					entity.setReconFileType3(mapping.getFileTypeId());
-					entity.setReconDataTableName3(mapping.getDataTableName());
-					entity.setReconFlagName3(mapping.getRecFlagName());
+					entity.setReconDataTableName3(dataTableName);
+					entity.setReconFlagName3(recFlagName);
 					break;
+
 				case 4:
 					entity.setReconFileType4(mapping.getFileTypeId());
-					entity.setReconDataTableName4(mapping.getDataTableName());
-					entity.setReconFlagName4(mapping.getRecFlagName());
+					entity.setReconDataTableName4(dataTableName);
+					entity.setReconFlagName4(recFlagName);
 					break;
 				}
 			}
@@ -204,6 +227,27 @@ public class ReconProcessService {
 		}
 
 		return entity;
+	}
+
+	private String[] generateDynamicNames(String stageTableName, String tranChannel) {
+
+		if (stageTableName == null || stageTableName.isEmpty()) {
+			return new String[] { null, null };
+		}
+
+		// Example: REC_EJA_ADM_STAGE_T
+
+		// Remove REC_ prefix
+		String withoutRec = stageTableName.replaceFirst("^REC_", "");
+
+		// Remove _STAGE_T suffix
+		String baseName = withoutRec.replace("_STAGE_T", "");
+
+		// Generate required names
+		String dataTableName = "REC_" + baseName + tranChannel + "_DATA";
+		String recFlagName = "DYN_" + baseName + "_REC_FLAG";
+
+		return new String[] { dataTableName, recFlagName };
 	}
 
 	private void updateEntityFromRequest(ReconProcessDefMaster entity, ReconProcessRequest request) {
@@ -410,7 +454,8 @@ public class ReconProcessService {
 						.fileType(file.getReconFileType()).fileDescription(file.getReconFileDescription())
 						.fileLocation(file.getReconFileLocation()).fileDelimiter(file.getReconFileDelimiter())
 						.hdrAvlFlag(file.getReconHdrAvailableFlag()).ftrAvailFlag(file.getReconFtrAvailFlag())
-						.templateId(file.getReconTemplateDetails().getReconTemplateId() ).templateName(templateName).build();
+						.templateId(file.getReconTemplateDetails().getReconTemplateId()).templateName(templateName)
+						.build();
 			}
 		}
 

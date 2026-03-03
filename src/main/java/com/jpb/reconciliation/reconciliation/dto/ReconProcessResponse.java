@@ -17,7 +17,7 @@ public class ReconProcessResponse {
 	// Basic Process Information
 	private Long processId;
 	private String processName;
-	private String teamChannel;
+	private String tranChannel;
 	private Long retentionPeriod;
 	private Long retentionVolume;
 	private String matchingType;
