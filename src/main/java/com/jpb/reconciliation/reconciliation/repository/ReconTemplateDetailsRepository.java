@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.jpb.reconciliation.reconciliation.entity.ReconTemplateDetails;
@@ -16,11 +17,21 @@ public interface ReconTemplateDetailsRepository extends JpaRepository<ReconTempl
 
 	ReconTemplateDetails findByTemplateName(String templateName);
 
-	// Fetch ONLY template and field details (excluding file details)
-	@Query(value = "SELECT DISTINCT t FROM ReconTemplateDetails t " + "LEFT JOIN FETCH t.fieldDetails fd "
-			+ "LEFT JOIN FETCH fd.reconFieldTypeMaster "
-			+ "LEFT JOIN FETCH fd.reconFieldFormatMaster", countQuery = "SELECT COUNT(DISTINCT t) FROM ReconTemplateDetails t")
-	Page<ReconTemplateDetails> findAllWithDetails(Pageable pageable);
+//	// Fetch ONLY template and field details (excluding file details)
+//	@Query(value = "SELECT DISTINCT t FROM ReconTemplateDetails t " + "LEFT JOIN FETCH t.fieldDetails fd "
+//			+ "LEFT JOIN FETCH fd.reconFieldTypeMaster "
+//			+ "LEFT JOIN FETCH fd.reconFieldFormatMaster", countQuery = "SELECT COUNT(DISTINCT t) FROM ReconTemplateDetails t")
+//	Page<ReconTemplateDetails> findAllWithDetails(Pageable pageable);
+
+	@Query("SELECT t FROM ReconTemplateDetails t")
+	Page<ReconTemplateDetails> findTemplates(Pageable pageable);
+
+	@Query("SELECT DISTINCT t FROM ReconTemplateDetails t " +
+		       "LEFT JOIN FETCH t.fieldDetails fd " +
+		       "LEFT JOIN FETCH fd.reconFieldTypeMaster " +
+		       "LEFT JOIN FETCH fd.reconFieldFormatMaster " +
+		       "WHERE t IN :templates")
+		List<ReconTemplateDetails> fetchTemplateDetails(@Param("templates") List<ReconTemplateDetails> templates);
 
 	@Query("SELECT t FROM ReconTemplateDetails t ORDER BY t.templateName")
 	List<ReconTemplateDetails> findAllTemplates();

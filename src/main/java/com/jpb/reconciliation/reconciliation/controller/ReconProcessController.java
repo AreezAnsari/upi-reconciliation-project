@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.dto.ReconProcessRequest;
 import com.jpb.reconciliation.reconciliation.dto.ReconProcessResponse;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.service.ReconProcessService;
 import com.jpb.reconciliation.reconciliation.util.ReconProcessRequestValidator;
 
@@ -122,10 +123,12 @@ public class ReconProcessController {
 	 * Delete recon process DELETE /api/recon/process/delete/{processId}
 	 */
 	@DeleteMapping("/delete/{processId}")
-	public ResponseEntity<HttpStatus> deleteReconProcess(@PathVariable Long processId) {
+	public ResponseEntity<RestWithStatusList> deleteReconProcess(@PathVariable Long processId) {
 		try {
+			RestWithStatusList restWithStatusList = null;
 			reconProcessService.deleteReconProcess(processId);
-			return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+			restWithStatusList = new RestWithStatusList("SUCCESS", "Recon Process Succussfully Deleted.", null);
+			return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
 		} catch (Exception e) {
 			return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 		}

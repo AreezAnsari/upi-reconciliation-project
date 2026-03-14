@@ -175,59 +175,98 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
 
 	@Override
 	public ResponseEntity<RestWithStatusListPagination> viewTemplate(int page, int size) {
-		try {
-			logger.info("Fetching templates - Page: {}, Size: {}", page, size);
+	    try {
+	        logger.info("Fetching templates - Page: {}, Size: {}", page, size);
 
-			if (page < 0) {
-				return ResponseEntity.badRequest().body(RestWithStatusListPagination.builder().status("ERROR")
-						.statusMsg("Page number cannot be negative").data(Collections.emptyList()).build());
-			}
+	        if (page < 0) {
+	            return ResponseEntity.badRequest().body(
+	                    RestWithStatusListPagination.builder()
+	                            .status("ERROR")
+	                            .statusMsg("Page number cannot be negative")
+	                            .data(Collections.emptyList())
+	                            .build());
+	        }
 
-			if (size <= 0 || size > 100) {
-				return ResponseEntity.badRequest().body(RestWithStatusListPagination.builder().status("ERROR")
-						.statusMsg("Size must be between 1 and 100").data(Collections.emptyList()).build());
-			}
+	        if (size <= 0 || size > 100) {
+	            return ResponseEntity.badRequest().body(
+	                    RestWithStatusListPagination.builder()
+	                            .status("ERROR")
+	                            .statusMsg("Size must be between 1 and 100")
+	                            .data(Collections.emptyList())
+	                            .build());
+	        }
 
-			// Create pageable object
-			Pageable pageable = PageRequest.of(page, size);
+	        Pageable pageable = PageRequest.of(page, size);
 
-			// Fetch paginated data
-			Page<ReconTemplateDetails> templatesPage = reconTemplateDetailsRepository.findAllWithDetails(pageable);
+	        // STEP 1: Fetch paginated templates (without fetch joins)
+	        Page<ReconTemplateDetails> templatesPage =
+	                reconTemplateDetailsRepository.findTemplates(pageable);
 
-			if (templatesPage.isEmpty()) {
-				logger.warn("No templates found for page: {}", page);
-				return ResponseEntity.ok(RestWithStatusListPagination.builder().status("SUCCESS")
-						.statusMsg("No templates available").data(Collections.emptyList())
-						.pageMetadata(PageMetadata.builder().currentPage(page).pageSize(size).totalElements(0L)
-								.totalPages(0).isFirst(true).isLast(true).hasNext(false).hasPrevious(false).build())
-						.build());
-			}
+	        if (templatesPage.isEmpty()) {
 
-			// Convert to DTOs
-			List<ReconTemplatesDetailsDTO> templateDTOs = ReconTemplateDetailsMapper
-					.toDTOList(templatesPage.getContent());
+	            logger.warn("No templates found for page: {}", page);
 
-			// Create page metadata
-			PageMetadata pageMetadata = PageMetadata.builder().currentPage(templatesPage.getNumber())
-					.pageSize(templatesPage.getSize()).totalElements(templatesPage.getTotalElements())
-					.totalPages(templatesPage.getTotalPages()).isFirst(templatesPage.isFirst())
-					.isLast(templatesPage.isLast()).hasNext(templatesPage.hasNext())
-					.hasPrevious(templatesPage.hasPrevious()).build();
+	            return ResponseEntity.ok(
+	                    RestWithStatusListPagination.builder()
+	                            .status("SUCCESS")
+	                            .statusMsg("No templates available")
+	                            .data(Collections.emptyList())
+	                            .pageMetadata(PageMetadata.builder()
+	                                    .currentPage(page)
+	                                    .pageSize(size)
+	                                    .totalElements(0L)
+	                                    .totalPages(0)
+	                                    .isFirst(true)
+	                                    .isLast(true)
+	                                    .hasNext(false)
+	                                    .hasPrevious(false)
+	                                    .build())
+	                            .build());
+	        }
 
-			logger.info("Successfully retrieved {} templates out of {} total on page {}", templateDTOs.size(),
-					templatesPage.getTotalElements(), page);
+	        // STEP 2: Fetch child relationships
+	        List<ReconTemplateDetails> templatesWithDetails =
+	                reconTemplateDetailsRepository.fetchTemplateDetails(templatesPage.getContent());
 
-			return ResponseEntity.ok(RestWithStatusListPagination.builder().status("SUCCESS")
-					.statusMsg("Templates retrieved successfully").data(new ArrayList<>(templateDTOs))
-					.pageMetadata(pageMetadata).build());
+	        // Convert to DTOs
+	        List<ReconTemplatesDetailsDTO> templateDTOs =
+	                ReconTemplateDetailsMapper.toDTOList(templatesWithDetails);
 
-		} catch (Exception e) {
-			logger.error("Error fetching templates: {}", e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(RestWithStatusListPagination.builder().status("ERROR")
-							.statusMsg("Error retrieving templates: " + e.getMessage()).data(Collections.emptyList())
-							.build());
-		}
+	        PageMetadata pageMetadata = PageMetadata.builder()
+	                .currentPage(templatesPage.getNumber())
+	                .pageSize(templatesPage.getSize())
+	                .totalElements(templatesPage.getTotalElements())
+	                .totalPages(templatesPage.getTotalPages())
+	                .isFirst(templatesPage.isFirst())
+	                .isLast(templatesPage.isLast())
+	                .hasNext(templatesPage.hasNext())
+	                .hasPrevious(templatesPage.hasPrevious())
+	                .build();
+
+	        logger.info("Successfully retrieved {} templates out of {} total on page {}",
+	                templateDTOs.size(),
+	                templatesPage.getTotalElements(),
+	                page);
+
+	        return ResponseEntity.ok(
+	                RestWithStatusListPagination.builder()
+	                        .status("SUCCESS")
+	                        .statusMsg("Templates retrieved successfully")
+	                        .data(new ArrayList<>(templateDTOs))
+	                        .pageMetadata(pageMetadata)
+	                        .build());
+
+	    } catch (Exception e) {
+
+	        logger.error("Error fetching templates: {}", e.getMessage(), e);
+
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(RestWithStatusListPagination.builder()
+	                        .status("ERROR")
+	                        .statusMsg("Error retrieving templates: " + e.getMessage())
+	                        .data(Collections.emptyList())
+	                        .build());
+	    }
 	}
 
 	@Override

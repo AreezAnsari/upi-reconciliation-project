@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RoleCreateRequest;
 import com.jpb.reconciliation.reconciliation.dto.RoleMasterDto;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
 import com.jpb.reconciliation.reconciliation.entity.Role;
@@ -94,26 +95,57 @@ public class RoleManageServiceImpl implements RoleManageService {
 		Role savedRole = roleManageRepository.save(newRole);
 
 		logger.info("Role saved with ID: {}", savedRole.getRoleId());
-         
-		// 3. Assign menus if provided
-		int menusAssigned = 0;
-		if (menuIds != null && !menuIds.isEmpty()) {
-			List<ReconMenuMaster> menus = menuMasterRepository.findAllById(menuIds);
-			if (menus.size() != menuIds.size()) {
-				logger.warn("Some menuIds were not found. Requested: {}, Found: {}", menuIds.size(), menus.size());
-			}
+//         
+//		// 3. Assign menus if provided
+//		int menusAssigned = 0;
+//		if (menuIds != null && !menuIds.isEmpty()) {
+//			List<ReconMenuMaster> menus = menuMasterRepository.findAllById(menuIds);
+//			if (menus.size() != menuIds.size()) {
+//				logger.warn("Some menuIds were not found. Requested: {}, Found: {}", menuIds.size(), menus.size());
+//			}
 //			menusAssigned = menuMasterRepository.assignMenusToRole(savedRole.getRoleId(), menuIds);
-			logger.info("Assigned {} menus to role {}", menusAssigned, savedRole.getRoleId());
+//			logger.info("Assigned {} menus to role {}", menusAssigned, savedRole.getRoleId());
+//		}
+//
+//		List<Object> result = new ArrayList<>();
+//		result.add(buildRoleResponse(savedRole));
+//
+//		String message = menusAssigned > 0 ? "Role created successfully with " + menusAssigned + " menus assigned"
+//				: "Role created successfully (no menus assigned)";
+
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(new RestWithStatusList("SUCCESS", "Role created successfully", null));
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> updateRoleDetails(RoleCreateRequest request, String username) {
+		Role existingRole = roleManageRepository.findById(request.getRoleId()).orElse(null);
+		if (existingRole == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+					new RestWithStatusList("FAILURE", "Role with ID '" + request.getRoleId() + "' not found.", null));
 		}
 
-		List<Object> result = new ArrayList<>();
-//		result.add(buildRoleResponse(savedRole));
+		if (request.getRoleCode() != null) {
+			String newCode = request.getRoleCode().toUpperCase().trim();
+			if (roleManageRepository.existsByRoleCodeAndRoleIdNot(newCode, existingRole.getRoleId())) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RestWithStatusList("FAILURE",
+						"Role code '" + newCode + "' is already used by another role.", null));
+			}
+			existingRole.setRoleCode(newCode);
+		}
 
-		String message = menusAssigned > 0 ? "Role created successfully with " + menusAssigned + " menus assigned"
-				: "Role created successfully (no menus assigned)";
+		if (request.getRoleName() != null) {
+			existingRole.setRoleName(request.getRoleName().trim());
+		}
 
-		return ResponseEntity.status(HttpStatus.CREATED).body(new RestWithStatusList("SUCCESS", message, result));
+		existingRole.setUpdatedAt(LocalDateTime.now());
+		existingRole.setUpdatedBy(username);
+		roleManageRepository.save(existingRole);
+
+		logger.info("Role updated successfully: roleId={}", existingRole.getRoleId());
+
+		return ResponseEntity.status(HttpStatus.OK)
+				.body(new RestWithStatusList("SUCCESS", "Role updated successfully", null));
 	}
-	
-	
+
 }

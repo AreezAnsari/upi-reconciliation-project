@@ -34,5 +34,4 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 	Role findByRoleId(Long verifiedRoleId);
 
 //	int assignMenusToRole(Long roleId, List<Long> menuIds);
-
 }

@@ -1,3 +1,125 @@
 spring:
   profiles:
     active: SIT
+
+jasypt:
+  encryptor:
+    password: jpbrecon@123
+
+#spring:
+  application:
+    name: "flux-recon"
+  datasource:
+#    primary:
+#      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
+      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb
+      driver-class-name: oracle.jdbc.OracleDriver
+#      username: recon_sit
+      username: jpb_recon
+#      password: recon_sit
+      password: Jpbrecon2026
+      hikari:
+        maximum-pool-size: 100
+        max-lifetime: 1800000
+        idle-timeout: 300000
+        connection-timeout: 60000
+        minimumIdle: 5
+        poolName: HikariCP
+        leakDetectionThreshold: 600000  
+        validationTimeout: 5000 
+        connection-test-query: SELECT 1 FROM DUAL
+        dataSourceProperties:
+          oracle:
+            jdbc:
+              ReadTimeout: 900000 
+##      secondary:
+###      datasource: 
+##        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
+##        driver-class-name: oracle.jdbc.OracleDriver
+##        username: recon_sit
+##        password: 
+##        hikari:
+##          maximum-pool-size: 100
+##          max-lifetime: 1800000
+##          idle-timeout: 300000
+##          connection-timeout: 60000
+##          minimumIdle: 5
+##      tertiary:
+##        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
+##        driver-class-name: oracle.jdbc.OracleDriver
+##        username: recon_sit
+##        password:    
+  jpa:
+    database-platform: org.hibernate.dialect.Oracle12cDialect 
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  logging:
+    console:
+      enabled: false
+    level:
+      org.springframework: INFO
+      org.springframework.boot: INFO
+      org.springdoc: INFO
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql: TRACE
+      org.hibernate: INFO
+      com.zaxxer.hikari: DEBUG
+      org.springframework.orm.jpa: INFO
+      org.springframework.jdbc: INFO
+      org.springframework.transaction: DEBUG
+      root: INFO
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file:
+      name: logs/springboot-app.log
+      max-size: 10MB
+      max-history: 30
+  servlet:
+    multipart:
+      max-file-size: -1 #Max file upload limit set 
+      max-request-size: -1 #Max file upload limit request
+  security:
+    oauth2:
+       client:
+        registration:
+          google:
+            client-name: google
+            client-id: 483747385924-ficq1hvsiuepo2u33csp9l2vs4r63ff5.apps.googleusercontent.com
+            client-secret: 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
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
+            jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+            user-name-attribute: name
+
+oracle:
+  jdbc:
+    query-timeout-seconds: 900
+
+app:
+  uDrive: '/home/ec2-user/Utility'
+  ttumFile: '/home/ec2-user/ReconReport'
+  transactionFile: '/home/ec2-user/ReconReport'
+  targetFilePath: '/home/ec2-user/DCRFILES_COMPLETED'
+  aepsDataFile: '/home/ec2-user/ReconReport'
+  reconReport: '/home/ec2-user/ReconReport'
+  uploadFileDir: '/home/ec2-user/upload_files'
+  accountSplitPath: '/home/ec2-user/upload_files'
+server:
+  port: 8081
+
+AUTH:
+  CLIENT_ID: "117a286526a56107636793104f1eccdc"
+  SECRET_CODE: "7f90b261964fa26698c86bd881bd22f4c0c004e1b89c74dc0cdf9ea1383b3cfc"
+  TOKEN_API_URL: "http://10.147.77.13:9001/jpb/v1/app/authenticate"
+  PUBLIC_KEY: 'C:\Akshay_Ramani\Jio_Bank_Projects\JIOBANK_RECON_APPLICATION\jpb-recon-system-application\src\main\resources\publickey\publicKey.key'
+
+sqlldr:
+   url: '@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb'
+   secondUrl: '@//localhost:1521/orcl.lan'
+
+

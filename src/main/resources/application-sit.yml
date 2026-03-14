@@ -7,11 +7,13 @@ spring:
     name: "JPB J-Recon Platform"
   datasource:
 #    primary:
-      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-#      url: jdbc:oracle:thin:@localhost:1521:orcl
+#      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
+      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Akshay_Ramani/Wallet_RECONDB1
       driver-class-name: oracle.jdbc.OracleDriver
-      username: recon_sit
-      password: recon_sit
+#      username: recon_sit
+      username: jpb_recon
+#      password: recon_sit
+      password: Jpbrecon2026
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000
