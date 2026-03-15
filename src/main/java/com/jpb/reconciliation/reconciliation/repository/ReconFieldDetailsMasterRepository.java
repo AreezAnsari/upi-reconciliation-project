@@ -24,8 +24,8 @@ public interface ReconFieldDetailsMasterRepository extends JpaRepository<ReconFi
 
 //	List<ReconFieldDetailsMaster> findByReconTemplateId(Long templateId);
 
-	@Modifying
-	@Transactional
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+//	@Transactional
 	@Query("DELETE FROM ReconFieldDetailsMaster r WHERE r.reconTemplateDetails.reconTemplateId = :templateId")
 	void deleteByTemplateId(@Param("templateId") Long templateId);
 

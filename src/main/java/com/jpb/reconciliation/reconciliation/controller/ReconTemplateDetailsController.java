@@ -65,16 +65,29 @@ public class ReconTemplateDetailsController {
 		return reconTemplateDetailsService.viewTemplate(page, size);
 	}
 
+//	@PutMapping(value = "/update-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
+//	@Operation(summary = "Update an existing template with its field details")
+//	public ResponseEntity<RestWithStatusList> updateTemplate(@PathVariable Long templateId,
+//			@RequestBody TemplateFieldDto templateFieldRequest) {
+//		if (templateFieldRequest.getFieldDetails() == null || templateFieldRequest.getFieldDetails().isEmpty()) {
+//			RestWithStatusList response = new RestWithStatusList("FAILURE", "fieldDetails must not be null or empty",
+//					null);
+//			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+//		}
+//		return reconTemplateDetailsService.updateTemplate(templateId, templateFieldRequest);
+//	}
+	
+	
 	@PutMapping(value = "/update-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
-	@Operation(summary = "Update an existing template with its field details")
+	@Operation(summary = "Update template fields and format only")
 	public ResponseEntity<RestWithStatusList> updateTemplate(@PathVariable Long templateId,
-			@RequestBody TemplateFieldDto templateFieldRequest) {
-		if (templateFieldRequest.getFieldDetails() == null || templateFieldRequest.getFieldDetails().isEmpty()) {
-			RestWithStatusList response = new RestWithStatusList("FAILURE", "fieldDetails must not be null or empty",
-					null);
-			return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-		}
-		return reconTemplateDetailsService.updateTemplate(templateId, templateFieldRequest);
+	        @RequestBody TemplateFieldDto templateFieldRequest) {
+	    if (templateFieldRequest.getFieldDetails() == null || templateFieldRequest.getFieldDetails().isEmpty()) {
+	        return new ResponseEntity<>(
+	                new RestWithStatusList("FAILURE", "fieldDetails must not be null or empty", null),
+	                HttpStatus.BAD_REQUEST);
+	    }
+	    return reconTemplateDetailsService.updateTemplate(templateId, templateFieldRequest);
 	}
 
 	@DeleteMapping(value = "/delete-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
