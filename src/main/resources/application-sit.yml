@@ -7,13 +7,13 @@ spring:
     name: "JPB J-Recon Platform"
   datasource:
 #    primary:
-#      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Akshay_Ramani/Wallet_RECONDB1
+      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
+#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Akshay_Ramani/Wallet_RECONDB1
       driver-class-name: oracle.jdbc.OracleDriver
-#      username: recon_sit
-      username: jpb_recon
-#      password: recon_sit
-      password: Jpbrecon2026
+      username: recon_sit
+#      username: jpb_recon
+      password: recon_sit
+#      password: Jpbrecon2026
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000
@@ -100,7 +100,7 @@ app:
   uDrive: 'C:\Akshay_Ramani\Utility\'
   ttumFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TTUMReport/'
   transactionFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TransactionReport/'
-  targetFilePath: 'C:\Akshay_Ramani\Jio_Bank_Projects\DCRFILES_COMPLETED/UPI/'
+  targetFilePath: 'C:\Akshay_Ramani\Jio_Bank_Projects\DCRFILES_COMPLETED/'
   aepsDataFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\AEPSDataReport/'
   reconReport: 'C:\Akshay_Ramani\Jio_Bank_Projects\ReconReport/'
   uploadFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\'
@@ -115,7 +115,7 @@ AUTH:
   PUBLIC_KEY: 'C:\Akshay_Ramani\Jio_Bank_Projects\JIOBANK_RECON_APPLICATION\jpb-recon-system-application\src\main\resources\publickey\publicKey.key'
 
 sqlldr:
-   url: '@//localhost:1521/orcl.lan'
-   secondUrl: '@//localhost:1521/orcl.lan'
+  url: '@//localhost:1521/orcl.lan'
+  secondUrl: '@//localhost:1521/orcl.lan'
 
 

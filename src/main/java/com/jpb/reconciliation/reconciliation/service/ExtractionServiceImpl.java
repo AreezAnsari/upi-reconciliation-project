@@ -341,7 +341,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 	    if (reconFieldDetailsMaster != null && !reconFieldDetailsMaster.isEmpty()) {
 	        for (ReconFieldDetailsMaster fieldDetailsMaster : reconFieldDetailsMaster) {
 	            ReconFieldDetailsDto fieldDetails = new ReconFieldDetailsDto();
-
+                 
 	            // Field details from master
 	            fieldDetails.setRfmColPosn(fieldDetailsMaster.getReconColumnPosn());
 	            fieldDetails.setRfmShortName(fieldDetailsMaster.getReconShortName());
