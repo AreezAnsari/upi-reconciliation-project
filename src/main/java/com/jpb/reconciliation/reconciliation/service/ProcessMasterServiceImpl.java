@@ -29,6 +29,7 @@ public class ProcessMasterServiceImpl implements ProcessMasterService {
 		List<ProcessMasterEntity> getProcessData = reportMasterRepository.findAll();
 		logger.info("PROCESS MASTER DATA WITH FILE DATA :::::::::::" + getProcessData);
 		List<ProcessMasterDto> mapReportFileData = ProcessMasterMapper.mapProcessMasterToProcessMasterDto(getProcessData, existsMenuFlag);
+		logger.info("mapReportFileData :::::::::::" + mapReportFileData);
 		RestWithStatusList restWithStatusList;
 		List<Object> processList = new ArrayList<>();
 		if (!mapReportFileData.isEmpty()) {

@@ -29,4 +29,7 @@ public interface ReconFieldDetailsMasterRepository extends JpaRepository<ReconFi
 	@Query("DELETE FROM ReconFieldDetailsMaster r WHERE r.reconTemplateDetails.reconTemplateId = :templateId")
 	void deleteByTemplateId(@Param("templateId") Long templateId);
 
+//	@Query(value = "SELECT * FROM RCN_FIELD_DTL_MAST WHERE RFM_TEMPLATE_ID = :templateId ORDER BY RFM_COL_POSN ASC", 
+//	           nativeQuery = true)
+//	    List<ReconFieldDetailsMaster> findByReconTemplateIdOrderByReconColumnPosnAsc(@Param("templateId") Long templateId);
 }

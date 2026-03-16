@@ -1,6 +1,8 @@
 package com.jpb.reconciliation.reconciliation.controller.forcematch;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,20 +44,8 @@ public class ForceMatchController {
 
 	@Operation(summary = "Execute SP_FORCE_MATCH for a given process ID and user")
 	@PostMapping
-	public ResponseEntity<RestWithStatusList> execute(@RequestBody ExecuteRequest request) {
-		log.info("POST /api/v1/force-match/execute | processId={} | userId={}", request.getProcessId(),
-				request.getUserId());
-
-		if (request.getProcessId() == null || request.getProcessId().trim().isEmpty()) {
-			return ResponseEntity.badRequest()
-					.body(RestWithStatusList.builder().status("FAILURE").statusMsg("processId is required").build());
-		}
-		if (request.getUserId() == null) {
-			return ResponseEntity.badRequest()
-					.body(RestWithStatusList.builder().status("FAILURE").statusMsg("userId is required").build());
-		}
-
-		return ResponseEntity.ok(executionService.execute(request.getProcessId(), request.getUserId()));
+	public ResponseEntity<RestWithStatusList> execute(@RequestBody ExecuteRequest request, @AuthenticationPrincipal UserDetails userDetails) {
+		return executionService.executeForceMatch(request.getProcessId(), userDetails);
 	}
 
 	// ── Inner request DTO (kept close to the controller; no extra file needed) ──
@@ -63,7 +53,6 @@ public class ForceMatchController {
 	@lombok.NoArgsConstructor
 	@lombok.AllArgsConstructor
 	public static class ExecuteRequest {
-		private String processId;
-		private Integer userId;
+		private Long processId;
 	}
 }
