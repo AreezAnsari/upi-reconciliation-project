@@ -173,7 +173,7 @@ public class ForceMatchExecutionService {
 				ReportEntity reportRecord = new ReportEntity();
 				reportRecord.setProcessId(prmProcessId);
 				reportRecord.setReportDate(LocalDate.now());
-				reportRecord.setReportFileName("FORCE_MATCH");
+				reportRecord.setReportFileName(config.getFileName());
 				reportRecord.setReportLocation(filePath);
 				reportRecord.setReportName("FORCE_MATCH");
 				reportRecord.setFileName(path.getFileName().toString());

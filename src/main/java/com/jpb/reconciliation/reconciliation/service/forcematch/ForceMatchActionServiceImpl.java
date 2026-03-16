@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.SqlOutParameter;
 import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Service;
-
+import com.jpb.reconciliation.reconciliation.controller.FileConfigController;
 import com.jpb.reconciliation.reconciliation.dto.ReportDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReportEntity;
@@ -27,6 +27,8 @@ import com.jpb.reconciliation.reconciliation.repository.ReportRepository;
 
 @Service("forceMatchActionServiceImpl")
 public class ForceMatchActionServiceImpl implements ForceMatchActionService {
+
+    private final FileConfigController fileConfigController;
 
     Logger logger = LoggerFactory.getLogger(ForceMatchActionServiceImpl.class);
 
@@ -38,8 +40,9 @@ public class ForceMatchActionServiceImpl implements ForceMatchActionService {
     @Value("${app.reconReport}")
     private String reportBaseDir;
 
-    public ForceMatchActionServiceImpl(JdbcTemplate jdbcTemplate) {
+    public ForceMatchActionServiceImpl(JdbcTemplate jdbcTemplate, FileConfigController fileConfigController) {
         this.jdbcTemplate = jdbcTemplate;
+        this.fileConfigController = fileConfigController;
     }
 
     @Override
@@ -49,7 +52,6 @@ public class ForceMatchActionServiceImpl implements ForceMatchActionService {
 
         try {
             SimpleJdbcCall procedureCall = new SimpleJdbcCall(jdbcTemplate)
-                    .withSchemaName("JPB_RECON")
                     .withProcedureName("SP_EXCEPTION_REPORT")
                     .declareParameters(new SqlParameter("prm_process_id", Types.VARCHAR),
                                      new SqlParameter("prm_report_type", Types.VARCHAR),
@@ -58,12 +60,12 @@ public class ForceMatchActionServiceImpl implements ForceMatchActionService {
             Map<String, Object> inParams = new HashMap<>();
             inParams.put("prm_process_id", processId);
             inParams.put("prm_report_type", "ALL");
-
+            logger.info("EXCEPTION PEPORT PROCEDURE INPUT :::" + inParams);
             Map<String, Object> out = procedureCall.execute(inParams);
             String prmError = Objects.toString(out.get("PRM_ERROR"), Objects.toString(out.get("prm_error"), "ERROR"));
-
+            logger.info("EXCEPTION PEPORT PROCEDURE OUTPUT :::::::" + out);
             if ("OK".equalsIgnoreCase(prmError)) {
-                String sql = "SELECT * FROM JPB_RECON.RCN_TEMP_EXCEPTION_REPORT WHERE PROCESS_ID = ?";
+                String sql = "SELECT * FROM RCN_TEMP_EXCEPTION_REPORT WHERE PROCESS_ID = ?";
                 List<Map<String, Object>> allRows = jdbcTemplate.queryForList(sql, processId);
 
                 if (!allRows.isEmpty()) {
@@ -82,7 +84,7 @@ public class ForceMatchActionServiceImpl implements ForceMatchActionService {
                     ReportEntity reportRecord = new ReportEntity();
                     reportRecord.setProcessId(ntslReportRequest.getProcessId());
                     reportRecord.setReportDate(LocalDate.now());
-                    reportRecord.setReportFileName(fileName);
+                    reportRecord.setReportFileName(ntslReportRequest.getReportFileName());
                     reportRecord.setReportLocation(filePath);
                     reportRecord.setReportName("FORCE_MATCH");
                     reportRecord.setFileName(fileName);

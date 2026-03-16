@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller.forcematch;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,7 +44,7 @@ public class ForceMatchController {
 
 	@Operation(summary = "Execute SP_FORCE_MATCH for a given process ID and user")
 	@PostMapping
-	public ResponseEntity<RestWithStatusList> execute(@RequestBody ExecuteRequest request, UserDetails userDetails) {
+	public ResponseEntity<RestWithStatusList> execute(@RequestBody ExecuteRequest request, @AuthenticationPrincipal UserDetails userDetails) {
 		return executionService.executeForceMatch(request.getProcessId(), userDetails);
 	}
 
@@ -53,6 +54,5 @@ public class ForceMatchController {
 	@lombok.AllArgsConstructor
 	public static class ExecuteRequest {
 		private Long processId;
-		private Integer userId;
 	}
 }

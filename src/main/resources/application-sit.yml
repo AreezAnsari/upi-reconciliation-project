@@ -98,11 +98,11 @@ oracle:
 
 app:
   uDrive: 'C:\Akshay_Ramani\Utility\'
-  ttumFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TTUMReport/'
+  ttumFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TTUMReport\'
   transactionFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TransactionReport/'
   targetFilePath: 'C:\Akshay_Ramani\Jio_Bank_Projects\DCRFILES_COMPLETED/'
   aepsDataFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\AEPSDataReport/'
-  reconReport: 'C:\Akshay_Ramani\Jio_Bank_Projects\ReconReport/'
+  reconReport: 'C:\Akshay_Ramani\Jio_Bank_Projects\ReconReport\'
   uploadFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\'
   accountSplitPath: 'C:\Akshay_Ramani\Jio_Bank_Projects\Account_split_files'
 server:
