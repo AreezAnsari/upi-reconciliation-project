@@ -7,8 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;
@@ -66,12 +67,16 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
 
 	@Autowired
 	private SimpleJdbcCall simpleJdbcCall;
-
+	
+    @Autowired
+    private ReconFieldDtlMastService reconFieldDtlMastService;
+	
 	private final JdbcTemplate jdbcTemplate;
 
 	public ReconTemplateDetailsServiceImpl(DataSource dataSource) {
 		this.jdbcTemplate = new JdbcTemplate(dataSource);
 	}
+	
 
 	@Override
 	public ResponseEntity<?> addTemplate(ReconTemplateDetailsDto reconTemplateDetailsDto) {
@@ -269,55 +274,146 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
 	    }
 	}
 
+//	@Override
+//	@Transactional
+//	public ResponseEntity<RestWithStatusList> updateTemplate(Long templateId, TemplateFieldDto templateFieldRequest) {
+//		
+//		try {
+//		Optional<ReconTemplateDetails> templateOpt = reconTemplateDetailsRepository.findById(templateId);
+//		if (!templateOpt.isPresent()) {
+//			return new ResponseEntity<>(
+//					new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
+//					HttpStatus.NOT_FOUND);
+//		}
+//
+//		ReconTemplateDetails existingTemplate = templateOpt.get();
+//
+//		if (templateFieldRequest.getTemplateName() != null)
+//			existingTemplate.setTemplateName(templateFieldRequest.getTemplateName());
+//		if (templateFieldRequest.getTemplateType() != null)
+//			existingTemplate.setTemplateType(templateFieldRequest.getTemplateType());
+//		if (templateFieldRequest.getColumnCount() != null)
+//			existingTemplate.setColumnCount(templateFieldRequest.getColumnCount());
+//		if (templateFieldRequest.getReversalIndicator() != null)
+//			existingTemplate.setReversalIndicator(templateFieldRequest.getReversalIndicator());
+//		if (templateFieldRequest.getDataReference() != null)
+//			existingTemplate.setDataReferenceFlag(templateFieldRequest.getDataReference());
+//		if (templateFieldRequest.getOnlineRefund() != null)
+//			existingTemplate.setOnlRefundFlag(templateFieldRequest.getOnlineRefund());
+//
+//		reconTemplateDetailsRepository.save(existingTemplate);
+//
+//		reconFieldDetailsRepository.deleteByTemplateId(existingTemplate.getReconTemplateId());
+//		
+//		entityManager.flush();
+////		entityManager.clear(); 
+//		
+//		reconFieldDetailsRepository.flush();
+//		
+//
+//
+//		List<ReconFieldDetailsMaster> newFields = new ArrayList<>();
+//		for (FieldConfigurationDto fieldDto : templateFieldRequest.getFieldDetails()) {
+//
+//			ReconFieldTypeMaster fieldType = reconFieldTypeRepository.findByFieldTypeDes(fieldDto.getFieldtype())
+//					.orElseThrow(() -> new IllegalArgumentException("Invalid Field Type: " + fieldDto.getFieldtype()));
+//
+//			ReconFieldFormatMaster fieldFormat = reconFieldFormatRepository
+//					.findByReconFieldFormatDesc(fieldDto.getFieldFormat()).orElseThrow(
+//							() -> new IllegalArgumentException("Invalid Field Format: " + fieldDto.getFieldFormat()));
+//
+//			ReconFieldDetailsMaster fieldEntity = ReconFieldDetailsMapper.mapFieldDtoToEntity(fieldDto,
+//					existingTemplate, fieldType, fieldFormat);
+//
+//			newFields.add(fieldEntity);
+//			logger.info("Filed Entity "+ 		fieldEntity	);
+//		}
+//
+//		reconFieldDetailsRepository.saveAll(newFields);
+//
+////		return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Template updated successfully", null),
+////				HttpStatus.OK);
+//		
+//		}catch (Exception e) {
+//			// TODO: handle exception
+//			logger.error("Ëxception while updating template "+ e.getMessage(),e);
+//			return new ResponseEntity<>(
+//					new RestWithStatusList("ERROR", "Exceptions " + templateId, null),
+//					HttpStatus.NOT_FOUND);
+//		}
+//		return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Template updated successfully", null),
+//				HttpStatus.OK);
+//	}
+	
+	
+	
 	@Override
 	@Transactional
 	public ResponseEntity<RestWithStatusList> updateTemplate(Long templateId, TemplateFieldDto templateFieldRequest) {
-		Optional<ReconTemplateDetails> templateOpt = reconTemplateDetailsRepository.findById(templateId);
-		if (!templateOpt.isPresent()) {
-			return new ResponseEntity<>(
-					new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
-					HttpStatus.NOT_FOUND);
-		}
+	    try {
+	        ReconTemplateDetails existingTemplate = reconTemplateDetailsRepository.findById(templateId)
+	                .orElse(null);
+	        if (existingTemplate == null) {
+	            return new ResponseEntity<>(
+	                    new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
+	                    HttpStatus.NOT_FOUND);
+	        }
+	      	        
+	        		if (templateFieldRequest.getTemplateName() != null)
+	        			existingTemplate.setTemplateName(templateFieldRequest.getTemplateName());
+	        		if (templateFieldRequest.getTemplateType() != null)
+	        			existingTemplate.setTemplateType(templateFieldRequest.getTemplateType());
+	        		if (templateFieldRequest.getColumnCount() != null)
+	        			existingTemplate.setColumnCount(templateFieldRequest.getColumnCount());
+	        		if (templateFieldRequest.getReversalIndicator() != null)
+	        			existingTemplate.setReversalIndicator(templateFieldRequest.getReversalIndicator());
+	        		if (templateFieldRequest.getDataReference() != null)
+	        			existingTemplate.setDataReferenceFlag(templateFieldRequest.getDataReference());
+	        		if (templateFieldRequest.getOnlineRefund() != null)
+	        			existingTemplate.setOnlRefundFlag(templateFieldRequest.getOnlineRefund());
+	        
+	        		reconTemplateDetailsRepository.save(existingTemplate);
 
-		ReconTemplateDetails existingTemplate = templateOpt.get();
 
-		if (templateFieldRequest.getTemplateName() != null)
-			existingTemplate.setTemplateName(templateFieldRequest.getTemplateName());
-		if (templateFieldRequest.getTemplateType() != null)
-			existingTemplate.setTemplateType(templateFieldRequest.getTemplateType());
-		if (templateFieldRequest.getColumnCount() != null)
-			existingTemplate.setColumnCount(templateFieldRequest.getColumnCount());
-		if (templateFieldRequest.getReversalIndicator() != null)
-			existingTemplate.setReversalIndicator(templateFieldRequest.getReversalIndicator());
-		if (templateFieldRequest.getDataReference() != null)
-			existingTemplate.setDataReferenceFlag(templateFieldRequest.getDataReference());
-		if (templateFieldRequest.getOnlineRefund() != null)
-			existingTemplate.setOnlRefundFlag(templateFieldRequest.getOnlineRefund());
+	        reconFieldDtlMastService.deleteFieldsByTemplateId(existingTemplate.getReconTemplateId());
 
-		reconTemplateDetailsRepository.save(existingTemplate);
+	        List<ReconFieldDetailsMaster> newFields = new ArrayList<>();
+	        for (FieldConfigurationDto fieldDto : templateFieldRequest.getFieldDetails()) {
 
-		reconFieldDetailsRepository.deleteByTemplateId(existingTemplate.getReconTemplateId());
+	            ReconFieldTypeMaster fieldType = reconFieldTypeRepository
+	                    .findByFieldTypeDes(fieldDto.getFieldtype())
+	                    .orElseThrow(() -> new IllegalArgumentException(
+	                            "Invalid Field Type: " + fieldDto.getFieldtype()));
 
-		List<ReconFieldDetailsMaster> newFields = new ArrayList<>();
-		for (FieldConfigurationDto fieldDto : templateFieldRequest.getFieldDetails()) {
+	            ReconFieldFormatMaster fieldFormat = reconFieldFormatRepository
+	                    .findByReconFieldFormatDesc(fieldDto.getFieldFormat())
+	                    .orElseThrow(() -> new IllegalArgumentException(
+	                            "Invalid Field Format: " + fieldDto.getFieldFormat()));
 
-			ReconFieldTypeMaster fieldType = reconFieldTypeRepository.findByFieldTypeDes(fieldDto.getFieldtype())
-					.orElseThrow(() -> new IllegalArgumentException("Invalid Field Type: " + fieldDto.getFieldtype()));
+	            ReconFieldDetailsMaster fieldEntity = ReconFieldDetailsMapper
+	                    .mapFieldDtoToEntity(fieldDto, existingTemplate, fieldType, fieldFormat);
 
-			ReconFieldFormatMaster fieldFormat = reconFieldFormatRepository
-					.findByReconFieldFormatDesc(fieldDto.getFieldFormat()).orElseThrow(
-							() -> new IllegalArgumentException("Invalid Field Format: " + fieldDto.getFieldFormat()));
+	            newFields.add(fieldEntity);
+	        }
 
-			ReconFieldDetailsMaster fieldEntity = ReconFieldDetailsMapper.mapFieldDtoToEntity(fieldDto,
-					existingTemplate, fieldType, fieldFormat);
+	        reconFieldDetailsRepository.saveAll(newFields);
 
-			newFields.add(fieldEntity);
-		}
+	    } catch (IllegalArgumentException e) {
+	        logger.error("Validation error while updating template fields: {}", e.getMessage(), e);
+	        return new ResponseEntity<>(
+	                new RestWithStatusList("FAILURE", e.getMessage(), null),
+	                HttpStatus.BAD_REQUEST);
 
-		reconFieldDetailsRepository.saveAll(newFields);
+	    } catch (Exception e) {
+	        logger.error("Exception while updating template fields for ID {}: {}", templateId, e.getMessage(), e);
+	        return new ResponseEntity<>(
+	                new RestWithStatusList("ERROR", "Failed to update template fields for ID: " + templateId, null),
+	                HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
 
-		return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Template updated successfully", null),
-				HttpStatus.OK);
+	    return new ResponseEntity<>(
+	            new RestWithStatusList("SUCCESS", "Template fields updated successfully", null),
+	            HttpStatus.OK);
 	}
 
 	@Override
