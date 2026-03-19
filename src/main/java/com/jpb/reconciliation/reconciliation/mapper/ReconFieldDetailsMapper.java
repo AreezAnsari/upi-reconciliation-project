@@ -31,6 +31,7 @@ public class ReconFieldDetailsMapper {
 		entity.setReconInsertDate(new Date());
 		entity.setReconInsertUser(1L);
 		entity.setReconInstanceCode(1L);
+		entity.setReconSubTempId(1L);
 
 		return entity;
 	}

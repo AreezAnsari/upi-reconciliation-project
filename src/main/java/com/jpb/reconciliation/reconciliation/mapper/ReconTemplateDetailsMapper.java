@@ -46,6 +46,7 @@ public class ReconTemplateDetailsMapper {
 		templateNew.setReversalIndicator(templateFieldrequest.getReversalIndicator());
 		templateNew.setDataReferenceFlag(templateFieldrequest.getDataReference());
 		templateNew.setOnlRefundFlag(templateFieldrequest.getOnlineRefund());
+		templateNew.setSubTemplateId(1L);
 
 		templateNew.setInsertDate(new Date());
 		templateNew.setInsertUser(1L);
