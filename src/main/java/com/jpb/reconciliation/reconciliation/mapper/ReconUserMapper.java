@@ -14,7 +14,7 @@ public class ReconUserMapper {
 
 	public static ReconUser mapToReconUser(ReconUserDto reconUserDto, ReconUser reconUser) {
 		reconUser.setUserName(reconUserDto.getUserName());
-		reconUser.setUserStatus(reconUserDto.getUserStatus());
+		reconUser.setUserStatus("INACTIVE");
 		reconUser.setDesignation(reconUserDto.getDesignation());
 		reconUser.setEmailId(reconUserDto.getEmailId());
 		reconUser.setInstitution(reconUserDto.getInstitution());

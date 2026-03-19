@@ -69,7 +69,8 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
     @Autowired
     private ReconFieldDtlMastService reconFieldDtlMastService;
 
-    // ✅ Self-injection via @Lazy to allow REQUIRES_NEW proxy calls within same bean
+    // Self-injection via @Lazy — required so Spring proxy intercepts
+    // @Transactional(REQUIRES_NEW) on inner methods called from within this bean
     @Autowired
     @Lazy
     private ReconTemplateDetailsServiceImpl self;
@@ -80,9 +81,9 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
         this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // ADD TEMPLATE (simple, unchanged)
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // ADD TEMPLATE
+    // =========================================================================
 
     @Override
     public ResponseEntity<?> addTemplate(ReconTemplateDetailsDto reconTemplateDetailsDto) {
@@ -101,20 +102,20 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                 HttpStatus.BAD_REQUEST);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // CONFIGURE TEMPLATE + FIELDS  →  Then call stored procedure
+    // =========================================================================
+    // CONFIGURE TEMPLATE + FIELDS (CREATE)
     //
     // FLOW:
-    //   Step 1 [REQUIRES_NEW tx] → Save template + fields → commit immediately
-    //   Step 2 [REQUIRES_NEW tx] → Call SP_STAGE_TAB_CREATION (now sees committed data)
-    //   Step 3                   → If SP fails → rollback template + fields manually
-    // ─────────────────────────────────────────────────────────────────────────────
+    //   Step 1 [REQUIRES_NEW] -> saveTemplateAndFields()   -> commits immediately
+    //   Step 2 [REQUIRES_NEW] -> callStageTableProcedure() -> SP sees committed data
+    //   Step 3 (if SP fails)  -> rollbackTemplateAndFields() -> compensating delete
+    // =========================================================================
 
     @Override
-    // ✅ NOT @Transactional here — we orchestrate two separate inner transactions
+    // NOT @Transactional — orchestrates two separate committed inner transactions
     public ResponseEntity<RestWithStatusList> configureTemplateAndFieldData(TemplateFieldDto request) {
 
-        // ── Duplicate check ──────────────────────────────────────────────────────
+        // Duplicate check
         ReconTemplateDetails templateExists = reconTemplateDetailsRepository
                 .findByTemplateName(request.getTemplateName());
         if (templateExists != null) {
@@ -123,7 +124,7 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                     HttpStatus.BAD_REQUEST);
         }
 
-        // ── Step 1: Save template + fields in their OWN committed transaction ───
+        // Step 1 — save and commit
         ReconTemplateDetails savedTemplate;
         try {
             savedTemplate = self.saveTemplateAndFields(request);
@@ -140,15 +141,14 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        // ── Step 2: Call stored procedure in its OWN transaction ────────────────
-        // Data is now committed → SP can read it correctly
+        // Step 2 — call SP (data is already committed)
         String procedureResult;
         try {
             procedureResult = self.callStageTableProcedure(savedTemplate);
-            logger.info("SP_STAGE_TAB_CREATION result for Template ID {}: {}", savedTemplate.getReconTemplateId(), procedureResult);
+            logger.info("SP_STAGE_TAB_CREATION result for Template ID {}: {}",
+                    savedTemplate.getReconTemplateId(), procedureResult);
         } catch (Exception e) {
-            // ── Step 3: SP call itself threw an exception → rollback saved data ─
-            logger.error("Exception during SP_STAGE_TAB_CREATION for Template ID {}. Rolling back template and fields. Error: {}",
+            logger.error("Exception during SP_STAGE_TAB_CREATION for Template ID {}. Rolling back. Error: {}",
                     savedTemplate.getReconTemplateId(), e.getMessage(), e);
             self.rollbackTemplateAndFields(savedTemplate.getReconTemplateId());
             return new ResponseEntity<>(
@@ -158,7 +158,7 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        // ── Step 3: SP returned an error message → rollback saved data ──────────
+        // Step 3 — SP returned non-OK -> compensating rollback
         if (procedureResult == null || !procedureResult.equalsIgnoreCase("OK")) {
             logger.warn("SP_STAGE_TAB_CREATION returned failure for Template ID {}. Reason: {}. Rolling back.",
                     savedTemplate.getReconTemplateId(), procedureResult);
@@ -174,55 +174,161 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Template configured successfully", null));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // STEP 1 HELPER — Save template + fields, commit immediately via REQUIRES_NEW
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // UPDATE TEMPLATE + FIELDS
+    //
+    // ROOT CAUSE: The old @Transactional on this method held delete + saveAll
+    // uncommitted when callStageTableProcedure() ran in REQUIRES_NEW, so the
+    // SP queried the DB and found stale/missing data — same bug as CREATE.
+    //
+    // FIX: Remove @Transactional from orchestrator. Split into:
+    //   Step 1 [REQUIRES_NEW] -> updateTemplateAndFields()  -> commits immediately
+    //   Step 2 [REQUIRES_NEW] -> callStageTableProcedure()  -> SP sees committed data
+    //   Step 3 (if SP fails)  -> restoreTemplateAndFields() -> restore previous state
+    // =========================================================================
+
+    @Override
+    // NOT @Transactional — orchestrates two separate committed inner transactions
+    public ResponseEntity<RestWithStatusList> updateTemplate(Long templateId, TemplateFieldDto templateFieldRequest) {
+
+        // Load existing template BEFORE any write transaction
+        ReconTemplateDetails existingTemplate = reconTemplateDetailsRepository.findById(templateId).orElse(null);
+        if (existingTemplate == null) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
+                    HttpStatus.NOT_FOUND);
+        }
+
+        // Take snapshot of current state BEFORE making changes,
+        // so we can restore if the SP fails after we've already committed updates
+        List<ReconFieldDetailsMaster> previousFields =
+                reconFieldDetailsRepository.findFullFieldDetailsByTemplateId(existingTemplate.getReconTemplateId());
+        ReconTemplateDetails previousTemplateSnapshot = copyTemplateSnapshot(existingTemplate);
+
+        // Step 1 — apply changes and commit
+        ReconTemplateDetails updatedTemplate;
+        try {
+            updatedTemplate = self.updateTemplateAndFields(templateId, templateFieldRequest);
+            logger.info("Template and fields updated. Template ID: {}", updatedTemplate.getReconTemplateId());
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation error while updating template/fields: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE", e.getMessage(), null),
+                    HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("Error while updating template/fields for ID {}: {}", templateId, e.getMessage(), e);
+            return new ResponseEntity<>(
+                    new RestWithStatusList("ERROR",
+                            "Failed to update template data: " + e.getMessage(), null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        // Step 2 — call SP (updated data is now committed, SP will find it)
+        String procedureResult;
+        try {
+            procedureResult = self.callStageTableProcedure(updatedTemplate);
+            logger.info("SP_STAGE_TAB_CREATION result for Template ID {}: {}",
+                    updatedTemplate.getReconTemplateId(), procedureResult);
+        } catch (Exception e) {
+            logger.error("Exception during SP_STAGE_TAB_CREATION for Template ID {}. Restoring previous state. Error: {}",
+                    updatedTemplate.getReconTemplateId(), e.getMessage(), e);
+            self.restoreTemplateAndFields(previousTemplateSnapshot, previousFields);
+            return new ResponseEntity<>(
+                    new RestWithStatusList("ERROR",
+                            "Stage table update failed (exception). Previous data restored. Error: " + e.getMessage(),
+                            null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        // Step 3 — SP returned non-OK -> restore previous committed state
+        if (procedureResult == null || !procedureResult.equalsIgnoreCase("OK")) {
+            logger.warn("SP_STAGE_TAB_CREATION returned failure for Template ID {}. Reason: {}. Restoring previous state.",
+                    updatedTemplate.getReconTemplateId(), procedureResult);
+            self.restoreTemplateAndFields(previousTemplateSnapshot, previousFields);
+            return new ResponseEntity<>(
+                    new RestWithStatusList("ERROR",
+                            "Stage table update failed. Previous data restored. Reason: " + procedureResult,
+                            null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        logger.info("Template updated successfully. Template ID: {}", updatedTemplate.getReconTemplateId());
+        return new ResponseEntity<>(
+                new RestWithStatusList("SUCCESS", "Template fields updated successfully", null),
+                HttpStatus.OK);
+    }
+
+    // =========================================================================
+    // HELPER — Step 1 for CREATE
+    //          Saves template + fields and commits immediately via REQUIRES_NEW
+    // =========================================================================
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ReconTemplateDetails saveTemplateAndFields(TemplateFieldDto request) {
 
-        // Map and save template
         ReconTemplateDetails template = ReconTemplateDetailsMapper
                 .mapTemplateDtoToTemplate(request, new ReconTemplateDetails());
         template.setStageTabName(generateStagetableName(template));
         reconTemplateDetailsRepository.save(template);
         logger.info("Template saved with ID: {}", template.getReconTemplateId());
 
-        // Map and save fields
-        List<ReconFieldDetailsMaster> fieldEntities = new ArrayList<>();
-        for (FieldConfigurationDto fieldDto : request.getFieldDetails()) {
-
-            ReconFieldTypeMaster fieldType = reconFieldTypeRepository
-                    .findByFieldTypeDes(fieldDto.getFieldtype())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Invalid Field Type: " + fieldDto.getFieldtype()));
-
-            ReconFieldFormatMaster fieldFormat = reconFieldFormatRepository
-                    .findByReconFieldFormatDesc(fieldDto.getFieldFormat())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Invalid Field Format: " + fieldDto.getFieldFormat()));
-
-            fieldEntities.add(ReconFieldDetailsMapper.mapFieldDtoToEntity(fieldDto, template, fieldType, fieldFormat));
-        }
-
+        List<ReconFieldDetailsMaster> fieldEntities = buildFieldEntities(request.getFieldDetails(), template);
         reconFieldDetailsRepository.saveAll(fieldEntities);
         logger.info("Saved {} field(s) for Template ID: {}", fieldEntities.size(), template.getReconTemplateId());
 
-        // Transaction commits here → data visible to SP
+        // REQUIRES_NEW commits here — data is visible to the DB before method returns
         return template;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // STEP 2 HELPER — Call stored procedure in its own transaction
-    //                 Returns "OK" on success, or the error string on failure
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // HELPER — Step 1 for UPDATE
+    //          Deletes old fields, saves new ones, commits immediately via REQUIRES_NEW
+    // =========================================================================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ReconTemplateDetails updateTemplateAndFields(Long templateId, TemplateFieldDto request) {
+
+        ReconTemplateDetails existingTemplate = reconTemplateDetailsRepository.findById(templateId)
+                .orElseThrow(() -> new IllegalArgumentException("Template not found with ID: " + templateId));
+
+        // Apply header-level updates
+        if (request.getTemplateName() != null)
+            existingTemplate.setTemplateName(request.getTemplateName());
+        if (request.getTemplateType() != null)
+            existingTemplate.setTemplateType(request.getTemplateType());
+        if (request.getColumnCount() != null)
+            existingTemplate.setColumnCount(request.getColumnCount());
+        if (request.getReversalIndicator() != null)
+            existingTemplate.setReversalIndicator(request.getReversalIndicator());
+        if (request.getDataReference() != null)
+            existingTemplate.setDataReferenceFlag(request.getDataReference());
+        if (request.getOnlineRefund() != null)
+            existingTemplate.setOnlRefundFlag(request.getOnlineRefund());
+
+        reconTemplateDetailsRepository.save(existingTemplate);
+
+        // Delete existing fields and insert new ones
+        reconFieldDtlMastService.deleteFieldsByTemplateId(existingTemplate.getReconTemplateId());
+        List<ReconFieldDetailsMaster> newFields = buildFieldEntities(request.getFieldDetails(), existingTemplate);
+        reconFieldDetailsRepository.saveAll(newFields);
+        logger.info("Updated {} field(s) for Template ID: {}", newFields.size(), existingTemplate.getReconTemplateId());
+
+        // REQUIRES_NEW commits here — data is visible to the DB before method returns
+        return existingTemplate;
+    }
+
+    // =========================================================================
+    // HELPER — Step 2 (shared by CREATE and UPDATE)
+    //          Calls the stored procedure in its own REQUIRES_NEW transaction
+    //          so it always reads from the committed DB state
+    // =========================================================================
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String callStageTableProcedure(ReconTemplateDetails template) {
 
         Long templateId = template.getReconTemplateId();
 
-        // ✅ Create SimpleJdbcCall as local variable (not a shared field — thread-safe)
+        // Local variable — SimpleJdbcCall must NOT be a shared field (not thread-safe)
         SimpleJdbcCall jdbcCall = new SimpleJdbcCall(jdbcTemplate)
                 .withProcedureName("SP_STAGE_TAB_CREATION")
                 .declareParameters(
@@ -240,36 +346,113 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
         return procedureMsg;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // STEP 3 HELPER — Rollback: delete fields + template if SP fails
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // HELPER — Compensating rollback for CREATE
+    //          Deletes what was just committed if SP fails
+    // =========================================================================
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void rollbackTemplateAndFields(Long templateId) {
         try {
             reconFieldDetailsRepository.deleteByTemplateId(templateId);
             logger.info("Rolled back field details for Template ID: {}", templateId);
-
             reconTemplateDetailsRepository.deleteById(templateId);
             logger.info("Rolled back template for Template ID: {}", templateId);
-
         } catch (Exception e) {
-            // Log but do not rethrow — rollback is best-effort at this point
+            // Best-effort — log and continue, do not rethrow
             logger.error("Failed to rollback template/fields for Template ID {}: {}", templateId, e.getMessage(), e);
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // STAGE TABLE NAME GENERATOR
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // HELPER — Compensating restore for UPDATE
+    //          Re-inserts the pre-update snapshot if SP fails after commit
+    // =========================================================================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void restoreTemplateAndFields(ReconTemplateDetails previousSnapshot,
+                                         List<ReconFieldDetailsMaster> previousFields) {
+        try {
+            Long templateId = previousSnapshot.getReconTemplateId();
+
+            // Restore template header to its previous values
+            reconTemplateDetailsRepository.save(previousSnapshot);
+            logger.info("Restored template header for Template ID: {}", templateId);
+
+            // Delete the newly committed fields and re-insert the previous ones
+            reconFieldDetailsRepository.deleteByTemplateId(templateId);
+            if (previousFields != null && !previousFields.isEmpty()) {
+                // Clear primary keys so JPA inserts fresh rows instead of trying to merge
+                previousFields.forEach(f -> f.setReconFieldId(null));
+                reconFieldDetailsRepository.saveAll(previousFields);
+            }
+            logger.info("Restored {} previous field(s) for Template ID: {}",
+                    previousFields != null ? previousFields.size() : 0, templateId);
+
+        } catch (Exception e) {
+            // Best-effort — log and continue, do not rethrow
+            logger.error("Failed to restore template/fields for Template ID {}: {}",
+                    previousSnapshot.getReconTemplateId(), e.getMessage(), e);
+        }
+    }
+
+    // =========================================================================
+    // PRIVATE — Build field entity list from DTOs (reused by create + update)
+    // =========================================================================
+
+    private List<ReconFieldDetailsMaster> buildFieldEntities(
+            List<FieldConfigurationDto> fieldDtos, ReconTemplateDetails template) {
+
+        List<ReconFieldDetailsMaster> fieldEntities = new ArrayList<>();
+        for (FieldConfigurationDto fieldDto : fieldDtos) {
+
+            ReconFieldTypeMaster fieldType = reconFieldTypeRepository
+                    .findByFieldTypeDes(fieldDto.getFieldtype())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Invalid Field Type: " + fieldDto.getFieldtype()));
+
+            ReconFieldFormatMaster fieldFormat = reconFieldFormatRepository
+                    .findByReconFieldFormatDesc(fieldDto.getFieldFormat())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Invalid Field Format: " + fieldDto.getFieldFormat()));
+
+            fieldEntities.add(ReconFieldDetailsMapper.mapFieldDtoToEntity(
+                    fieldDto, template, fieldType, fieldFormat));
+        }
+        return fieldEntities;
+    }
+
+    // =========================================================================
+    // PRIVATE — Shallow copy of ReconTemplateDetails for pre-update snapshot
+    //
+    // !! Add any additional fields from your entity that updateTemplate may modify !!
+    // =========================================================================
+
+    private ReconTemplateDetails copyTemplateSnapshot(ReconTemplateDetails source) {
+        ReconTemplateDetails snapshot = new ReconTemplateDetails();
+        snapshot.setReconTemplateId(source.getReconTemplateId());
+        snapshot.setTemplateName(source.getTemplateName());
+        snapshot.setTemplateType(source.getTemplateType());
+        snapshot.setColumnCount(source.getColumnCount());
+        snapshot.setReversalIndicator(source.getReversalIndicator());
+        snapshot.setDataReferenceFlag(source.getDataReferenceFlag());
+        snapshot.setOnlRefundFlag(source.getOnlRefundFlag());
+        snapshot.setStageTabName(source.getStageTabName());
+        // Add any other fields present on ReconTemplateDetails here
+        return snapshot;
+    }
+
+    // =========================================================================
+    // PRIVATE — Stage table name generator
+    // =========================================================================
 
     private String generateStagetableName(ReconTemplateDetails template) {
         return "REC_" + CommonUtil.removeAllWhitespace(template.getTemplateName()).toUpperCase() + "_STAGE_T";
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // VIEW TEMPLATE (unchanged)
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // VIEW TEMPLATE
+    // =========================================================================
 
     @Override
     public ResponseEntity<RestWithStatusListPagination> viewTemplate(int page, int size) {
@@ -279,19 +462,14 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
             if (page < 0) {
                 return ResponseEntity.badRequest().body(
                         RestWithStatusListPagination.builder()
-                                .status("ERROR")
-                                .statusMsg("Page number cannot be negative")
-                                .data(Collections.emptyList())
-                                .build());
+                                .status("ERROR").statusMsg("Page number cannot be negative")
+                                .data(Collections.emptyList()).build());
             }
-
             if (size <= 0 || size > 100) {
                 return ResponseEntity.badRequest().body(
                         RestWithStatusListPagination.builder()
-                                .status("ERROR")
-                                .statusMsg("Size must be between 1 and 100")
-                                .data(Collections.emptyList())
-                                .build());
+                                .status("ERROR").statusMsg("Size must be between 1 and 100")
+                                .data(Collections.emptyList()).build());
             }
 
             Pageable pageable = PageRequest.of(page, size);
@@ -301,129 +479,47 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                 logger.warn("No templates found for page: {}", page);
                 return ResponseEntity.ok(
                         RestWithStatusListPagination.builder()
-                                .status("SUCCESS")
-                                .statusMsg("No templates available")
+                                .status("SUCCESS").statusMsg("No templates available")
                                 .data(Collections.emptyList())
                                 .pageMetadata(PageMetadata.builder()
                                         .currentPage(page).pageSize(size)
                                         .totalElements(0L).totalPages(0)
                                         .isFirst(true).isLast(true)
-                                        .hasNext(false).hasPrevious(false)
-                                        .build())
+                                        .hasNext(false).hasPrevious(false).build())
                                 .build());
             }
 
             List<ReconTemplateDetails> templatesWithDetails =
                     reconTemplateDetailsRepository.fetchTemplateDetails(templatesPage.getContent());
-
             List<ReconTemplatesDetailsDTO> templateDTOs =
                     ReconTemplateDetailsMapper.toDTOList(templatesWithDetails);
 
             PageMetadata pageMetadata = PageMetadata.builder()
-                    .currentPage(templatesPage.getNumber())
-                    .pageSize(templatesPage.getSize())
-                    .totalElements(templatesPage.getTotalElements())
-                    .totalPages(templatesPage.getTotalPages())
-                    .isFirst(templatesPage.isFirst())
-                    .isLast(templatesPage.isLast())
-                    .hasNext(templatesPage.hasNext())
-                    .hasPrevious(templatesPage.hasPrevious())
-                    .build();
+                    .currentPage(templatesPage.getNumber()).pageSize(templatesPage.getSize())
+                    .totalElements(templatesPage.getTotalElements()).totalPages(templatesPage.getTotalPages())
+                    .isFirst(templatesPage.isFirst()).isLast(templatesPage.isLast())
+                    .hasNext(templatesPage.hasNext()).hasPrevious(templatesPage.hasPrevious()).build();
 
             logger.info("Successfully retrieved {} templates out of {} total on page {}",
                     templateDTOs.size(), templatesPage.getTotalElements(), page);
 
             return ResponseEntity.ok(
                     RestWithStatusListPagination.builder()
-                            .status("SUCCESS")
-                            .statusMsg("Templates retrieved successfully")
-                            .data(new ArrayList<>(templateDTOs))
-                            .pageMetadata(pageMetadata)
-                            .build());
+                            .status("SUCCESS").statusMsg("Templates retrieved successfully")
+                            .data(new ArrayList<>(templateDTOs)).pageMetadata(pageMetadata).build());
 
         } catch (Exception e) {
             logger.error("Error fetching templates: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(RestWithStatusListPagination.builder()
-                            .status("ERROR")
-                            .statusMsg("Error retrieving templates: " + e.getMessage())
-                            .data(Collections.emptyList())
-                            .build());
+                            .status("ERROR").statusMsg("Error retrieving templates: " + e.getMessage())
+                            .data(Collections.emptyList()).build());
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // UPDATE TEMPLATE (unchanged)
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    @Override
-    @Transactional
-    public ResponseEntity<RestWithStatusList> updateTemplate(Long templateId, TemplateFieldDto templateFieldRequest) {
-        try {
-            ReconTemplateDetails existingTemplate = reconTemplateDetailsRepository.findById(templateId)
-                    .orElse(null);
-            if (existingTemplate == null) {
-                return new ResponseEntity<>(
-                        new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
-                        HttpStatus.NOT_FOUND);
-            }
-
-            if (templateFieldRequest.getTemplateName() != null)
-                existingTemplate.setTemplateName(templateFieldRequest.getTemplateName());
-            if (templateFieldRequest.getTemplateType() != null)
-                existingTemplate.setTemplateType(templateFieldRequest.getTemplateType());
-            if (templateFieldRequest.getColumnCount() != null)
-                existingTemplate.setColumnCount(templateFieldRequest.getColumnCount());
-            if (templateFieldRequest.getReversalIndicator() != null)
-                existingTemplate.setReversalIndicator(templateFieldRequest.getReversalIndicator());
-            if (templateFieldRequest.getDataReference() != null)
-                existingTemplate.setDataReferenceFlag(templateFieldRequest.getDataReference());
-            if (templateFieldRequest.getOnlineRefund() != null)
-                existingTemplate.setOnlRefundFlag(templateFieldRequest.getOnlineRefund());
-
-            reconTemplateDetailsRepository.save(existingTemplate);
-
-            reconFieldDtlMastService.deleteFieldsByTemplateId(existingTemplate.getReconTemplateId());
-
-            List<ReconFieldDetailsMaster> newFields = new ArrayList<>();
-            for (FieldConfigurationDto fieldDto : templateFieldRequest.getFieldDetails()) {
-
-                ReconFieldTypeMaster fieldType = reconFieldTypeRepository
-                        .findByFieldTypeDes(fieldDto.getFieldtype())
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "Invalid Field Type: " + fieldDto.getFieldtype()));
-
-                ReconFieldFormatMaster fieldFormat = reconFieldFormatRepository
-                        .findByReconFieldFormatDesc(fieldDto.getFieldFormat())
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "Invalid Field Format: " + fieldDto.getFieldFormat()));
-
-                newFields.add(ReconFieldDetailsMapper.mapFieldDtoToEntity(
-                        fieldDto, existingTemplate, fieldType, fieldFormat));
-            }
-
-            reconFieldDetailsRepository.saveAll(newFields);
-
-        } catch (IllegalArgumentException e) {
-            logger.error("Validation error while updating template fields: {}", e.getMessage(), e);
-            return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", e.getMessage(), null),
-                    HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            logger.error("Exception while updating template fields for ID {}: {}", templateId, e.getMessage(), e);
-            return new ResponseEntity<>(
-                    new RestWithStatusList("ERROR", "Failed to update template fields for ID: " + templateId, null),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-
-        return new ResponseEntity<>(
-                new RestWithStatusList("SUCCESS", "Template fields updated successfully", null),
-                HttpStatus.OK);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────────
-    // DELETE TEMPLATE (unchanged)
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // DELETE TEMPLATE
+    // =========================================================================
 
     @Override
     @Transactional
@@ -434,7 +530,6 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                     new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
                     HttpStatus.NOT_FOUND);
         }
-
         reconFieldDetailsRepository.deleteByTemplateId(templateOpt.get().getReconTemplateId());
         reconTemplateDetailsRepository.deleteById(templateId);
 
@@ -443,9 +538,9 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
                 HttpStatus.OK);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // SEARCH TEMPLATE (unchanged)
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // SEARCH TEMPLATE
+    // =========================================================================
 
     @Override
     public ResponseEntity<RestWithStatusListPagination> searchTemplate(
@@ -466,38 +561,28 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
             results = reconTemplateDetailsRepository.findAll(pageable);
         }
 
-        List<ReconTemplatesDetailsDTO> templateDTOs =
-                ReconTemplateDetailsMapper.toDTOList(results.getContent());
+        List<ReconTemplatesDetailsDTO> templateDTOs = ReconTemplateDetailsMapper.toDTOList(results.getContent());
 
         PageMetadata pageMetadata = PageMetadata.builder()
-                .currentPage(results.getNumber())
-                .pageSize(results.getSize())
-                .totalElements(results.getTotalElements())
-                .totalPages(results.getTotalPages())
-                .isFirst(results.isFirst())
-                .isLast(results.isLast())
-                .hasNext(results.hasNext())
-                .hasPrevious(results.hasPrevious())
-                .build();
+                .currentPage(results.getNumber()).pageSize(results.getSize())
+                .totalElements(results.getTotalElements()).totalPages(results.getTotalPages())
+                .isFirst(results.isFirst()).isLast(results.isLast())
+                .hasNext(results.hasNext()).hasPrevious(results.hasPrevious()).build();
 
         return ResponseEntity.ok(
                 RestWithStatusListPagination.builder()
-                        .status("SUCCESS")
-                        .statusMsg("Templates fetched successfully")
-                        .data(new ArrayList<>(templateDTOs))
-                        .pageMetadata(pageMetadata)
-                        .build());
+                        .status("SUCCESS").statusMsg("Templates fetched successfully")
+                        .data(new ArrayList<>(templateDTOs)).pageMetadata(pageMetadata).build());
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // GET TEMPLATE BY ID (unchanged)
-    // ─────────────────────────────────────────────────────────────────────────────
+    // =========================================================================
+    // GET TEMPLATE BY ID
+    // =========================================================================
 
     @Override
     public ResponseEntity<?> getTemplateById(Long templateId) {
         try {
             Optional<ReconTemplateDetails> templateOpt = reconTemplateDetailsRepository.findById(templateId);
-
             if (!templateOpt.isPresent()) {
                 return new ResponseEntity<>(
                         new RestWithStatusList("FAILURE", "Template not found with ID: " + templateId, null),
@@ -505,7 +590,6 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
             }
 
             ReconTemplatesDetailsDTO templateDTO = ReconTemplateDetailsMapper.toDTO(templateOpt.get());
-
             List<Object> responseData = new ArrayList<>();
             responseData.add(templateDTO);
 

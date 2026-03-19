@@ -140,6 +140,7 @@ public class FileConfigServiceImpl implements FileConfigService {
 		fileConfig.setRfdTranFileFlag(request.getRfdTranFileFlag());
 		fileConfig.setReconSettleFlag(request.getRfdSettleFlg());
 		fileConfig.setReconJpslRpsl(request.getRfdJpslRpsl());
+		fileConfig.setReconExitMenuFlag("N");
 
 		// Other
 		fileConfig.setReconXSDName(request.getRfdXsdName());
