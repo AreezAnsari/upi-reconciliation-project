@@ -78,8 +78,8 @@ public class ReconUserController {
 	}
 
 	@PostMapping(value = "/approve-reject-user", produces = CommonConstants.APPLICATION_JSON)
-	public ResponseEntity<RestWithStatusList> approveOrRejectUser(@RequestBody ReconUserDto approveUserRequest) {
-		return reconUserService.approveOrRejectUser(approveUserRequest);
+	public ResponseEntity<RestWithStatusList> approveOrRejectUser(@RequestBody ReconUserDto approveUserRequest,@AuthenticationPrincipal UserDetails userDetails) {
+		return reconUserService.approveOrRejectUser(approveUserRequest, userDetails);
 	}
 
 	@GetMapping(value = "/getallusers", produces = CommonConstants.APPLICATION_JSON)

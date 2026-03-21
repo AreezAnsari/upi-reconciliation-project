@@ -314,7 +314,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 	}
 
 	@Override
-	public ResponseEntity<RestWithStatusList> approveOrRejectUser(ReconUserDto approveUserRequest) {
+	public ResponseEntity<RestWithStatusList> approveOrRejectUser(ReconUserDto approveUserRequest,UserDetails userDetails) {
 		RestWithStatusList restWithStatusList = null;
 		if (approveUserRequest == null) {
 			restWithStatusList = new RestWithStatusList("FAILURE", "Please select user to approve", null);
@@ -322,6 +322,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 		} else {
 			Optional<ReconUser> user = reconUserRepository.findByUserId(approveUserRequest.getUserId());
 			ReconUser getUser = user.get();
+			approveUserRequest.setApprovedBy(userDetails.getUsername());
 			ReconUser approvedOrRejectUser = ReconUserMapper.mapToApproveRejectReconUser(approveUserRequest, getUser);
 			logger.info("User approved or reject user :::::::::::" + approvedOrRejectUser);
 			reconUserRepository.save(approvedOrRejectUser);
