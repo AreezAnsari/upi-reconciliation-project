@@ -438,6 +438,7 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
         snapshot.setDataReferenceFlag(source.getDataReferenceFlag());
         snapshot.setOnlRefundFlag(source.getOnlRefundFlag());
         snapshot.setStageTabName(source.getStageTabName());
+        snapshot.setSubTemplateId(source.getSubTemplateId());
         // Add any other fields present on ReconTemplateDetails here
         return snapshot;
     }
