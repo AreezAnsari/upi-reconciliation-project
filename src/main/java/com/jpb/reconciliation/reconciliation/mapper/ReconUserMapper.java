@@ -87,6 +87,7 @@ public class ReconUserMapper {
 	public static ReconUser mapToApproveRejectReconUser(ReconUserDto reconUserDto, ReconUser reconUser) {
 		reconUser.setApprovedYn(reconUserDto.getApprovedYn());
 		reconUser.setApprovedBy(reconUserDto.getApprovedBy());
+		reconUser.setUserStatus("ACTIVE");
 		return reconUser;
 	}
 

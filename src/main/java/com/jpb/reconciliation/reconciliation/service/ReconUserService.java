@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.service;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.dto.LoginRequestDto;
@@ -30,7 +31,7 @@ public interface ReconUserService {
 
 	ResponseEntity<RestWithStatusList> getApprovedUSers(String approvedYN);
 
-	ResponseEntity<RestWithStatusList> approveOrRejectUser(ReconUserDto approveUserRequest);
+	ResponseEntity<RestWithStatusList> approveOrRejectUser(ReconUserDto approveUserRequest, UserDetails userDetails);
 
 	ResponseEntity<RestWithStatusList> getAllUsers();
     
