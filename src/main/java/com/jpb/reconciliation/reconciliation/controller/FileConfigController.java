@@ -1,10 +1,9 @@
 package com.jpb.reconciliation.reconciliation.controller;
+
+
 import java.util.List;
 
-import javax.validation.Valid;
-
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,97 +31,50 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileConfigController {
 
+    // ── Injecting interface only — implementation is FileConfigServiceImpl ──
     private final FileConfigService fileConfigService;
 
-    /**
-     * API 1: Get all configured templates for dropdown/selection
-     * GET /api/templates
-     */
     @GetMapping("/templates")
     public ResponseEntity<List<TemplateDTO>> getAllTemplates() {
-        log.info("REST request to get all templates");
-        List<TemplateDTO> templates = fileConfigService.getAllTemplates();
-        return ResponseEntity.ok(templates);
+        return ResponseEntity.ok(fileConfigService.getAllTemplates());
     }
 
-    /**
-     * API 2: Get template details by ID
-     * GET /api/templates/{templateId}
-     */
     @GetMapping("/templates/{templateId}")
     public ResponseEntity<TemplateDTO> getTemplateById(@PathVariable Long templateId) {
-        log.info("REST request to get template by ID: {}", templateId);
-        TemplateDTO template = fileConfigService.getTemplateById(templateId);
-        return ResponseEntity.ok(template);
+        return ResponseEntity.ok(fileConfigService.getTemplateById(templateId));
     }
 
-    /**
-     * API 3: Get all file configurations with pagination and filters
-     * GET /api/file-configurations?page=0&size=10&templateId=1&fileName=test
-     */
     @GetMapping("/file-configurations")
     public ResponseEntity<Page<FileConfigDTO>> getAllFileConfigs(
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long templateId,
             @RequestParam(required = false) String fileName) {
-        
-        log.info("REST request to get file configurations - page: {}, size: {}, templateId: {}, fileName: {}", 
-                page, size, templateId, fileName);
-        
-        Page<FileConfigDTO> fileConfigs = fileConfigService.getAllFileConfigs(
-                page, size, templateId, fileName);
-        
-        return ResponseEntity.ok(fileConfigs);
+        return ResponseEntity.ok(fileConfigService.getAllFileConfigs(page, size, templateId, fileName));
     }
 
-    /**
-     * API 4: Get file configuration by ID
-     * GET /api/file-configurations/{fileId}
-     */
     @GetMapping("/file-configurations/{fileId}")
     public ResponseEntity<FileConfigDTO> getFileConfigById(@PathVariable Long fileId) {
-        log.info("REST request to get file configuration by ID: {}", fileId);
-        FileConfigDTO fileConfig = fileConfigService.getFileConfigById(fileId);
-        return ResponseEntity.ok(fileConfig);
+        return ResponseEntity.ok(fileConfigService.getFileConfigById(fileId));
     }
 
-    /**
-     * API 5: Create new file configuration
-     * POST /api/file-configurations
-     */
     @PostMapping("/file-configurations")
     public ResponseEntity<RestWithStatusList> createFileConfig(
-            @Valid @RequestBody FileConfigRequest request,
+            @RequestBody FileConfigRequest request,
             @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
-        
-        log.info("REST request to create file configuration: {}", request.getRfdFileName());
         return fileConfigService.createFileConfig(request, userId);
     }
 
-    /**
-     * API 6: Update existing file configuration
-     * PUT /api/file-configurations/{fileId}
-     */
     @PutMapping("/file-configurations/{fileId}")
     public ResponseEntity<FileConfigDTO> updateFileConfig(
             @PathVariable Long fileId,
-            @Valid @RequestBody FileConfigRequest request,
+            @RequestBody FileConfigRequest request,
             @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
-        
-        log.info("REST request to update file configuration with ID: {}", fileId);
-        FileConfigDTO updatedConfig = fileConfigService.updateFileConfig(fileId, request, userId);
-        return ResponseEntity.ok(updatedConfig);
+        return ResponseEntity.ok(fileConfigService.updateFileConfig(fileId, request, userId));
     }
 
-    /**
-     * API 7: Delete file configuration
-     * DELETE /api/file-configurations/{fileId}
-     */
     @DeleteMapping("/file-configurations/{fileId}")
     public ResponseEntity<RestWithStatusList> deleteFileConfig(@PathVariable Long fileId) {
-        log.info("REST request to delete file configuration with ID: {}", fileId);
-        fileConfigService.deleteFileConfig(fileId);
-        return ResponseEntity.noContent().build();
+        return fileConfigService.deleteFileConfig(fileId);
     }
 }
