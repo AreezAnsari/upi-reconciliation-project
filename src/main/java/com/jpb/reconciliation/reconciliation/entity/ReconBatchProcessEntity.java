@@ -77,6 +77,9 @@ public class ReconBatchProcessEntity {
 	@Column(name = "RBP_DATA_COUNT")
 	private String dataCount;
 	
+	@Column(name = "RBP_RECON_CNT1")
+	private String reconDataCount;
+	
 	@Column(name = "RBP_RECON_STATUS")
 	private String reconStatus;
 	
@@ -236,6 +239,14 @@ public class ReconBatchProcessEntity {
 
 	public void setDataCount(String dataCount) {
 		this.dataCount = dataCount;
+	}
+	
+	public String getReconDataCount() {
+		return reconDataCount;
+	}
+
+	public void setReconDataCount(String reconDataCount) {
+		this.reconDataCount = reconDataCount;
 	}
 
 	public String getReconStatus() {

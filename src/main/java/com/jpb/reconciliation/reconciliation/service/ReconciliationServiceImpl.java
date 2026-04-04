@@ -161,6 +161,7 @@ public class ReconciliationServiceImpl implements ReconciliationService {
 						process.setReconStatus("Completed");
 						process.setStatus("Completed");
 						process.setProcessId(processId);
+						process.setReconDataCount("8");
 						process.setEndTime(LocalDateTime.now().format(dateTimeFormatter));
 						process.setDataCount(null);
 						reconBatchProcessEntityRepository.save(process);
