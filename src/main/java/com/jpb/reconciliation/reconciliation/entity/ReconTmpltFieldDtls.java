@@ -132,4 +132,9 @@ public class ReconTmpltFieldDtls {
 
     public ReconFieldTypeMast  getReconFieldTypeMaster()        { return this.fieldType; }
     public ReconFieldFormatMast getReconFieldFormatMaster()     { return this.fieldFormat; }
+    
+    
+    
+    
+    @Column(name = "COL_POSN")              private Long   colPosn;
 }

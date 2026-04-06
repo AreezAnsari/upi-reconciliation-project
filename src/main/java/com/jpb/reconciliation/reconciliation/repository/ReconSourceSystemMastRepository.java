@@ -12,7 +12,7 @@ import com.jpb.reconciliation.reconciliation.entity.ReconSourceSystemMast;
 @Repository
 public interface ReconSourceSystemMastRepository extends JpaRepository<ReconSourceSystemMast, Long> {
 
-    Optional<ReconSourceSystemMast> findBySourceSysCode(String sourceSysCode);
+    Optional<ReconSourceSystemMast> findBySourceCode(String sourceCode);
 
     List<ReconSourceSystemMast> findByIsActive(String isActive);
 }

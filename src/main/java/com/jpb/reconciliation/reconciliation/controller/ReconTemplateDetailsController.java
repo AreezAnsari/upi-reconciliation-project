@@ -3,6 +3,8 @@ package com.jpb.reconciliation.reconciliation.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,12 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.dto.ReconTemplateDetailsDto;
-import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.dto.RestWithStatusListPagination;
+import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TemplateFieldDto;
 import com.jpb.reconciliation.reconciliation.service.ReconTemplateDetailsService;
+import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
@@ -30,53 +33,82 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Reconciliation Template", description = "APIs for managing reconciliation templates")
 public class ReconTemplateDetailsController {
 
-    // ── Injecting interface only — implementation is ReconTemplateDetailsServiceImpl ──
     private final ReconTemplateDetailsService reconTemplateDetailsService;
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST  /api/v1/template/add-template
+    // ─────────────────────────────────────────────────────────────────────────
     @PostMapping(value = "add-template", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<?> addTemplate(@RequestBody ReconTemplateDetailsDto dto) {
+    @Operation(summary = "Add a new template header record")
+    public ResponseEntity<RestWithMapStatusList> addTemplate(
+            @RequestBody ReconTemplateDetailsDto dto) {
         return reconTemplateDetailsService.addTemplate(dto);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST  /api/v1/template/template-configure
+    // ─────────────────────────────────────────────────────────────────────────
     @PostMapping(value = "template-configure", produces = CommonConstants.APPLICATION_JSON)
-    ResponseEntity<RestWithStatusList> configureTemplateWithField(@RequestBody TemplateFieldDto request) {
+    @Operation(summary = "Configure a new template with its field definitions")
+    public ResponseEntity<RestWithMapStatusList> configureTemplateWithField(
+            @RequestBody TemplateFieldDto request,@AuthenticationPrincipal UserDetails userDetails) {
+
         if (request.getFieldDetails() == null || request.getFieldDetails().isEmpty()) {
-            return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "fieldDetails must not be null or empty", null),
+        	return new ResponseEntity<>(
+                    ResponseBuilder.failure("fieldDetails must not be null or empty"),
                     HttpStatus.BAD_REQUEST);
         }
+        request.setCreatedBy(userDetails.getUsername());
+        
         return reconTemplateDetailsService.configureTemplateAndFieldData(request);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET   /api/v1/template/view-template?page=0&size=10
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping(value = "/view-template", produces = CommonConstants.APPLICATION_JSON)
     @Operation(summary = "View all templates with pagination")
-    public ResponseEntity<RestWithStatusListPagination> viewTemplate(
+    public ResponseEntity<RestWithMapStatusList> viewTemplate(
+            @Parameter(description = "Page number (0-based)", example = "0")
             @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Records per page", example = "10")
             @RequestParam(defaultValue = "10") int size) {
         return reconTemplateDetailsService.viewTemplate(page, size);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUT   /api/v1/template/update-template/{templateId}
+    // ─────────────────────────────────────────────────────────────────────────
     @PutMapping(value = "/update-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "Update template fields and format only")
-    public ResponseEntity<RestWithStatusList> updateTemplate(
-            @PathVariable Long templateId, @RequestBody TemplateFieldDto request) {
+    @Operation(summary = "Update template fields and format")
+    public ResponseEntity<RestWithMapStatusList> updateTemplate(
+            @PathVariable Long templateId,
+            @RequestBody TemplateFieldDto request) {
+
         if (request.getFieldDetails() == null || request.getFieldDetails().isEmpty()) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "fieldDetails must not be null or empty", null),
+                    ResponseBuilder.failure("fieldDetails must not be null or empty"),
                     HttpStatus.BAD_REQUEST);
         }
         return reconTemplateDetailsService.updateTemplate(templateId, request);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // DELETE /api/v1/template/delete-template/{templateId}
+    // ─────────────────────────────────────────────────────────────────────────
     @DeleteMapping(value = "/delete-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
     @Operation(summary = "Delete a template by ID")
-    public ResponseEntity<RestWithStatusList> deleteTemplate(@PathVariable Long templateId) {
+    public ResponseEntity<RestWithMapStatusList> deleteTemplate(
+            @PathVariable Long templateId) {
         return reconTemplateDetailsService.deleteTemplate(templateId);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET   /api/v1/template/search-template?templateName=&templateType=
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping(value = "/search-template", produces = CommonConstants.APPLICATION_JSON)
     @Operation(summary = "Search templates by name or type")
-    public ResponseEntity<RestWithStatusListPagination> searchTemplate(
+    public ResponseEntity<RestWithMapStatusList> searchTemplate(
             @RequestParam(required = false) String templateName,
             @RequestParam(required = false) String templateType,
             @RequestParam(defaultValue = "0") int page,
@@ -84,9 +116,13 @@ public class ReconTemplateDetailsController {
         return reconTemplateDetailsService.searchTemplate(templateName, templateType, page, size);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET   /api/v1/template/get-template/{templateId}
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping(value = "/get-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
     @Operation(summary = "Get template by ID")
-    public ResponseEntity<?> getTemplateById(@PathVariable Long templateId) {
+    public ResponseEntity<RestWithMapStatusList> getTemplateById(
+            @PathVariable Long templateId) {
         return reconTemplateDetailsService.getTemplateById(templateId);
     }
 }

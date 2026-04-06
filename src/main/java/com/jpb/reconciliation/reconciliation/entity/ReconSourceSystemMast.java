@@ -16,15 +16,15 @@ public class ReconSourceSystemMast {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_SOURCE_SYS_MAST")
     @SequenceGenerator(name = "SEQ_SOURCE_SYS_MAST", sequenceName = "seq_source_system_mast", allocationSize = 1)
-    @Column(name = "source_sys_id")
+    @Column(name = "source_id")
     @EqualsAndHashCode.Include
-    private Long sourceSysId;
+    private Long sourceId;
 
-    @Column(name = "source_sys_code", nullable = false, unique = true, length = 20)
-    private String sourceSysCode;
+    @Column(name = "source_code", nullable = false, unique = true, length = 20)
+    private String sourceCode;
 
-    @Column(name = "source_sys_name", nullable = false, length = 100)
-    private String sourceSysName;
+    @Column(name = "source_name", nullable = false, length = 100)
+    private String sourceName;
 
     @Column(name = "description", length = 300)
     private String description;
