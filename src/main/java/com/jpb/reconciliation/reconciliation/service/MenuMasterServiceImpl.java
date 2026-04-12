@@ -137,6 +137,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 	@Override
 	public ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails) {
 		RestWithStatusList restWithStatusList = null;
+		try {
 		ReconMenuMaster menuWithName = menuMasterRepository.findByMenuNameAndRoleIdAndParentMenuCode(
 				menuRequest.getMenuName(), menuRequest.getRoleId(), menuRequest.getParentMenuCode());
 		ReconUser userData = reconUserRepository.findByUserName(userDetails.getUsername()).get();
@@ -159,6 +160,13 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 		}
 		auditLogManagerService.commonAudit(userData, "Add MENU", createdUser);
 		restWithStatusList = new RestWithStatusList("SUCCESS", "Menu Created Successfully", null);
+		
+		}catch (Exception e) {
+			// TODO: handle exception
+			restWithStatusList = new RestWithStatusList("FAILURE", "Exception occured while creating menu", null);
+			logger.error("Exception occured while creating menu "+e.getMessage(),e);
+			return new ResponseEntity<>(restWithStatusList, HttpStatus.BAD_REQUEST);
+		}
 		return new ResponseEntity<>(restWithStatusList, HttpStatus.CREATED);
 	}
 

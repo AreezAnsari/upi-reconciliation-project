@@ -36,13 +36,13 @@ public class ReconUserController {
 	@PostMapping(value = "/create-user", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> createUser(@RequestBody ReconUserDto reconUserDto) {
 		RestWithStatusList restWithStatusList = null;
-		if (reconUserDto.getRoleName().equalsIgnoreCase("MAKER")) {
+//		if (reconUserDto.getRoleName().equalsIgnoreCase("MAKER")) {
 			return reconUserService.createUser(reconUserDto);
-		} else {
-			restWithStatusList = new RestWithStatusList("FAILURE", "You do not have the rights to create a user.",
-					null);
-			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.BAD_REQUEST);
-		}
+//		} else {
+//			restWithStatusList = new RestWithStatusList("FAILURE", "You do not have the rights to create a user.",
+//					null);
+//			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.BAD_REQUEST);
+//		}
 
 	}
 

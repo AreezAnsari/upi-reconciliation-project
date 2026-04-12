@@ -7,13 +7,13 @@ spring:
     name: "JPB J-Recon Platform"
   datasource:
 #    primary:
-#      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Akshay_Ramani/Wallet_RECONDB1
+      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
+#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Akshay_Ramani/Wallet_RECONDB1
       driver-class-name: oracle.jdbc.OracleDriver
-#      username: recon_sit
-      username: jpb_recon
-#      password: recon_sit
-      password: Jpbrecon2026
+      username: recon_sit
+#      username: jpb_recon
+      password: recon_sit
+#      password: Jpbrecon2026
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000
@@ -97,14 +97,14 @@ oracle:
     query-timeout-seconds: 900
 
 app:
-  uDrive: 'C:\Akshay_Ramani\Utility\'
-  ttumFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TTUMReport\'
-  transactionFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\TransactionReport/'
-  targetFilePath: 'C:\Akshay_Ramani\Jio_Bank_Projects\DCRFILES_COMPLETED/'
-  aepsDataFile: 'C:\Akshay_Ramani\Jio_Bank_Projects\AEPSDataReport/'
-  reconReport: 'C:\Akshay_Ramani\Jio_Bank_Projects\ReconReport\'
-  uploadFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\'
-  accountSplitPath: 'C:\Akshay_Ramani\Jio_Bank_Projects\Account_split_files'
+  uDrive: 'C:\ReconFiles\Utility\'
+  ttumFile: 'C:\ReconFiles\TTUMReport\'
+  transactionFile: 'C:\ReconFiles\TransactionReport/'
+  targetFilePath: 'C:\ReconFiles\DCRFILES_COMPLETED/'
+  aepsDataFile: 'C:\ReconFiles\AEPSDataReport/'
+  reconReport: 'C:\ReconFiles\ReconReport\'
+  uploadFileDir: 'C:\ReconFiles\UploadFiles\'
+  accountSplitPath: 'C:\ReconFiles\Account_split_files'
 server:
   port: 8081
 

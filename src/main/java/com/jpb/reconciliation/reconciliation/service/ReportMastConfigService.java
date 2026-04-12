@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -57,12 +58,10 @@ public class ReportMastConfigService {
 		try {
 			ExceptionReconReportEntity entity = mapToEntity(req);
 
-			// Auto-build query if not provided
 			if (isNullOrEmpty(entity.getReportQuery())) {
 				entity.setReportQuery(buildReportQuery(req));
 			}
 
-			// Auto-build header if not provided
 			if (isNullOrEmpty(entity.getReportHeader())) {
 				entity.setReportHeader(buildReportHeader(req));
 			}
@@ -71,7 +70,8 @@ public class ReportMastConfigService {
 			log.info("Report config created, ID: {}", saved.getReportId());
 			List<Object> dataList = new ArrayList<>();
 			dataList.add(saved);
-			return ResponseEntity.status(HttpStatus.CREATED).body(ok("Report config created successfully", dataList));
+			return ResponseEntity.status(HttpStatus.CREATED)
+					.body(ok("Report config created successfully", dataList));
 		} catch (Exception e) {
 			log.error("createReportConfig error: {}", e.getMessage(), e);
 			return error("Failed to create report config: " + e.getMessage());
@@ -81,10 +81,11 @@ public class ReportMastConfigService {
 	public ResponseEntity<RestWithStatusList> getAllReportConfigs() {
 		try {
 			List<ExceptionReconReportEntity> list = reportRepo.findAll();
-
-			List<Object> dataList = list.stream().map(reportConfigMapper::toDTO).collect(Collectors.toList());
-
-			return ResponseEntity.ok(ok("Request executed successfully | Total: " + list.size(), dataList));
+			List<Object> dataList = list.stream()
+					.map(reportConfigMapper::toDTO)
+					.collect(Collectors.toList());
+			return ResponseEntity.ok(
+					ok("Request executed successfully | Total: " + list.size(), dataList));
 		} catch (Exception e) {
 			log.error("getAllReportConfigs error: {}", e.getMessage(), e);
 			return error("Failed to fetch report configs: " + e.getMessage());
@@ -105,19 +106,18 @@ public class ReportMastConfigService {
 		}
 	}
 
-	public ResponseEntity<RestWithStatusList> updateReportConfig(Long reportId, ReportMastConfigRequest req) {
+	public ResponseEntity<RestWithStatusList> updateReportConfig(
+			Long reportId, ReportMastConfigRequest req) {
 		if (reportRepo.findByReportId(reportId) == null)
 			return notFound("Report config not found for ID: " + reportId);
 		try {
 			ExceptionReconReportEntity updated = mapToEntity(req);
 			updated.setReportId(reportId);
 
-			// Auto-build query if not provided
 			if (isNullOrEmpty(updated.getReportQuery())) {
 				updated.setReportQuery(buildReportQuery(req));
 			}
 
-			// Auto-build header if not provided
 			if (isNullOrEmpty(updated.getReportHeader())) {
 				updated.setReportHeader(buildReportHeader(req));
 			}
@@ -140,11 +140,14 @@ public class ReportMastConfigService {
 		return ResponseEntity.ok(ok("Report config deleted successfully", new ArrayList<>()));
 	}
 
-	public ResponseEntity<RestWithStatusList> searchReportConfigs(String reportName, String processId) {
+	public ResponseEntity<RestWithStatusList> searchReportConfigs(
+			String reportName, String processId) {
 		try {
-			List<ExceptionReconReportEntity> result = reportRepo.searchByNameAndProcess(reportName, processId);
+			List<ExceptionReconReportEntity> result =
+					reportRepo.searchByNameAndProcess(reportName, processId);
 			List<Object> dataList = new ArrayList<>(result);
-			return ResponseEntity.ok(ok("Request executed successfully | Total: " + result.size(), dataList));
+			return ResponseEntity.ok(
+					ok("Request executed successfully | Total: " + result.size(), dataList));
 		} catch (Exception e) {
 			log.error("searchReportConfigs error: {}", e.getMessage(), e);
 			return error("Search failed: " + e.getMessage());
@@ -175,24 +178,48 @@ public class ReportMastConfigService {
 				Long templateId = template.getReconTemplateId();
 				log.debug("Processing templateId: {}", templateId);
 
-				// Fetch all files for this template (List — avoids NonUniqueResultException)
+				// ── Fetch all files for this template ────────────────────────
 				List<ReconFileDetailsMaster> files = new ArrayList<>();
 				try {
-					files = fileRepo.findAllByReconTemplateDetails_ReconTemplateId(templateId);
+					files = fileRepo
+							.findAllByReconTemplateDetails_ReconTemplateId(templateId);
 				} catch (Exception ex) {
-					log.warn("Could not fetch files for templateId {}: {}", templateId, ex.getMessage());
+					log.warn("Could not fetch files for templateId {}: {}",
+							templateId, ex.getMessage());
 				}
 
-				// Fetch fields for this template
+				// ── Fetch fields and deduplicate by reconFieldId ─────────────
 				List<ReconFieldDetailsMaster> fields = new ArrayList<>();
 				try {
-					fields = fieldRepo.findFullFieldDetailsByTemplateId(templateId);
+					List<ReconFieldDetailsMaster> rawFields =
+							fieldRepo.findFullFieldDetailsByTemplateId(templateId);
+
+					if (rawFields != null && !rawFields.isEmpty()) {
+
+						// Deduplicate by reconFieldId preserving insertion order
+						LinkedHashMap<Long, ReconFieldDetailsMaster> dedupMap =
+								new LinkedHashMap<>();
+
+						for (ReconFieldDetailsMaster f : rawFields) {
+							if (f != null && f.getReconFieldId() != null) {
+								dedupMap.putIfAbsent(f.getReconFieldId(), f);
+							}
+						}
+
+						fields = new ArrayList<>(dedupMap.values());
+
+						log.debug("templateId={} | rawFields={} | afterDedup={}",
+								templateId, rawFields.size(), fields.size());
+					}
+
 				} catch (Exception ex) {
-					log.warn("Could not fetch fields for templateId {}: {}", templateId, ex.getMessage());
+					log.warn("Could not fetch fields for templateId {}: {}",
+							templateId, ex.getMessage());
 				}
 
+				// ── Build response entries ────────────────────────────────────
 				if (files == null || files.isEmpty()) {
-					// Template has no linked file — add one entry with null fileDetails
+					// No linked file — one entry with null fileDetails
 					data.add(buildEntry(template, null, fields));
 				} else {
 					// One entry per file under this template
@@ -202,7 +229,8 @@ public class ReportMastConfigService {
 				}
 			}
 
-			return ResponseEntity.ok(ok("Request executed successfully | Total entries: " + data.size(), data));
+			return ResponseEntity.ok(
+					ok("Request executed successfully | Total entries: " + data.size(), data));
 
 		} catch (Exception e) {
 			log.error("getAllExtractionTemplatesWithFields error: {}", e.getMessage(), e);
@@ -228,14 +256,18 @@ public class ReportMastConfigService {
 				if (process == null)
 					continue;
 
-				data.add(ReconProcessWithFilesDto.builder().processId(process.getReconProcessId())
-						.processName(process.getReconProcessName()).file1(buildFromTemplate(process.getReconTemp1()))
+				data.add(ReconProcessWithFilesDto.builder()
+						.processId(process.getReconProcessId())
+						.processName(process.getReconProcessName())
+						.file1(buildFromTemplate(process.getReconTemp1()))
 						.file2(buildFromTemplate(process.getReconTemp2()))
 						.file3(buildFromTemplate(process.getReconTemp3()))
-						.file4(buildFromTemplate(process.getReconTemp4())).build());
+						.file4(buildFromTemplate(process.getReconTemp4()))
+						.build());
 			}
 
-			return ResponseEntity.ok(ok("Request executed successfully | Total processes: " + data.size(), data));
+			return ResponseEntity.ok(
+					ok("Request executed successfully | Total processes: " + data.size(), data));
 
 		} catch (Exception e) {
 			log.error("getAllReconProcessesWithFiles error: {}", e.getMessage(), e);
@@ -248,59 +280,94 @@ public class ReportMastConfigService {
 	// ══════════════════════════════════════════════════════════════════════════════
 
 	/**
-	 * Loads template + file + fields for a single templateId. Returns null if
-	 * templateId is null.
+	 * Loads template + file + fields for a single templateId.
+	 * Returns null if templateId is null.
 	 */
 	private TemplateWithFileAndFieldsDto buildFromTemplate(Long templateId) {
 		if (templateId == null)
 			return null;
 		try {
-			ReconTemplateDetails template = templateRepo.findByReconTemplateId(templateId);
-			List<ReconFileDetailsMaster> files = fileRepo.findAllByReconTemplateDetails_ReconTemplateId(templateId);
-			ReconFileDetailsMaster file = (files != null && !files.isEmpty()) ? files.get(0) : null;
-			List<ReconFieldDetailsMaster> fields = fieldRepo.findFullFieldDetailsByTemplateId(templateId);
+			ReconTemplateDetails template =
+					templateRepo.findByReconTemplateId(templateId);
+
+			List<ReconFileDetailsMaster> files =
+					fileRepo.findAllByReconTemplateDetails_ReconTemplateId(templateId);
+			ReconFileDetailsMaster file =
+					(files != null && !files.isEmpty()) ? files.get(0) : null;
+
+			List<ReconFieldDetailsMaster> rawFields =
+					fieldRepo.findFullFieldDetailsByTemplateId(templateId);
+
+			// Deduplicate by reconFieldId preserving insertion order
+			List<ReconFieldDetailsMaster> fields = new ArrayList<>();
+			if (rawFields != null && !rawFields.isEmpty()) {
+				LinkedHashMap<Long, ReconFieldDetailsMaster> dedupMap =
+						new LinkedHashMap<>();
+				for (ReconFieldDetailsMaster f : rawFields) {
+					if (f != null && f.getReconFieldId() != null) {
+						dedupMap.putIfAbsent(f.getReconFieldId(), f);
+					}
+				}
+				fields = new ArrayList<>(dedupMap.values());
+			}
+
 			return buildEntry(template, file, fields);
+
 		} catch (Exception ex) {
-			log.warn("Could not build file entry for templateId {}: {}", templateId, ex.getMessage());
+			log.warn("Could not build file entry for templateId {}: {}",
+					templateId, ex.getMessage());
 			return null;
 		}
 	}
 
 	/**
-	 * Builds one TemplateWithFileAndFieldsDto. Every field access is null-safe — no
-	 * NPE possible.
+	 * Builds one TemplateWithFileAndFieldsDto.
+	 * Every field access is null-safe — no NPE possible.
 	 */
-	private TemplateWithFileAndFieldsDto buildEntry(ReconTemplateDetails template, ReconFileDetailsMaster file,
+	private TemplateWithFileAndFieldsDto buildEntry(
+			ReconTemplateDetails template,
+			ReconFileDetailsMaster file,
 			List<ReconFieldDetailsMaster> fields) {
 
-		// ── templateDetails ──────────────────────────────────────────────────────
+		// ── templateDetails ──────────────────────────────────────────────────
 		TemplateDetailsDto templateDetails = null;
 		if (template != null) {
-			templateDetails = TemplateDetailsDto.builder().templateId(template.getReconTemplateId())
-					.templateName(template.getTemplateName()).templateType(template.getTemplateType())
-					.stageTableName(template.getStageTabName()).build();
+			templateDetails = TemplateDetailsDto.builder()
+					.templateId(template.getReconTemplateId())
+					.templateName(template.getTemplateName())
+					.templateType(template.getTemplateType())
+					.stageTableName(template.getStageTabName())
+					.build();
 		}
 
-		// ── fileDetails ──────────────────────────────────────────────────────────
+		// ── fileDetails ──────────────────────────────────────────────────────
 		FileDetailsDto fileDetails = null;
 		if (file != null) {
-			fileDetails = FileDetailsDto.builder().fileId(safeFileId(file)).fileName(file.getReconFileName())
-					.fileType(file.getReconFileType()).build();
+			fileDetails = FileDetailsDto.builder()
+					.fileId(safeFileId(file))
+					.fileName(file.getReconFileName())
+					.fileType(file.getReconFileType())
+					.build();
 		}
 
-		// ── fieldDetails — only field_id + field_name ────────────────────────────
+		// ── fieldDetails — only field_id + field_name ────────────────────────
 		List<FieldDetailsDto> fieldDetails = new ArrayList<>();
 		if (fields != null) {
 			for (ReconFieldDetailsMaster f : fields) {
 				if (f == null)
 					continue;
-				fieldDetails.add(FieldDetailsDto.builder().fieldId(f.getReconFieldId())
-						.fieldName(f.getReconTabFieldName()).build());
+				fieldDetails.add(FieldDetailsDto.builder()
+						.fieldId(f.getReconFieldId())
+						.fieldName(f.getReconTabFieldName())
+						.build());
 			}
 		}
 
-		return TemplateWithFileAndFieldsDto.builder().templateDetails(templateDetails).fileDetails(fileDetails)
-				.fieldDetails(fieldDetails).build();
+		return TemplateWithFileAndFieldsDto.builder()
+				.templateDetails(templateDetails)
+				.fileDetails(fileDetails)
+				.fieldDetails(fieldDetails)
+				.build();
 	}
 
 	// Null-safe file ID accessor
@@ -320,7 +387,6 @@ public class ReportMastConfigService {
 		e.setReportKey(req.getReportKey());
 		e.setReportQuery(req.getReportQuery());
 
-		// Auto-build header if not provided
 		if (isNullOrEmpty(req.getReportHeader())) {
 			e.setReportHeader(buildReportHeader(req));
 		} else {
@@ -334,7 +400,6 @@ public class ReportMastConfigService {
 		if (req.getSelectedColumns() == null || req.getSelectedColumns().isEmpty())
 			return "";
 
-		// e.g. 'PROCESS_DATE~TRAN_AMOUNT~TRAN_DATE' HEADER from dual
 		StringBuilder sb = new StringBuilder();
 		sb.append("select '");
 		List<String> cols = req.getSelectedColumns();
@@ -365,11 +430,13 @@ public class ReportMastConfigService {
 
 		if (req.getWhereConditions() != null && !req.getWhereConditions().isEmpty()) {
 			sb.append("\nWHERE ");
-			List<ReportMastConfigRequest.WhereCondition> conditions = req.getWhereConditions();
+			List<ReportMastConfigRequest.WhereCondition> conditions =
+					req.getWhereConditions();
 			for (int i = 0; i < conditions.size(); i++) {
 				ReportMastConfigRequest.WhereCondition wc = conditions.get(i);
-				sb.append(wc.getColumn()).append(" ").append(wc.getOperator()).append(" '").append(wc.getValue())
-						.append("'");
+				sb.append(wc.getColumn())
+				  .append(" ").append(wc.getOperator())
+				  .append(" '").append(wc.getValue()).append("'");
 				if (i < conditions.size() - 1 && wc.getLogicalOp() != null) {
 					sb.append("\n  ").append(wc.getLogicalOp()).append(" ");
 				}
@@ -383,16 +450,28 @@ public class ReportMastConfigService {
 	}
 
 	private RestWithStatusList ok(String msg, List<Object> data) {
-		return RestWithStatusList.builder().status(SUCCESS).statusMsg(msg).data(data).build();
+		return RestWithStatusList.builder()
+				.status(SUCCESS)
+				.statusMsg(msg)
+				.data(data)
+				.build();
 	}
 
 	private ResponseEntity<RestWithStatusList> error(String msg) {
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-				.body(RestWithStatusList.builder().status(ERROR).statusMsg(msg).data(new ArrayList<>()).build());
+				.body(RestWithStatusList.builder()
+						.status(ERROR)
+						.statusMsg(msg)
+						.data(new ArrayList<>())
+						.build());
 	}
 
 	private ResponseEntity<RestWithStatusList> notFound(String msg) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND)
-				.body(RestWithStatusList.builder().status(ERROR).statusMsg(msg).data(new ArrayList<>()).build());
+				.body(RestWithStatusList.builder()
+						.status(ERROR)
+						.statusMsg(msg)
+						.data(new ArrayList<>())
+						.build());
 	}
 }
