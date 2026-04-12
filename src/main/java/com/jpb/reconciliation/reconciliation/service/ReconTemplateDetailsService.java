@@ -1,25 +1,29 @@
 package com.jpb.reconciliation.reconciliation.service;
 
-
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.dto.ReconTemplateDetailsDto;
-import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusListPagination;
 import com.jpb.reconciliation.reconciliation.dto.TemplateFieldDto;
 
+@Service
 public interface ReconTemplateDetailsService {
 
-    ResponseEntity<RestWithMapStatusList> addTemplate(ReconTemplateDetailsDto dto);
+	ResponseEntity<?> addTemplate(ReconTemplateDetailsDto reconTemplateDetailsDto);
 
-    ResponseEntity<RestWithMapStatusList> configureTemplateAndFieldData(TemplateFieldDto request);
+	ResponseEntity<RestWithStatusList> configureTemplateAndFieldData(TemplateFieldDto templateFieldrequest);
 
-    ResponseEntity<RestWithMapStatusList> updateTemplate(Long templateId, TemplateFieldDto request);
+	ResponseEntity<RestWithStatusListPagination> viewTemplate(int page, int size);
 
-    ResponseEntity<RestWithMapStatusList> viewTemplate(int page, int size);
+	ResponseEntity<?> getTemplateById(Long templateId);
 
-    ResponseEntity<RestWithMapStatusList> deleteTemplate(Long templateId);
+	ResponseEntity<RestWithStatusList> updateTemplate(Long templateId, TemplateFieldDto templateFieldRequest);
 
-    ResponseEntity<RestWithMapStatusList> searchTemplate(String name, String type, int page, int size);
+	ResponseEntity<RestWithStatusList> deleteTemplate(Long templateId);
 
-    ResponseEntity<RestWithMapStatusList> getTemplateById(Long templateId);
+	ResponseEntity<RestWithStatusListPagination> searchTemplate(String templateName, String templateType, int page,
+			int size);
+
 }

@@ -1,22 +1,14 @@
 package com.jpb.reconciliation.reconciliation.service;
 
-
-import org.springframework.http.ResponseEntity;
+import java.util.List;
 
 import com.jpb.reconciliation.reconciliation.dto.FtpServerDTO;
-import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 
 public interface FtpServerService {
-
-    ResponseEntity<RestWithMapStatusList> createFtpServer(FtpServerDTO dto);
-
-    ResponseEntity<RestWithMapStatusList> getFtpServerById(Long id);
-
-    ResponseEntity<RestWithMapStatusList> getAllFtpServers();
-
-    ResponseEntity<RestWithMapStatusList> updateFtpServer(Long id, FtpServerDTO dto);
-
-    ResponseEntity<RestWithMapStatusList> deleteFtpServer(Long id);
-
-    ResponseEntity<RestWithMapStatusList> getFtpServersByIp(String serverIp);
+    FtpServerDTO createFtpServer(FtpServerDTO dto);
+    FtpServerDTO getFtpServerById(Long id);
+    List<FtpServerDTO> getAllFtpServers();
+    FtpServerDTO updateFtpServer(Long id, FtpServerDTO dto);
+    void deleteFtpServer(Long id);
+    List<FtpServerDTO> getFtpServersByIp(String serverIp);
 }

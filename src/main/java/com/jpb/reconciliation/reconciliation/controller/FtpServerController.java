@@ -1,6 +1,11 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
+import java.util.List;
 
+import javax.validation.Valid;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,78 +18,61 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.dto.FtpServerDTO;
-import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.service.FtpServerService;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/ftp-servers")
-@RequiredArgsConstructor
-@Tag(name = "SFTP Server Master", description = "APIs for managing SFTP server registry")
 public class FtpServerController {
 
-    private final FtpServerService ftpServerService;
+	@Autowired
+	private FtpServerService ftpServerService;
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // POST  /api/ftp-servers
-    // ─────────────────────────────────────────────────────────────────────────
-    @PostMapping
-    @Operation(summary = "Register a new SFTP server")
-    public ResponseEntity<RestWithMapStatusList> createFtpServer(
-            @RequestBody FtpServerDTO dto) {
-        return ftpServerService.createFtpServer(dto);
-    }
+	@PostMapping
+	public ResponseEntity<FtpServerDTO> createFtpServer(@Valid @RequestBody FtpServerDTO dto) {
+		FtpServerDTO created = ftpServerService.createFtpServer(dto);
+		return new ResponseEntity<>(created, HttpStatus.CREATED);
+	}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET   /api/ftp-servers
-    // ─────────────────────────────────────────────────────────────────────────
-    @GetMapping
-    @Operation(summary = "Get all registered SFTP servers")
-    public ResponseEntity<RestWithMapStatusList> getAllFtpServers() {
-        return ftpServerService.getAllFtpServers();
-    }
+	@GetMapping
+	public ResponseEntity<List<FtpServerDTO>> getAllFtpServers() {
+		List<FtpServerDTO> list = ftpServerService.getAllFtpServers();
+		return ResponseEntity.ok(list);
+	}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET   /api/ftp-servers/{id}
-    // ─────────────────────────────────────────────────────────────────────────
-    @GetMapping("/{id}")
-    @Operation(summary = "Get SFTP server by ID")
-    public ResponseEntity<RestWithMapStatusList> getFtpServerById(
-            @PathVariable Long id) {
-        return ftpServerService.getFtpServerById(id);
-    }
+	@GetMapping("/{id}")
+	public ResponseEntity<FtpServerDTO> getFtpServerById(@PathVariable Long id) {
+		FtpServerDTO dto = ftpServerService.getFtpServerById(id);
+		return ResponseEntity.ok(dto);
+	}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET   /api/ftp-servers/search?serverIp=
-    // ─────────────────────────────────────────────────────────────────────────
-    @GetMapping("/search")
-    @Operation(summary = "Search SFTP servers by IP / host")
-    public ResponseEntity<RestWithMapStatusList> getFtpServersByIp(
-            @RequestParam String serverIp) {
-        return ftpServerService.getFtpServersByIp(serverIp);
-    }
+	@GetMapping("/search")
+	public ResponseEntity<RestWithStatusList> getFtpServersByIp(@RequestParam String serverIp) {
+		RestWithStatusList restWithStatusList = null;
+		List<Object> searchData = null;
+		List<FtpServerDTO> list = ftpServerService.getFtpServersByIp(serverIp);
+		if (!list.isEmpty()) {
+			searchData.addAll(searchData);
+			restWithStatusList = new RestWithStatusList("SUCCESS", "Found FTP Server Data", searchData);
+		} else {
+			restWithStatusList = new RestWithStatusList("FAILURE", "Found FTP Server Data Not Found", searchData);
+			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.NOT_FOUND);
+		}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PUT   /api/ftp-servers/{id}
-    // ─────────────────────────────────────────────────────────────────────────
-    @PutMapping("/{id}")
-    @Operation(summary = "Update an existing SFTP server")
-    public ResponseEntity<RestWithMapStatusList> updateFtpServer(
-            @PathVariable Long id,
-            @RequestBody FtpServerDTO dto) {
-        return ftpServerService.updateFtpServer(id, dto);
-    }
+		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
+	}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // DELETE /api/ftp-servers/{id}
-    // ─────────────────────────────────────────────────────────────────────────
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Delete (deactivate) an SFTP server")
-    public ResponseEntity<RestWithMapStatusList> deleteFtpServer(
-            @PathVariable Long id) {
-        return ftpServerService.deleteFtpServer(id);
-    }
+	@PutMapping("/{id}")
+	public ResponseEntity<FtpServerDTO> updateFtpServer(@PathVariable Long id, @Valid @RequestBody FtpServerDTO dto) {
+		FtpServerDTO updated = ftpServerService.updateFtpServer(id, dto);
+		return ResponseEntity.ok(updated);
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<RestWithStatusList> deleteFtpServer(@PathVariable Long id) {
+		RestWithStatusList restWithStatusList = null;
+		ftpServerService.deleteFtpServer(id);
+		restWithStatusList = new RestWithStatusList("SUCCESS", "FTP server deleted successfully", null);
+		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
+	}
 }

@@ -1,26 +1,28 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 
-import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.FileConfigDTO;
 import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.FileConfigRequest;
+import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.TemplateDTO;
 
 public interface FileConfigService {
 
-    ResponseEntity<RestWithMapStatusList> getAllTemplates();
+	List<TemplateDTO> getAllTemplates();
 
-    ResponseEntity<RestWithMapStatusList> getTemplateById(Long templateId);
+	TemplateDTO getTemplateById(Long templateId);
 
-    ResponseEntity<RestWithMapStatusList> getAllFileConfigs(int page, int size,
-                                                           Long templateId, String fileName);
+	Page<FileConfigDTO> getAllFileConfigs(int page, int size, Long templateId, String fileName);
 
-    ResponseEntity<RestWithMapStatusList> getFileConfigById(Long fileId);
+	FileConfigDTO getFileConfigById(Long fileId);
 
-    ResponseEntity<RestWithMapStatusList> createFileConfig(FileConfigRequest request, Long userId);
+	ResponseEntity<RestWithStatusList> createFileConfig(FileConfigRequest request, Long userId);
 
-    ResponseEntity<RestWithMapStatusList> updateFileConfig(Long fileId,
-                                                           FileConfigRequest request, Long userId);
+	FileConfigDTO updateFileConfig(Long fileId, FileConfigRequest request, Long userId);
 
-    ResponseEntity<RestWithMapStatusList> deleteFileConfig(Long fileId);
+	ResponseEntity<RestWithStatusList> deleteFileConfig(Long fileId);
 }

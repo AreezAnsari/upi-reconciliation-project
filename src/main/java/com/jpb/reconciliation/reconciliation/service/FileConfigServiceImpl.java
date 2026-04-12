@@ -1,14 +1,10 @@
 package com.jpb.reconciliation.reconciliation.service;
 
-
-
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -17,16 +13,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.FileConfigDTO;
 import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.FileConfigRequest;
+import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.TemplateDTO;
 import com.jpb.reconciliation.reconciliation.entity.ProcessMasterEntity;
-import com.jpb.reconciliation.reconciliation.entity.ReconFileIngestConfig;
-import com.jpb.reconciliation.reconciliation.entity.ReconFileTmpltMast;
+import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
+import com.jpb.reconciliation.reconciliation.entity.ReconTemplateDetails;
 import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
 import com.jpb.reconciliation.reconciliation.repository.ProcessMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconFileIngestConfigRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconFileTmpltMastRepository;
-import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
+import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconTemplateDetailsRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,300 +34,315 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class FileConfigServiceImpl implements FileConfigService {
 
-    private final ReconFileIngestConfigRepository  fileConfigRepository;
-    private final ReconFileTmpltMastRepository     templateRepository;
-    private final ProcessMasterRepository          processRepository;
+	private final ReconFileDetailsMasterRepository fileConfigRepository;
+	private final ReconTemplateDetailsRepository templateRepository;
+	private final ProcessMasterRepository processRepository;
 
-    // =========================================================================
-    // GET ALL TEMPLATES  (for dropdown / selection)
-    // data key: "templates"
-    // No pagination — returns full active list for dropdown use
-    // =========================================================================
+	@Override
+	@Transactional(readOnly = true)
+	public List<TemplateDTO> getAllTemplates() {
+		log.info("Fetching all active templates");
+		List<ReconTemplateDetails> templates = templateRepository.findAllTemplates();
+		return templates.stream().map(this::convertToTemplateDTO).collect(Collectors.toList());
+	}
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<RestWithMapStatusList> getAllTemplates() {
-        List<ReconFileTmpltMast> templates = templateRepository.findAllTemplates();
+	@Override
+	@Transactional(readOnly = true)
+	public TemplateDTO getTemplateById(Long templateId) {
+		log.info("Fetching template by ID: {}", templateId);
+		ReconTemplateDetails template = templateRepository.findById(templateId)
+				.orElseThrow(() -> new ResourceNotFoundException("Template not found with ID: " + templateId));
 
-        List<Map<String, Object>> rows = templates.stream()
-                .map(t -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("templateId",   t.getTemplateId());
-                    row.put("templateCode", t.getTemplateCode());
-                    row.put("templateName", t.getTemplateName());
-                    row.put("templateType", t.getTemplateType());
-                    row.put("status",       t.getStatus());
-                    return row;
-                })
-                .collect(Collectors.toList());
+		return convertToTemplateDTO(template);
+	}
 
-        return ResponseEntity.ok(
-                ResponseBuilder.ok("Templates fetched successfully.", "templates", rows));
-    }
+	@Override
+	@Transactional(readOnly = true)
+	public Page<FileConfigDTO> getAllFileConfigs(int page, int size, Long templateId, String fileName) {
+		log.info("Fetching file configurations - page: {}, size: {}, templateId: {}, fileName: {}", page, size,
+				templateId, fileName);
 
-    // =========================================================================
-    // GET TEMPLATE BY ID
-    // data key: "template"
-    // =========================================================================
+		Pageable pageable = PageRequest.of(page, size);
+		Page<ReconFileDetailsMaster> fileConfigs = fileConfigRepository.findByFilters(templateId, fileName, pageable);
+		log.info("Fetching file configurations :::::{}" + fileConfigs);
+		return fileConfigs.map(this::convertToFileConfigDTO);
+	}
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<RestWithMapStatusList> getTemplateById(Long templateId) {
-        ReconFileTmpltMast t = templateRepository
-                .findByTemplateIdAndIsDeleted(templateId, "N")
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Template not found: " + templateId));
+	@Override
+	@Transactional(readOnly = true)
+	public FileConfigDTO getFileConfigById(Long fileId) {
+		log.info("Fetching file configuration by ID: {}", fileId);
+		ReconFileDetailsMaster fileConfig = fileConfigRepository.findById(fileId)
+				.orElseThrow(() -> new ResourceNotFoundException("File configuration not found with ID: " + fileId));
 
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("templateId",   t.getTemplateId());
-        row.put("templateCode", t.getTemplateCode());
-        row.put("templateName", t.getTemplateName());
-        row.put("templateType", t.getTemplateType());
-        row.put("status",       t.getStatus());
-        row.put("fileEncoding", t.getFileEncoding());
-        row.put("delimiter",    t.getDelimiter());
-        row.put("hasHeader",    t.getHasHeader());
-        row.put("hasTrailer",   t.getHasTrailer());
+		return convertToFileConfigDTO(fileConfig);
+	}
 
-        return ResponseEntity.ok(
-                ResponseBuilder.ok("Template fetched successfully.", "template", List.of(row)));
-    }
+	@Override
+	public ResponseEntity<RestWithStatusList> createFileConfig(FileConfigRequest request, Long userId) {
+		log.info("Creating new file configuration for file: {}", request.getRfdFileName());
 
-    // =========================================================================
-    // GET ALL FILE CONFIGS  (paginated + filtered)
-    // data keys: "fileConfigs" + "pagination"
-    //
-    // FIX 1: Added input validation (was missing — viewTemplate had it but this didn't)
-    // FIX 2: Empty result now returns "pagination" key via ResponseBuilder.okPaged()
-    // FIX 3: Removed duplicate buildPaginationMap — uses ResponseBuilder.okPaged()
-    // =========================================================================
+		// Validate and fetch template
+		ReconTemplateDetails template = templateRepository.findById(request.getRtdTemplateId()).orElseThrow(
+				() -> new ResourceNotFoundException("Template not found with ID: " + request.getRtdTemplateId()));
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<RestWithMapStatusList> getAllFileConfigs(int page, int size,
-                                                                   Long templateId, String fileName) {
-        // FIX: input validation (consistent with viewTemplate / searchTemplate)
-        if (page < 0) {
-            return ResponseEntity.badRequest().body(
-                    ResponseBuilder.failure("Page number cannot be negative."));
-        }
-        if (size <= 0 || size > 100) {
-            return ResponseEntity.badRequest().body(
-                    ResponseBuilder.failure("Size must be between 1 and 100."));
-        }
+		// Validate and fetch process master
+		ProcessMasterEntity process = processRepository.findById(request.getProcessMastId()).orElseThrow(
+				() -> new ResourceNotFoundException("Process not found with ID: " + request.getProcessMastId()));
 
-        Pageable pageable = PageRequest.of(page, size);
-        Page<ReconFileIngestConfig> result =
-                fileConfigRepository.findByFilters(templateId, fileName, pageable);
+		ReconFileDetailsMaster fileConfig = new ReconFileDetailsMaster();
 
-        // FIX: empty result returns pagination metadata too
-        if (result.isEmpty()) {
-            return ResponseEntity.ok(
-                    ResponseBuilder.okPaged(
-                            "No file configurations found.",
-                            "fileConfigs",
-                            Collections.emptyList(),
-                            result));
-        }
+		// File basic info
+		fileConfig.setReconFileName(request.getRfdFileName());
+		fileConfig.setReconShortName(request.getRfdShortName());
+		fileConfig.setReconFileDescription(request.getRfdFileDescription());
+		fileConfig.setReconFileType(request.getRfdFileType());
+		fileConfig.setReconFileLocation(request.getRfdFileLocation());
+		fileConfig.setReconFileDelimiter(request.getRfdFileDelimiter());
+		fileConfig.setReconFileDestinationPath(request.getRfdFileDestPath());
+		fileConfig.setReconFileDuplicateCheckFlag(request.getRfdFileDupChkFlag());
+		fileConfig.setReconFileDefinConst(request.getRfdFileDefineConst());
+		fileConfig.setReconFileNameLength(request.getRfdFilenameLength());
+		fileConfig.setReconNameConvFormat(request.getRfdNameConvFormat());
+		fileConfig.setReconDependentFileId(request.getRfdDependentFileId());
+		fileConfig.setFileUpdateFlag(request.getFileUpdateFlag());
 
-        List<Map<String, Object>> rows = result.getContent().stream()
-                .map(this::toRowMap)
-                .collect(Collectors.toList());
+		// Header info
+		fileConfig.setReconHdrAvailableFlag(request.getRfdHdrAvlFlag());
+		fileConfig.setReconHdrBlockSize(request.getRfdHdrBlockSize());
+		fileConfig.setReconHdrId(request.getRfdHdrId());
+		fileConfig.setReconHdrKeyCount(request.getRfdHdrKeyCount());
+		fileConfig.setReconHdrWithDr(request.getRfdHdrWithDr());
 
-        return ResponseEntity.ok(
-                ResponseBuilder.okPaged(
-                        "File configurations fetched successfully.",
-                        "fileConfigs",
-                        rows,
-                        result));
-    }
+		// Footer info
+		fileConfig.setReconFtrAvailFlag(request.getRfdFtrAvailFlag());
+		fileConfig.setReconFtrBeginConstVal(request.getRfdFtrBeginConstVal());
+		fileConfig.setReconFtrLength(request.getRfdFtrLength());
+		fileConfig.setReconFtrType(request.getRfdFtrType());
+		fileConfig.setReconFtrControlTagCount(request.getRfdFtrCtrlTagCnt());
 
-    // =========================================================================
-    // GET FILE CONFIG BY ID
-    // data key: "fileConfig"
-    // =========================================================================
+		// Data record info
+		fileConfig.setReconDrBlockSize(request.getRfdDrBlockSize());
+		fileConfig.setReconDrBlockSizeFlag(request.getRfdDrBlockSizeFlag());
+		fileConfig.setReconDrFormat(request.getRfdDrFormat());
+		fileConfig.setReconMultiDrCheck(request.getRfdMultiDrCheck());
+		fileConfig.setReconMultiDrCount(request.getRfdMultiDrCount());
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<RestWithMapStatusList> getFileConfigById(Long fileId) {
-        ReconFileIngestConfig config = fileConfigRepository.findById(fileId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "File configuration not found: " + fileId));
+		// FTP info
+		fileConfig.setReconFTPServerName(request.getRfdFtpServerName());
+		fileConfig.setReconFTPFilePath(request.getRfdFtpFilePath());
 
-        return ResponseEntity.ok(
-                ResponseBuilder.ok("File configuration fetched successfully.",
-                        "fileConfig", List.of(toRowMap(config))));
-    }
+		// Flags
+		fileConfig.setReconEmailSMSFlag(request.getRfdEmailSmsFlag());
+		fileConfig.setReconExitMenuFlag(request.getRfdExtMenuFlag());
+		fileConfig.setReconExitMenuName(request.getRfdExtMenuName());
+		fileConfig.setRfdGlFlag(request.getRfdGlFlag());
+		fileConfig.setRfdTranFileFlag(request.getRfdTranFileFlag());
+		fileConfig.setReconSettleFlag(request.getRfdSettleFlg());
+		fileConfig.setReconJpslRpsl(request.getRfdJpslRpsl());
+		fileConfig.setReconExitMenuFlag("N");
 
-    // =========================================================================
-    // CREATE FILE CONFIG
-    // data key: "created"
-    // =========================================================================
+		// Other
+		fileConfig.setReconXSDName(request.getRfdXsdName());
+		fileConfig.setReconInstCode(request.getRfdInstCode());
 
-    @Override
-    public ResponseEntity<RestWithMapStatusList> createFileConfig(FileConfigRequest request,
-                                                                   Long userId) {
-        ReconFileTmpltMast template = templateRepository
-                .findByTemplateIdAndIsDeleted(request.getRtdTemplateId(), "N")
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Template not found: " + request.getRtdTemplateId()));
+		// Relations
+		fileConfig.setReconTemplateDetails(template);
+		fileConfig.setProcessmaster(process);
 
-        ProcessMasterEntity process = processRepository.findById(request.getProcessMastId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Process not found: " + request.getProcessMastId()));
+		// Audit
+		fileConfig.setReconInsertDate(LocalDateTime.now());
+		fileConfig.setReconInsertUser(userId);
 
-        ReconFileIngestConfig config = new ReconFileIngestConfig();
-        mapRequestToEntity(config, request, template, process);
-        config.setCreatedBy(userId);
-        config.setCreatedAt(LocalDateTime.now());
+		ReconFileDetailsMaster savedConfig = fileConfigRepository.save(fileConfig);
+		log.info("File configuration created successfully with ID: {}", savedConfig.getReconFileId());
 
-        ReconFileIngestConfig saved = fileConfigRepository.save(config);
-        log.info("File ingest config created. ID: {}", saved.getIngestConfigId());
+		return new ResponseEntity<>(
+				new RestWithStatusList("SUCCESS",
+						"File configuration created successfully with ID: " + savedConfig.getReconFileId(), null),
+				HttpStatus.OK);
+	}
 
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("ingestConfigId", saved.getIngestConfigId());
-        row.put("fileName",       saved.getFileName());
-        row.put("templateId",     saved.getTemplate().getTemplateId());
-        row.put("templateName",   saved.getTemplate().getTemplateName());
+	@Override
+	public FileConfigDTO updateFileConfig(Long fileId, FileConfigRequest request, Long userId) {
+	    log.info("Updating file configuration with ID: {}", fileId);
 
-        return new ResponseEntity<>(
-                ResponseBuilder.ok("File configuration created successfully.",
-                        "created", List.of(row)),
-                HttpStatus.CREATED);
-    }
+	    ReconFileDetailsMaster existingConfig = fileConfigRepository.findById(fileId)
+	            .orElseThrow(() -> new ResourceNotFoundException(
+	                    "File configuration not found with ID: " + fileId));
 
-    // =========================================================================
-    // UPDATE FILE CONFIG
-    // data key: "updated"
-    // =========================================================================
+	    // Validate and fetch template
+	    ReconTemplateDetails template = templateRepository.findById(request.getRtdTemplateId())
+	            .orElseThrow(() -> new ResourceNotFoundException(
+	                    "Template not found with ID: " + request.getRtdTemplateId()));
 
-    @Override
-    public ResponseEntity<RestWithMapStatusList> updateFileConfig(Long fileId,
-                                                                   FileConfigRequest request,
-                                                                   Long userId) {
-        ReconFileIngestConfig config = fileConfigRepository.findById(fileId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "File configuration not found: " + fileId));
+	    // Validate and fetch process master
+	    ProcessMasterEntity process = processRepository.findById(request.getProcessMastId())
+	            .orElseThrow(() -> new ResourceNotFoundException(
+	                    "Process not found with ID: " + request.getProcessMastId()));
 
-        ReconFileTmpltMast template = templateRepository
-                .findByTemplateIdAndIsDeleted(request.getRtdTemplateId(), "N")
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Template not found: " + request.getRtdTemplateId()));
+	    // File basic info
+	    existingConfig.setReconFileName(request.getRfdFileName());
+	    existingConfig.setReconShortName(request.getRfdShortName());
+	    existingConfig.setReconFileDescription(request.getRfdFileDescription());
+	    existingConfig.setReconFileType(request.getRfdFileType());
+	    existingConfig.setReconFileLocation(request.getRfdFileLocation());
+	    existingConfig.setReconFileDelimiter(request.getRfdFileDelimiter());
+	    existingConfig.setReconFileDestinationPath(request.getRfdFileDestPath());
+	    existingConfig.setReconFileDuplicateCheckFlag(request.getRfdFileDupChkFlag());
+	    existingConfig.setReconFileDefinConst(request.getRfdFileDefineConst());
+	    existingConfig.setReconFileNameLength(request.getRfdFilenameLength());
+	    existingConfig.setReconNameConvFormat(request.getRfdNameConvFormat());
+	    existingConfig.setReconDependentFileId(request.getRfdDependentFileId());
+	    existingConfig.setFileUpdateFlag(request.getFileUpdateFlag());
 
-        ProcessMasterEntity process = processRepository.findById(request.getProcessMastId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Process not found: " + request.getProcessMastId()));
+	    // Header info
+	    existingConfig.setReconHdrAvailableFlag(request.getRfdHdrAvlFlag());
+	    existingConfig.setReconHdrBlockSize(request.getRfdHdrBlockSize());
+	    existingConfig.setReconHdrId(request.getRfdHdrId());
+	    existingConfig.setReconHdrKeyCount(request.getRfdHdrKeyCount());
+	    existingConfig.setReconHdrWithDr(request.getRfdHdrWithDr());
 
-        mapRequestToEntity(config, request, template, process);
-        config.setUpdatedBy(userId);
-        config.setUpdatedAt(LocalDateTime.now());
+	    // Footer info
+	    existingConfig.setReconFtrAvailFlag(request.getRfdFtrAvailFlag());
+	    existingConfig.setReconFtrBeginConstVal(request.getRfdFtrBeginConstVal());
+	    existingConfig.setReconFtrLength(request.getRfdFtrLength());
+	    existingConfig.setReconFtrType(request.getRfdFtrType());
+	    existingConfig.setReconFtrControlTagCount(request.getRfdFtrCtrlTagCnt());
 
-        ReconFileIngestConfig saved = fileConfigRepository.save(config);
-        log.info("File ingest config updated. ID: {}", saved.getIngestConfigId());
+	    // Data record info
+	    existingConfig.setReconDrBlockSize(request.getRfdDrBlockSize());
+	    existingConfig.setReconDrBlockSizeFlag(request.getRfdDrBlockSizeFlag());
+	    existingConfig.setReconDrFormat(request.getRfdDrFormat());
+//	    existingConfig.setReconDridentifierFlag(request.getRfdDridentifierFlag());
+	    existingConfig.setReconMultiDrCheck(request.getRfdMultiDrCheck());
+	    existingConfig.setReconMultiDrCount(request.getRfdMultiDrCount());
 
-        return ResponseEntity.ok(
-                ResponseBuilder.ok("File configuration updated successfully.",
-                        "updated", List.of(toRowMap(saved))));
-    }
+	    // FTP info
+	    existingConfig.setReconFTPServerName(request.getRfdFtpServerName());
+	    existingConfig.setReconFTPFilePath(request.getRfdFtpFilePath());
 
-    // =========================================================================
-    // DELETE FILE CONFIG
-    // data key: "deleted"
-    // =========================================================================
+	    // Flags
+	    existingConfig.setReconEmailSMSFlag(request.getRfdEmailSmsFlag());
+	    existingConfig.setReconExitMenuFlag(request.getRfdExtMenuFlag());
+	    existingConfig.setReconExitMenuName(request.getRfdExtMenuName());
+	    existingConfig.setRfdGlFlag(request.getRfdGlFlag());
+	    existingConfig.setRfdTranFileFlag(request.getRfdTranFileFlag());
+	    existingConfig.setReconSettleFlag(request.getRfdSettleFlg());
+	    existingConfig.setReconJpslRpsl(request.getRfdJpslRpsl());
 
-    @Override
-    public ResponseEntity<RestWithMapStatusList> deleteFileConfig(Long fileId) {
-        ReconFileIngestConfig config = fileConfigRepository.findById(fileId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "File configuration not found: " + fileId));
+	    // Other
+	    existingConfig.setReconXSDName(request.getRfdXsdName());
+	    existingConfig.setReconInstCode(request.getRfdInstCode());
 
-        fileConfigRepository.delete(config);
-        log.info("File ingest config deleted. ID: {}", fileId);
+	    // Relations
+	    existingConfig.setReconTemplateDetails(template);
+	    existingConfig.setProcessmaster(process);
 
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("deletedFileConfigId", fileId);
+	    // Audit fields — preserve original insert info, only update LUPD
+	    existingConfig.setReconLastUpdatedDate(LocalDateTime.now());
+	    existingConfig.setReconLastUpdatedUser(userId);
 
-        return ResponseEntity.ok(
-                ResponseBuilder.ok("File configuration deleted successfully.",
-                        "deleted", List.of(row)));
-    }
+	    ReconFileDetailsMaster updatedConfig = fileConfigRepository.save(existingConfig);
+	    log.info("File configuration updated successfully with ID: {}", updatedConfig.getReconFileId());
 
-    // =========================================================================
-    // PRIVATE HELPERS
-    // =========================================================================
+	    return convertToFileConfigDTO(updatedConfig);
+	}
 
-    private void mapRequestToEntity(ReconFileIngestConfig e, FileConfigRequest r,
-                                     ReconFileTmpltMast template, ProcessMasterEntity process) {
-        e.setFileName(r.getRfdFileName());
-        e.setShortName(r.getRfdShortName());
-        e.setFileDescription(r.getRfdFileDescription());
-        e.setFileType(r.getRfdFileType());
-        e.setFileLocation(r.getRfdFileLocation());
-        e.setFileDelimiter(r.getRfdFileDelimiter());
-        e.setDestPath(r.getRfdFileDestPath());
-        e.setDupCheckFlag(r.getRfdFileDupChkFlag());
-        e.setFileDefineConst(r.getRfdFileDefineConst());
-        e.setFilenameLength(r.getRfdFilenameLength());
-        e.setNameConvFormat(r.getRfdNameConvFormat());
-        e.setDependentFileId(r.getRfdDependentFileId());
-        e.setFileUpdateFlag(r.getFileUpdateFlag());
-        e.setHdrAvailFlag(r.getRfdHdrAvlFlag());
-        e.setHdrBlockSize(r.getRfdHdrBlockSize());
-        e.setHdrId(r.getRfdHdrId());
-        e.setHdrKeyCount(r.getRfdHdrKeyCount());
-        e.setHdrWithDr(r.getRfdHdrWithDr());
-        e.setFtrAvailFlag(r.getRfdFtrAvailFlag());
-        e.setFtrBeginConstVal(r.getRfdFtrBeginConstVal());
-        e.setFtrLength(r.getRfdFtrLength());
-        e.setFtrType(r.getRfdFtrType());
-        e.setFtrCtrlTagCnt(r.getRfdFtrCtrlTagCnt());
-        e.setDrBlockSize(r.getRfdDrBlockSize());
-        e.setDrBlockSizeFlag(r.getRfdDrBlockSizeFlag());
-        e.setDrFormat(r.getRfdDrFormat());
-        e.setMultiDrCheck(r.getRfdMultiDrCheck());
-        e.setMultiDrCount(r.getRfdMultiDrCount());
-        e.setSftpFilePath(r.getRfdFtpFilePath());
-        e.setSftpServerNameLegacy(r.getRfdFtpServerName());
-        e.setEmailSmsFlag(r.getRfdEmailSmsFlag());
-        e.setExitMenuFlag(r.getRfdExtMenuFlag());
-        e.setExitMenuName(r.getRfdExtMenuName());
-        e.setGlFlag(r.getRfdGlFlag());
-        e.setTranFileFlag(r.getRfdTranFileFlag());
-        e.setSettleFlag(r.getRfdSettleFlg());
-        e.setJpslRpsl(r.getRfdJpslRpsl());
-        e.setXsdName(r.getRfdXsdName());
-        e.setInstCode(r.getRfdInstCode());
-        e.setTemplate(template);
-        e.setProcessMastId(process.getProcessMastId());
-    }
+	@Override
+	public ResponseEntity<RestWithStatusList> deleteFileConfig(Long fileId) {
+		log.info("Deleting file configuration with ID: {}", fileId);
 
-    private Map<String, Object> toRowMap(ReconFileIngestConfig e) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ingestConfigId",  e.getIngestConfigId());
-        m.put("fileName",        e.getFileName());
-        m.put("shortName",       e.getShortName());
-        m.put("fileDescription", e.getFileDescription());
-        m.put("fileType",        e.getFileType());
-        m.put("fileLocation",    e.getFileLocation());
-        m.put("fileDelimiter",   e.getFileDelimiter());
-        m.put("destPath",        e.getDestPath());
-        m.put("dupCheckFlag",    e.getDupCheckFlag());
-        m.put("hdrAvailFlag",    e.getHdrAvailFlag());
-        m.put("ftrAvailFlag",    e.getFtrAvailFlag());
-        m.put("drFormat",        e.getDrFormat());
-        m.put("sftpFilePath",    e.getSftpFilePath());
-        m.put("tranFileFlag",    e.getTranFileFlag());
-        m.put("glFlag",          e.getGlFlag());
-        m.put("settleFlag",      e.getSettleFlag());
-        m.put("createdBy",       e.getCreatedBy());
-        m.put("createdAt",       e.getCreatedAt());
-        m.put("updatedBy",       e.getUpdatedBy());
-        m.put("updatedAt",       e.getUpdatedAt());
-        if (e.getTemplate() != null) {
-            m.put("templateId",   e.getTemplate().getTemplateId());
-            m.put("templateName", e.getTemplate().getTemplateName());
-        }
-        m.put("processMastId",   e.getProcessMastId());
-        return m;
-    }
+		ReconFileDetailsMaster fileConfig = fileConfigRepository.findById(fileId)
+				.orElseThrow(() -> new ResourceNotFoundException("File configuration not found with ID: " + fileId));
+
+		fileConfigRepository.delete(fileConfig); // pass the entity, not the ID
+
+		log.info("File configuration deleted successfully with ID: {}", fileId);
+
+		return new ResponseEntity<>(
+				new RestWithStatusList("SUCCESS", "File configuration deleted successfully with ID: " + fileId, null),
+				HttpStatus.OK);
+	}
+
+	// Helper methods for DTO conversion
+	private TemplateDTO convertToTemplateDTO(ReconTemplateDetails template) {
+		TemplateDTO dto = new TemplateDTO();
+		BeanUtils.copyProperties(template, dto);
+		return dto;
+	}
+
+	private FileConfigDTO convertToFileConfigDTO(ReconFileDetailsMaster entity) {
+		FileConfigDTO dto = new FileConfigDTO();
+
+		// Map all fields with correct entity field names
+		dto.setRfdFileId(entity.getReconFileId());
+		dto.setRfdFileName(entity.getReconFileName());
+		dto.setRfdShortName(entity.getReconShortName());
+		dto.setRfdNameConvFormat(entity.getReconNameConvFormat());
+		dto.setRfdFileDefineConst(entity.getReconFileDefinConst());
+		dto.setRfdFilenameLength(entity.getReconFileNameLength());
+		dto.setRfdFileDupChkFlag(entity.getReconFileDuplicateCheckFlag());
+		dto.setRfdFileType(entity.getReconFileType());
+		dto.setRfdFileDelimiter(entity.getReconFileDelimiter());
+		dto.setRfdFileLocation(entity.getReconFileLocation());
+		dto.setRfdFileDestPath(entity.getReconFileDestinationPath());
+		dto.setRfdFileDescription(entity.getReconFileDescription());
+
+		// Header fields
+		dto.setRfdHdrId(entity.getReconHdrId());
+		dto.setRfdHdrAvlFlag(entity.getReconHdrAvailableFlag());
+		dto.setRfdHdrBlockSize(entity.getReconHdrBlockSize());
+		dto.setRfdHdrKeyCount(entity.getReconHdrKeyCount());
+		dto.setRfdHdrWithDr(entity.getReconHdrWithDr());
+
+		// Footer fields
+		dto.setRfdFtrAvailFlag(entity.getReconFtrAvailFlag());
+		dto.setRfdFtrBeginConstVal(entity.getReconFtrBeginConstVal());
+		dto.setRfdFtrType(entity.getReconFtrType());
+		dto.setRfdFtrCtrlTagCnt(entity.getReconFtrControlTagCount());
+		dto.setRfdFtrLength(entity.getReconFtrLength());
+
+		// Detail Record fields
+		dto.setRfdDrFormat(entity.getReconDrFormat());
+		dto.setRfdMultiDrCheck(entity.getReconMultiDrCheck());
+		dto.setRfdMultiDrCount(entity.getReconMultiDrCount());
+		dto.setRfdDrBlockSizeFlag(entity.getReconDrBlockSizeFlag());
+		dto.setRfdDrBlockSize(entity.getReconDrBlockSize());
+
+		// Audit fields
+		dto.setRfdInstCode(entity.getReconInstCode());
+		dto.setRfdInsUser(entity.getReconInsertUser());
+		dto.setRfdInsDate(entity.getReconInsertDate());
+		dto.setRfdLupdUser(entity.getReconLastUpdatedUser());
+		dto.setRfdLupdDate(entity.getReconLastUpdatedDate());
+
+		// Other fields
+		dto.setRfdExtMenuName(entity.getReconExitMenuName());
+		dto.setRfdExtMenuFlag(entity.getReconExitMenuFlag());
+		dto.setRfdDridentifierFlag(entity.getReconDridenti1fierFlag());
+		dto.setRfdXsdName(entity.getReconXSDName());
+		dto.setRfdDependentFileId(entity.getReconDependentFileId());
+		dto.setRfdFtpServerName(entity.getReconFTPServerName());
+		dto.setRfdFtpFilePath(entity.getReconFTPFilePath());
+		dto.setRfdEmailSmsFlag(entity.getReconEmailSMSFlag());
+		dto.setRfdSettleFlg(entity.getReconSettleFlag());
+		dto.setRfdJpslRpsl(entity.getReconJpslRpsl());
+		dto.setFileUpdateFlag(entity.getFileUpdateFlag());
+		dto.setRfdTranFileFlag(entity.getRfdTranFileFlag());
+		dto.setRfdGlFlag(entity.getRfdGlFlag());
+
+		// Template relationship - NULL SAFE
+		if (entity.getReconTemplateDetails() != null) {
+			dto.setRtdTemplateId(entity.getReconTemplateDetails().getReconTemplateId());
+			dto.setTemplateName(entity.getReconTemplateDetails().getTemplateName());
+		}
+
+		// Process relationship - NULL SAFE
+		if (entity.getProcessmaster() != null) {
+			dto.setProcessMastId(entity.getProcessmaster().getProcessMastId());
+		}
+
+		return dto;
+	}
 }

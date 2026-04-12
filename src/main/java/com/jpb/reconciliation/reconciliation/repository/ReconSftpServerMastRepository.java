@@ -1,6 +1,5 @@
 package com.jpb.reconciliation.reconciliation.repository;
 
-
 import java.util.List;
 import java.util.Optional;
 
@@ -14,12 +13,9 @@ public interface ReconSftpServerMastRepository extends JpaRepository<ReconSftpSe
 
     List<ReconSftpServerMast> findByIsActive(String isActive);
 
-    Optional<ReconSftpServerMast> findByHost(String host);
+    Optional<ReconSftpServerMast> findByServerIdAndIsActive(Long serverId, String isActive);
 
-    List<ReconSftpServerMast> findByHostContainingIgnoreCase(String host);
+    boolean existsByServerName(String serverName);
 
-    // Legacy aliases — keeps FtpServerServiceImpl compiling
-    default List<ReconSftpServerMast> findByServerIp(String ip) {
-        return findByHostContainingIgnoreCase(ip);
-    }
+    boolean existsByServerNameAndServerIdNot(String serverName, Long serverId);
 }

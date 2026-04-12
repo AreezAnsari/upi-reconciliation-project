@@ -164,4 +164,7 @@ public class ReconFileTmpltMast {
     // Convenience: getReconTemplateId() alias so old service code doesn't break
     public Long getReconTemplateId()      { return this.templateId; }
     public void setReconTemplateId(Long v){ this.templateId = v; }
+    
+    @Column(name = "SFTP_SERVER_ID")
+    private Long sftpServerId;
 }

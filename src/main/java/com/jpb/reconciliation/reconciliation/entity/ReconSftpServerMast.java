@@ -1,59 +1,74 @@
 package com.jpb.reconciliation.reconciliation.entity;
 
-
 import java.time.LocalDateTime;
-import javax.persistence.*;
-import lombok.*;
+
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "recon_sftp_server_mast")
-@Data @NoArgsConstructor @AllArgsConstructor
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Table(name = "RECON_SFTP_SERVER_MAST", schema = "JPB_RECON")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ReconSftpServerMast {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_SFTP_SERVER_MAST")
-    @SequenceGenerator(name = "SEQ_SFTP_SERVER_MAST", sequenceName = "seq_sftp_server_mast", allocationSize = 1)
-    @Column(name = "sftp_server_id")
-    @EqualsAndHashCode.Include
-    private Long sftpServerId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "SERVER_ID")
+    private Long serverId;
 
-    @Column(name = "server_name", nullable = false, length = 100)
+    @Column(name = "SERVER_NAME", nullable = false, length = 100)
     private String serverName;
 
-    @Column(name = "host", nullable = false, length = 200)
+    @Column(name = "HOST", nullable = false, length = 200)
     private String host;
 
-    @Column(name = "port", nullable = false)
+    @Column(name = "PORT", nullable = false)
+    @Builder.Default
     private Integer port = 22;
 
-    @Column(name = "default_username", length = 100)
+    @Column(name = "DEFAULT_USERNAME", length = 100)
     private String defaultUsername;
 
-    @Column(name = "auth_type", nullable = false, length = 20)
+    @Column(name = "PASSWORD", length = 100)
+    private String password;
+
+    @Column(name = "PROTOCOL", length = 100)
+    private String protocol;
+
+    @Column(name = "AUTH_TYPE", nullable = false, length = 20)
+    @Builder.Default
     private String authType = "PASSWORD";
 
-    @Column(name = "credential_ref", length = 200)
-    private String credentialRef;
-
-    @Column(name = "is_active", length = 1)
+    @Column(name = "IS_ACTIVE", nullable = false, length = 1)
+    @Builder.Default
     private String isActive = "Y";
 
-    @Column(name = "created_by", nullable = false, length = 50)
-    private String createdBy;
+    @Column(name = "CREATED_BY", nullable = false, length = 50)
+    @Builder.Default
+    private String createdBy = "SYSTEM";
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_by", length = 50)
+    @Column(name = "UPDATED_BY", length = 50)
     private String updatedBy;
 
-    @Column(name = "updated_at")
+    @UpdateTimestamp
+    @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
-
-    // Legacy aliases for old FtpServer code
-    public String getFtpServerName() { return this.serverName; }
-    public String getServerIp()      { return this.host; }
-    public String getUserName()      { return this.defaultUsername; }
-    public Long getId()              { return this.sftpServerId; }
 }
