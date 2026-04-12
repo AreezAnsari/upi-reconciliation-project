@@ -121,6 +121,8 @@ public class ReconFileTemplateMastMapper {
         if (request.getXmlRootTag()        != null) entity.setXmlRootTag(request.getXmlRootTag());
         if (request.getXmlRowTag()         != null) entity.setXmlRowTag(request.getXmlRowTag());
         if (request.getXmlNamespace()      != null) entity.setXmlNamespace(request.getXmlNamespace());
+        if (request.getDescription()      != null) entity.setDescription(request.getDescription());
+        if (request.getFilePath()      != null) entity.setFilePath(request.getFilePath());
 
         if (request.getTenantId()      != null) entity.setTenantId(request.getTenantId());
         if (request.getCreatedBy()      != null) entity.setCreatedBy(request.getCreatedBy());

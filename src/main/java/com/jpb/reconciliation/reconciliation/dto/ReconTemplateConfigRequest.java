@@ -74,6 +74,10 @@ public class ReconTemplateConfigRequest {
     
     private Long tenantId;	
     private String createdBy;
+    
+    private String filePath;
+    private String description;
+
 
     // ── Field definitions ────────────────────────────────────────────────────
 
