@@ -67,16 +67,13 @@ public class ReconConfigController {
     @Autowired
     private ReconConfigService reconConfigService;
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // CREATE  –  POST /api/v2/recon/config/add
-    // ══════════════════════════════════════════════════════════════════════════
 
     @PostMapping("/add")
     public ResponseEntity<RestWithStatusList> addReconConfig(
             @Valid @RequestBody ReconConfigRequest request,
             BindingResult bindingResult) {
 
-        // ── Validation errors ────────────────────────────────────────────────
+        // ── Validation errors 
         if (bindingResult.hasErrors()) {
             Map<String, String> fieldErrors = new HashMap<>();
             bindingResult.getFieldErrors()
