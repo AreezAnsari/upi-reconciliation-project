@@ -402,8 +402,12 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ReconFileTmpltMast saveTemplateAndFields(ReconTemplateConfigRequest request) {
     	
+    	
+    	
     	 ReconSftpServerMast reconSftpServerMast = reconSftpServerMapper.toEntity(request.getSftpServerDetails());
-         sftpServerRepo.save(reconSftpServerMast);
+    	 if(request.getSftpServerDetails().getServerId() == null) {
+    		 reconSftpServerMast=sftpServerRepo.save(reconSftpServerMast);
+    		  }
     	
         ReconFileTmpltMast template = ReconFileTemplateMastMapper
                 .mapTemplateDtoToFileTmpltMast(request, new ReconFileTmpltMast());
