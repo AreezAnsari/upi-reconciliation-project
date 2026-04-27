@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.service;
 import org.springframework.http.ResponseEntity;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.SftpServerRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
 
@@ -14,9 +15,9 @@ public interface ReconSftpServerService {
 
     ResponseEntity<RestWithMapStatusList> getServerById(Long serverId);
 
-    ResponseEntity<RestWithMapStatusList> getAllServers(boolean activeOnly);
+    ResponseEntity<RestWithStatusList> getAllServers(boolean activeOnly);
 
     ResponseEntity<RestWithMapStatusList> deleteServer(Long serverId, String updatedBy);
 
-    ResponseEntity<RestWithMapStatusList> testConnection(SftpTestConnectionRequestDTO request);
+    ResponseEntity<RestWithStatusList> testConnection(SftpTestConnectionRequestDTO request);
 }

@@ -34,8 +34,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jpb.reconciliation.reconciliation.dto.ReconFieldConfigurationDto;
 import com.jpb.reconciliation.reconciliation.dto.ReconFileTemplateMastDto;
 import com.jpb.reconciliation.reconciliation.dto.ReconTemplateConfigRequest;
-import com.jpb.reconciliation.reconciliation.dto.ReconTemplatesDetailsDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.ScheduleConfigResponse;
 import com.jpb.reconciliation.reconciliation.entity.ReconFieldFormatMast;
 import com.jpb.reconciliation.reconciliation.entity.ReconFieldTypeMast;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileTmpltMast;
@@ -74,6 +74,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
     
     @Autowired
     ReconSftpServerMapper reconSftpServerMapper;
+    
+    @Autowired
+    ReconExecScheduleConfigService reconExecScheduleConfigService;
 
     @Autowired @Lazy
     private ReconFileTemplateConfigServiceImpl self;
@@ -421,9 +424,8 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         fieldDetailsRepository.saveAll(fields);
         logger.info("Saved {} fields for Template [{}]", fields.size(), template.getTemplateCode());
         
-        
-        
-        
+        ScheduleConfigResponse scheduleConfigResponse = reconExecScheduleConfigService.saveScheduleConfig(template.getTemplateId(), request.getSchedulerConfig());
+        logger.info("Saved scheduler config for Template [{}]", template.getTemplateCode());        
         
         return template;
     }

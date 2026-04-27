@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.SftpServerRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
 import com.jpb.reconciliation.reconciliation.service.ReconSftpServerService;
@@ -49,7 +50,7 @@ public class ReconSftpServerController {
     }
 
     @GetMapping
-    public ResponseEntity<RestWithMapStatusList> getAll(
+    public ResponseEntity<RestWithStatusList> getAll(
             @RequestParam(defaultValue = "true") boolean activeOnly) {
         return sftpServerService.getAllServers(activeOnly);
     }
@@ -62,7 +63,7 @@ public class ReconSftpServerController {
     }
 
     @PostMapping("/test-connection")
-    public ResponseEntity<RestWithMapStatusList> testConnection(
+    public ResponseEntity<RestWithStatusList> testConnection(
             @RequestBody SftpTestConnectionRequestDTO request) {
         return sftpServerService.testConnection(request);
     }

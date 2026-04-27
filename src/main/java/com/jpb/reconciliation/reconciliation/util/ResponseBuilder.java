@@ -10,23 +10,31 @@ import java.util.Map;
 import org.springframework.data.domain.Page;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 
 
 /**
- * Centralises construction of RestWithMapStatusList.
+ * Centralises construction of RestWithMapStatusList and RestWithStatusList.
  *
- * data shape:  { "key": [ { field: value, ... }, ... ] }
+ * ── RestWithMapStatusList  (data shape: Map<String, List<Map<String,Object>>>)
+ *    Used by V2 controllers — structured, multi-key data map.
+ *    Methods: ok(...), okPaged(...), failure(...), error(...), validationFail(...)
  *
- * Paginated APIs always return TWO keys:
+ * ── RestWithStatusList     (data shape: List<Object>)
+ *    Used by V1 / simple controllers — flat list of objects.
+ *    Methods: okList(...), okSingle(...), okEmpty(...),
+ *             failureList(...), errorList(...)
+ *
+ * Paginated APIs (RestWithMapStatusList) always return TWO keys:
  *   "templates"  (or "fileConfigs" etc.) → the data rows
  *   "pagination"                         → one-element list with page metadata
  *
- * Example response body for viewTemplate:
+ * Example response body for viewTemplate (RestWithMapStatusList):
  * {
  *   "status":    "SUCCESS",
  *   "statusMsg": "Templates retrieved successfully.",
  *   "data": {
- *     "templates":  [ { "templateId": 1, "templateName": "CBS_TXN", ... }, ... ],
+ *     "templates":  [ { "templateId": 1, "templateName": "CBS_TXN", ... } ],
  *     "pagination": [ {
  *       "currentPage":   0,
  *       "pageSize":      10,
@@ -39,6 +47,13 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
  *     }]
  *   }
  * }
+ *
+ * Example response body for simple save (RestWithStatusList):
+ * {
+ *   "status":    "SUCCESS",
+ *   "statusMsg": "Schedule config saved successfully.",
+ *   "data": [ { "scheduleId": 1, "templateId": 101, ... } ]
+ * }
  */
 public final class ResponseBuilder {
 
@@ -47,6 +62,10 @@ public final class ResponseBuilder {
     public static final String STATUS_SUCCESS = "SUCCESS";
     public static final String STATUS_FAILURE = "FAILURE";
     public static final String STATUS_ERROR   = "ERROR";
+
+    // =========================================================================
+    // RestWithMapStatusList — structured Map-based responses (V2 controllers)
+    // =========================================================================
 
     // ── Simple success ─────────────────────────────────────────────────────
 
@@ -89,7 +108,7 @@ public final class ResponseBuilder {
                                                 List<Map<String, Object>> rows,
                                                 Page<?> page) {
         Map<String, List<Map<String, Object>>> data = new LinkedHashMap<>();
-        data.put(dataKey,     rows != null ? rows : Collections.emptyList());
+        data.put(dataKey,      rows != null ? rows : Collections.emptyList());
         data.put("pagination", List.of(buildPaginationMap(page)));
         return new RestWithMapStatusList(STATUS_SUCCESS, msg, data);
     }
@@ -117,7 +136,103 @@ public final class ResponseBuilder {
         return new RestWithMapStatusList(STATUS_FAILURE, "Validation failed", data);
     }
 
-    // ── DTO → Map helpers ──────────────────────────────────────────────────
+    // =========================================================================
+    // RestWithStatusList — flat List<Object> responses (V1 / simple controllers)
+    // =========================================================================
+
+    /**
+     * Success response with a list of objects.
+     * Use when returning multiple records e.g. a list of DTOs.
+     *
+     * Example:
+     *   return ResponseBuilder.okList("Records fetched.", records);
+     *
+     * Produces:
+     *   { "status": "SUCCESS", "statusMsg": "Records fetched.", "data": [ {...}, {...} ] }
+     *
+     * @param msg   status message
+     * @param items list of response objects (DTOs, Maps, etc.) — null-safe, treated as empty
+     */
+    public static RestWithStatusList okList(String msg, List<?> items) {
+        List<Object> data = new ArrayList<>();
+        if (items != null) {
+            data.addAll(items);
+        }
+        return new RestWithStatusList(STATUS_SUCCESS, msg, data);
+    }
+
+    /**
+     * Success response wrapping a single object.
+     * Use when returning one saved / fetched record.
+     *
+     * Example:
+     *   return ResponseBuilder.okSingle("Schedule config saved.", response);
+     *
+     * Produces:
+     *   { "status": "SUCCESS", "statusMsg": "Schedule config saved.", "data": [ {...} ] }
+     *
+     * @param msg  status message
+     * @param item the single response object — if null, data will be an empty list
+     */
+    public static RestWithStatusList okSingle(String msg, Object item) {
+        List<Object> data = new ArrayList<>();
+        if (item != null) {
+            data.add(item);
+        }
+        return new RestWithStatusList(STATUS_SUCCESS, msg, data);
+    }
+
+    /**
+     * Success response with no data payload.
+     * Use for confirmations — delete, activate, deactivate, etc.
+     *
+     * Example:
+     *   return ResponseBuilder.okEmpty("Schedule config deleted.");
+     *
+     * Produces:
+     *   { "status": "SUCCESS", "statusMsg": "Schedule config deleted.", "data": [] }
+     *
+     * @param msg status message
+     */
+    public static RestWithStatusList okEmpty(String msg) {
+        return new RestWithStatusList(STATUS_SUCCESS, msg, Collections.emptyList());
+    }
+
+    /**
+     * Failure response with no data payload (RestWithStatusList).
+     * Use when a business rule check fails in a simple / V1 controller.
+     *
+     * Example:
+     *   return ResponseBuilder.failureList("Template not found.");
+     *
+     * Produces:
+     *   { "status": "FAILURE", "statusMsg": "Template not found.", "data": [] }
+     *
+     * @param msg failure message
+     */
+    public static RestWithStatusList failureList(String msg) {
+        return new RestWithStatusList(STATUS_FAILURE, msg, Collections.emptyList());
+    }
+
+    /**
+     * Error response with no data payload (RestWithStatusList).
+     * Use when an unexpected exception is caught in a simple / V1 controller.
+     *
+     * Example:
+     *   return ResponseBuilder.errorList("Unexpected error occurred.");
+     *
+     * Produces:
+     *   { "status": "ERROR", "statusMsg": "Unexpected error occurred.", "data": [] }
+     *
+     * @param msg error message
+     */
+    public static RestWithStatusList errorList(String msg) {
+        return new RestWithStatusList(STATUS_ERROR, msg, Collections.emptyList());
+    }
+
+    // =========================================================================
+    // DTO → Map helpers  (shared by both response types)
+    // =========================================================================
 
     /**
      * Converts any object to Map<String, Object> via Jackson.
@@ -152,7 +267,9 @@ public final class ResponseBuilder {
         return result;
     }
 
-    // ── Pagination map builder ─────────────────────────────────────────────
+    // =========================================================================
+    // Pagination map builder  (used by okPaged — RestWithMapStatusList only)
+    // =========================================================================
 
     /**
      * Builds the pagination metadata map from a Spring Page.

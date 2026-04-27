@@ -85,4 +85,6 @@ public class ReconTemplateConfigRequest {
     private List<ReconFieldConfigurationDto> fieldDetails;
     
     private SftpServerRequestDTO sftpServerDetails;
+    
+    private ScheduleConfigRequest schedulerConfig;
 }

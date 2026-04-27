@@ -17,6 +17,7 @@ import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.SftpServerRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
 import com.jpb.reconciliation.reconciliation.entity.ReconSftpServerMast;
@@ -150,20 +151,17 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
     // ─── GET ALL ──────────────────────────────────────────────────────────────
 
     @Override
-    public ResponseEntity<RestWithMapStatusList> getAllServers(boolean activeOnly) {
+    public ResponseEntity<RestWithStatusList> getAllServers(boolean activeOnly) {
 
         List<ReconSftpServerMast> list = activeOnly
                 ? sftpServerRepo.findByIsActive("Y")
                 : sftpServerRepo.findAll();
 
-        List<Map<String, Object>> rows = list.stream()
-                .map(this::buildServerRow)
-                .collect(Collectors.toList());
-
-        logger.info("Fetched {} SFTP server(s). activeOnly={}", rows.size(), activeOnly);
+     
+        logger.info("Fetched {} SFTP server(s). activeOnly={}", list.size(), activeOnly);
 
         return ResponseEntity.ok(
-                ResponseBuilder.ok("SFTP Servers fetched successfully.", "sftpServers", rows));
+                ResponseBuilder.okList("SFTP Servers fetched successfully.", list));
     }
 
     // ─── SOFT DELETE ──────────────────────────────────────────────────────────
@@ -206,7 +204,7 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
     // ─── TEST CONNECTION ──────────────────────────────────────────────────────
 
     @Override
-    public ResponseEntity<RestWithMapStatusList> testConnection(SftpTestConnectionRequestDTO request) {
+    public ResponseEntity<RestWithStatusList> testConnection(SftpTestConnectionRequestDTO request) {
 
         Session session = null;
         ChannelSftp channel = null;
@@ -231,14 +229,14 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
 
             logger.info("SFTP Test Connection SUCCESS -> {}:{}", request.getHost(), request.getPort());
 
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("host", request.getHost());
-            row.put("port", request.getPort());
-            row.put("remotePath", request.getRemotePath());
-            row.put("status", "CONNECTED");
+//            Map<String, Object> row = new LinkedHashMap<>();
+//            row.put("host", request.getHost());
+//            row.put("port", request.getPort());
+//            row.put("remotePath", request.getRemotePath());
+//            row.put("status", "CONNECTED");
 
             return ResponseEntity.ok(
-                    ResponseBuilder.ok("Connection successful! Remote path is accessible.", "connectionResult", List.of(row)));
+                    ResponseBuilder.okEmpty("Connection successful! Remote path is accessible."));
 
         } catch (Exception e) {
             logger.warn("SFTP Test Connection FAILED -> {}:{} | {}", request.getHost(), request.getPort(), e.getMessage());
@@ -251,7 +249,7 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
             row.put("reason", e.getMessage());
 
             return new ResponseEntity<>(
-                    ResponseBuilder.error("Connection failed: " + e.getMessage()),
+                    ResponseBuilder.errorList("Connection failed: " + e.getMessage()),
                     HttpStatus.INTERNAL_SERVER_ERROR);
 
         } finally {
