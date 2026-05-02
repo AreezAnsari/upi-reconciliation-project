@@ -1,39 +1,39 @@
-//package com.jpb.reconciliation.reconciliation.atmej.util;
-///**
-// * Tiny collection of string helpers shared across parser and reader.
-// *
-// * <p>Each method is null-tolerant and never throws. Kept separate so reader
-// * and parser can both use them without one depending on the other.
-// */
-//public final class TextUtils {
-//
-//    private TextUtils() {}
-//
-//    /**
-//     * Strip leading tab and space characters from {@code s}. Used only for
-//     * marker matching - the original line is preserved verbatim in the
-//     * emitted block so the audit copy is byte-faithful.
-//     */
-//    public static String stripLeading(String s) {
-//        if (s == null) return "";
-//        int i = 0;
-//        int len = s.length();
-//        while (i < len) {
-//            char c = s.charAt(i);
-//            if (c != '\t' && c != ' ') break;
-//            i++;
-//        }
-//        return i == 0 ? s : s.substring(i);
-//    }
-//
-//    /** Trim {@code s} and return null if blank. */
-//    public static String nullIfBlank(String s) {
-//        return (s == null || s.isBlank()) ? null : s.trim();
-//    }
-//
-//    /** Truncate {@code s} to at most {@code max} chars, suffixing "..." if cut. */
-//    public static String truncate(String s, int max) {
-//        if (s == null || s.length() <= max) return s;
-//        return s.substring(0, max) + "...";
-//    }
-//}
+package com.jpb.reconciliation.reconciliation.atmej.util;
+/**
+ * Tiny collection of string helpers shared across parser and reader.
+ *
+ * <p>Each method is null-tolerant and never throws. Kept separate so reader
+ * and parser can both use them without one depending on the other.
+ */
+public final class TextUtils {
+
+    private TextUtils() {}
+
+    /**
+     * Strip leading tab and space characters from {@code s}. Used only for
+     * marker matching - the original line is preserved verbatim in the
+     * emitted block so the audit copy is byte-faithful.
+     */
+    public static String stripLeading(String s) {
+        if (s == null) return "";
+        int i = 0;
+        int len = s.length();
+        while (i < len) {
+            char c = s.charAt(i);
+            if (c != '\t' && c != ' ') break;
+            i++;
+        }
+        return i == 0 ? s : s.substring(i);
+    }
+
+    /** Trim {@code s} and return null if blank. */
+    public static String nullIfBlank(String s) {
+        return (s == null || s.trim().isEmpty()) ? null : s.trim();
+    }
+
+    /** Truncate {@code s} to at most {@code max} chars, suffixing "..." if cut. */
+    public static String truncate(String s, int max) {
+        if (s == null || s.length() <= max) return s;
+        return s.substring(0, max) + "...";
+    }
+}

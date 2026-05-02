@@ -19,6 +19,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
