@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 
 import javax.persistence.*;
 
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import lombok.Data;
 
 @Entity
@@ -56,4 +59,15 @@ public class MLookup {
     @ManyToOne
     @JoinColumn(name = "PARENT_LOOKUP_ID")
     private MLookup parentLookup;
+    
+    @PrePersist
+    protected void onCreate() {
+        this.createdOn = LocalDateTime.now();
+        this.updatedOn = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedOn = LocalDateTime.now();
+    }
 }

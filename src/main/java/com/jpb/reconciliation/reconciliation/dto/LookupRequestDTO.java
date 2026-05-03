@@ -15,4 +15,6 @@ public class LookupRequestDTO {
     private String longName;
 
     private Long parentLookupId;
+    private String activeYn;
+    private String createdBy;
 }
