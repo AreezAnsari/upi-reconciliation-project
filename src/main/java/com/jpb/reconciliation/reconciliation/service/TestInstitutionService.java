@@ -31,4 +31,6 @@ public interface TestInstitutionService {
 
     // Logo file upload → saves file to disk, updates logo_path in DB
     ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader);
+
+    ResponseEntity<RestWithStatusList> verifyEmail(String token);
 }

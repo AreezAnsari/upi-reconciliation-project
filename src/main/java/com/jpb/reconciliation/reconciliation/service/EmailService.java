@@ -10,11 +10,16 @@ public interface EmailService {
 
     /**
      * Send OTP email for Forgot Password flow.
-     *
-     * @param toEmail    recipient email address
-     * @param userName   recipient's username (shown in email greeting)
-     * @param otpCode    the 6-digit OTP
-     * @param expiryMins how many minutes before OTP expires
      */
     void sendForgotPasswordOtp(String toEmail, String userName, String otpCode, int expiryMins);
+
+    /**
+     * Send welcome email to Institution's Primary Contact (Super User)
+     * after KalInfotech Admin successfully onboards the institution.
+     * Includes: Institution Code, Super User ID, Default Password, Verify Link.
+     */
+    void sendSuperUserWelcome(String toEmail, String superUserName,
+                              String institutionName, String institutionCode,
+                              String superUserId, String defaultPassword,
+                              String verifyLink);
 }

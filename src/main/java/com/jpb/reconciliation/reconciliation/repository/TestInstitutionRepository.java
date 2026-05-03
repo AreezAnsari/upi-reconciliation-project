@@ -23,4 +23,6 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
 
     // For docx dashboard — show only active institutions
     List<TestInstitution> findByStatusNot(String status);
+    
+    Optional<TestInstitution> findByVerificationToken(String verificationToken);
 }

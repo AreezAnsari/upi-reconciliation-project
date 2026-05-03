@@ -11,11 +11,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
 
     @Autowired
     private TestInstitutionRepository testInstitutionRepository;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
 
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE
@@ -78,14 +86,52 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         String institutionCode = generateInstitutionCode(dto.getInstitutionNameFull());
         logger.info("Generated institution code: {}", institutionCode);
 
-        // Use Mapper — not private method
+        // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
+        // e.g. "Rajesh Kumar" → "rajesh.kumar"
+        String superUserId = generateSuperUserId(dto.getPrimaryFullName());
+
+        // ── Generate default password — rule: min 8 chars, 1 upper, 1 special, 1 number ──
+        // e.g. "Recon@1234" pattern with random suffix
+        String defaultPassword = generateDefaultPassword();
+
+        // Map DTO → Entity
         TestInstitution institution = TestInstitutionMapper.mapToEntity(dto, new TestInstitution());
         institution.setInstitutionCode(institutionCode);
         institution.setStatus("PENDING");
         institution.setCreatedAt(LocalDateTime.now());
 
+        // Save Super User credentials in institution record
+        institution.setSuperUserId(superUserId);
+        institution.setDefaultPassword(defaultPassword);
+
+        // Generate verification token — valid for 48 hours
+        String token = UUID.randomUUID().toString();
+        institution.setVerificationToken(token);
+        institution.setTokenExpiry(LocalDateTime.now().plusHours(48));
+
         testInstitutionRepository.save(institution);
-        logger.info("Institution created: {} | Code: {}", dto.getInstitutionNameFull(), institutionCode);
+        logger.info("Institution created: {} | Code: {} | SuperUserId: {}",
+                    dto.getInstitutionNameFull(), institutionCode, superUserId);
+
+        // ── Send welcome email with Institution Code, User ID, Default Password ──
+        String verifyLink = frontendUrl + "/verify-email?token=" + token;
+        try {
+            emailService.sendSuperUserWelcome(
+                dto.getPrimaryEmail(),
+                dto.getPrimaryFullName(),
+                dto.getInstitutionNameFull(),
+                institutionCode,
+                superUserId,
+                defaultPassword,
+                verifyLink
+            );
+            logger.info("Welcome email dispatched to: {} | userId: {} | institution: {}",
+                        dto.getPrimaryEmail(), superUserId, dto.getInstitutionNameFull());
+        } catch (Exception e) {
+            // Email failure should NOT rollback the onboarding — just log the warning
+            logger.warn("Institution saved but welcome email failed for {}: {}",
+                        dto.getPrimaryEmail(), e.getMessage());
+        }
 
         List<Object> data = new ArrayList<>();
         data.add(TestInstitutionMapper.mapToDTO(institution));
@@ -107,7 +153,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No institutions found.", new ArrayList<>()));
         }
 
-        // Use Mapper
         List<Object> data = list.stream()
                 .map(TestInstitutionMapper::mapToDTO)
                 .collect(Collectors.toList());
@@ -168,19 +213,22 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         TestInstitution institution = optional.get();
 
         // Preserve system-generated fields
-        String existingCode      = institution.getInstitutionCode();
-        String existingStatus    = institution.getStatus();
-        String existingLogo      = institution.getLogoPath();
-        LocalDateTime existingCreatedAt  = institution.getCreatedAt();
-        String existingCreatedBy = institution.getCreatedBy();
+        String existingCode             = institution.getInstitutionCode();
+        String existingStatus           = institution.getStatus();
+        String existingLogo             = institution.getLogoPath();
+        String existingSuperUserId      = institution.getSuperUserId();
+        String existingDefaultPassword  = institution.getDefaultPassword();
+        LocalDateTime existingCreatedAt = institution.getCreatedAt();
+        String existingCreatedBy        = institution.getCreatedBy();
 
-        // Use Mapper
         TestInstitutionMapper.mapToEntity(dto, institution);
 
         // Restore protected fields
         institution.setInstitutionCode(existingCode);
         institution.setStatus(existingStatus);
         institution.setLogoPath(existingLogo);
+        institution.setSuperUserId(existingSuperUserId);
+        institution.setDefaultPassword(existingDefaultPassword);
         institution.setCreatedAt(existingCreatedAt);
         institution.setCreatedBy(existingCreatedBy);
         institution.setUpdatedAt(LocalDateTime.now());
@@ -244,22 +292,19 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Institution deactivated successfully.", new ArrayList<>()));
     }
-    
- // ─────────────────────────────────────────────────────────────────────────
+
+    // ─────────────────────────────────────────────────────────────────────────
     // LOGO UPLOAD
-    // Docx: "Upload bank's logo" — accepted: JPG / TIF — Max 2 MB
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
     public ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader) {
 
-        // 1. Find institution
         Optional<TestInstitution> optional = testInstitutionRepository.findByInstitutionId(institutionId);
         if (!optional.isPresent()) {
             return bad("Institution not found with ID: " + institutionId);
         }
 
-        // 2. Validate file
         if (file == null || file.isEmpty()) {
             return bad("No file provided.");
         }
@@ -270,14 +315,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("File size exceeds 2 MB limit.");
         }
 
-        // 3. Save file to disk
         try {
             File uploadDir = new File(LOGO_UPLOAD_DIR);
             if (!uploadDir.exists()) {
                 uploadDir.mkdirs();
             }
 
-            // Filename: institutionCode_logo.jpg
             TestInstitution institution = optional.get();
             String originalFilename = file.getOriginalFilename();
             String extension = originalFilename != null && originalFilename.contains(".")
@@ -288,7 +331,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             Path filePath = Paths.get(LOGO_UPLOAD_DIR + savedFilename);
             Files.write(filePath, file.getBytes());
 
-            // 4. Update logo_path in DB
             institution.setLogoPath(filePath.toString());
             institution.setUpdatedAt(LocalDateTime.now());
             institution.setUpdatedBy(logoUploader);
@@ -310,14 +352,61 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PRIVATE HELPER — institution code generate
+    // VERIFY EMAIL
     // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> verifyEmail(String token) {
+        Optional<TestInstitution> optional = 
+            testInstitutionRepository.findByVerificationToken(token);
+
+        // Token nahi mila DB mein
+        if (!optional.isPresent()) {
+            return bad("Invalid or expired verification link.");
+        }
+
+        TestInstitution institution = optional.get();
+
+        // Token expiry check — 48 hrs baad expire
+        if (institution.getTokenExpiry() != null &&
+            LocalDateTime.now().isAfter(institution.getTokenExpiry())) {
+            return bad("Verification link has expired. Please contact KalInfotech Admin.");
+        }
+
+        // ── Already ACTIVE hai — second time click ──
+        if ("ACTIVE".equals(institution.getStatus())) {
+            return ResponseEntity.ok(new RestWithStatusList(
+                "ALREADY_VERIFIED",
+                "Your email is already verified. Please proceed to login.",
+                new ArrayList<>()
+            ));
+        }
+
+        // ── First time — PENDING → ACTIVE ──
+        institution.setStatus("ACTIVE");
+        // Token DELETE MAT KARO — 48 hrs tak valid rahega
+        institution.setUpdatedAt(LocalDateTime.now());
+        testInstitutionRepository.save(institution);
+
+        logger.info("Institution {} verified and ACTIVE", institution.getInstitutionCode());
+
+        return ResponseEntity.ok(new RestWithStatusList(
+            "SUCCESS",
+            "Email verified successfully! Please proceed to login.",
+            new ArrayList<>()
+        ));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIVATE HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Institution code: first 4 letters of name + 4 random digits e.g. AXIS4298
     private String generateInstitutionCode(String institutionNameFull) {
         String cleaned = institutionNameFull.replaceAll("[^a-zA-Z]", "").toUpperCase();
         String prefix  = cleaned.length() >= 4 ? cleaned.substring(0, 4) : cleaned;
         while (prefix.length() < 4) prefix += "_";
 
-        // Loop until unique — avoids collision between similar bank names
         String code;
         do {
             int digits = 1000 + new Random().nextInt(9000);
@@ -325,6 +414,24 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         } while (testInstitutionRepository.findByInstitutionCode(code).isPresent());
 
         return code;
+    }
+
+    // Super User ID: firstname.lastname all lowercase
+    // e.g. "Rajesh Kumar Sharma" → "rajesh.kumar"  (first 2 words only)
+    // e.g. "Rajesh Kumar"        → "rajesh.kumar"
+    // e.g. "Rajesh"              → "rajesh"
+    private String generateSuperUserId(String fullName) {
+        if (fullName == null || fullName.trim().isEmpty()) return "user";
+        String[] parts = fullName.trim().toLowerCase().split("\\s+");
+        if (parts.length == 1) return parts[0];
+        return parts[0] + "." + parts[1];
+    }
+
+    // Default Password: "Recon@" + 4 random digits
+    // e.g. "Recon@4821" — satisfies: 8+ chars, 1 uppercase, 1 special, 1 number
+    private String generateDefaultPassword() {
+        int digits = 1000 + new Random().nextInt(9000);
+        return "Recon@" + digits;
     }
 
     /** Convenience — 400 Bad Request */

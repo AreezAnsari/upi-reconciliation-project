@@ -170,6 +170,19 @@ public class TestInstitution {
     // ACTIVE / INACTIVE / PENDING / BLOCKED
     @Column(name = "status", nullable = false, length = 20)
     private String status = "PENDING";
+    
+    @Column(name = "verification_token", length = 100)
+    private String verificationToken;
+
+    @Column(name = "token_expiry")
+    private LocalDateTime tokenExpiry;
+    
+ // ── Super User Credentials ────────────────────────────────────────────────
+    @Column(name = "super_user_id", length = 100)
+    private String superUserId;
+
+    @Column(name = "default_password", length = 100)
+    private String defaultPassword;
 
     // ─── Audit Columns (same pattern as all entities in this project) ─────────
     @CreatedDate

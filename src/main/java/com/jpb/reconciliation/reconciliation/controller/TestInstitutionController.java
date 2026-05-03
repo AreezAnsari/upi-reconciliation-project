@@ -139,4 +139,9 @@ public class TestInstitutionController {
                 file != null ? file.getSize() : 0);
         return testInstitutionService.uploadLogo(institutionId, file, userDetails.getUsername());
     }
+    
+    @GetMapping(value = "/verify-email", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> verifyEmail(@RequestParam String token) {
+        return testInstitutionService.verifyEmail(token);
+    }
 }

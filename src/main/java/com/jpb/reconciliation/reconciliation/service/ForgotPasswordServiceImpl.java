@@ -20,9 +20,13 @@ import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.KalEmployeeAdmin;
 import com.jpb.reconciliation.reconciliation.entity.KalEmployeePassword;
 import com.jpb.reconciliation.reconciliation.entity.OtpManager;
+import com.jpb.reconciliation.reconciliation.entity.PasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.KalEmployeePasswordRepository;
 import com.jpb.reconciliation.reconciliation.repository.KalEmployeeRepository;
 import com.jpb.reconciliation.reconciliation.repository.OtpManagerRepository;
+import com.jpb.reconciliation.reconciliation.repository.PasswordManagerRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 
 @Service
 public class ForgotPasswordServiceImpl implements ForgotPasswordService {
@@ -45,6 +49,12 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
 
     @Autowired
     private OtpManagerRepository otpManagerRepository;
+    
+    @Autowired
+    private PasswordManagerRepository passwordManagerRepository;
+    
+    @Autowired
+    private ReconUserRepository reconUserRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -66,21 +76,6 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
         }
 
         String emailId = request.getEmailId().trim().toLowerCase();
-
-        logger.info("Looking up email: '{}' (length: {})", emailId, emailId.length());
-
-        // DEBUG - direct JPQL test
-        List<KalEmployeeAdmin> all = kalEmployeeRepository.findAll();
-        logger.info("Total admins in DB: {}", all.size());
-        all.forEach(e -> {
-            logger.info("DB email: '{}' (len={}) | input: '{}' (len={}) | equals={}", 
-                e.getEmail(), 
-                e.getEmail() != null ? e.getEmail().length() : 0,
-                emailId,
-                emailId.length(),
-                e.getEmail() != null ? e.getEmail().equalsIgnoreCase(emailId) : false
-            );
-        });
 
         Optional<KalEmployeeAdmin> userOptional1 = kalEmployeeRepository.findByEmailIgnoreCase(emailId);
         logger.info("findByEmailIgnoreCase result present: {}", userOptional1.isPresent());
@@ -239,6 +234,18 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
         passwordRecord.setUpdatedAt(LocalDateTime.now());
         kalEmployeePasswordRepository.save(passwordRecord);
         logger.info("Password reset successful for: {}", emailId);
+        
+        Optional<ReconUser> reconUserOptional = reconUserRepository.findByEmailId(emailId);
+        if (reconUserOptional.isPresent()) {
+            ReconUser reconUser = reconUserOptional.get();
+            PasswordManager pwdManager = reconUser.getPasswordManager();
+            if (pwdManager != null) {
+                pwdManager.setUserPassword(passwordEncoder.encode(request.getNewPassword()));
+                pwdManager.setExpirationDate(LocalDateTime.now().plusDays(90));
+                passwordManagerRepository.save(pwdManager);
+                logger.info("PasswordManager (RCN) also updated for: {}", emailId);
+            }
+        }
 
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new ResponseDto("200",

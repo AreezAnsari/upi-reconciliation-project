@@ -44,8 +44,9 @@ public class SecurityConfig {
             	    .requestMatchers(new AntPathRequestMatcher("/auth/google")).permitAll()
             	    .requestMatchers(new AntPathRequestMatcher("/api/kalinfotech/auth/register")).permitAll()
             	    .requestMatchers(new AntPathRequestMatcher("/auth/refresh-token")).permitAll()
-            	    .requestMatchers(new AntPathRequestMatcher("/auth/forgot-password")).permitAll()   // ← NEW
-            	    .requestMatchers(new AntPathRequestMatcher("/auth/reset-password")).permitAll()    // ← NEW
+            	    .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-email")).permitAll()
+            	    .requestMatchers(new AntPathRequestMatcher("/auth/forgot-password")).permitAll()
+            	    .requestMatchers(new AntPathRequestMatcher("/auth/reset-password")).permitAll()
             	    .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
             	  .anyRequest().authenticated()
             	)
