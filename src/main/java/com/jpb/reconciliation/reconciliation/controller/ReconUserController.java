@@ -86,6 +86,4 @@ public class ReconUserController {
 	public ResponseEntity<RestWithStatusList> getAllUserDetails() {
 		return reconUserService.getAllUsers();
 	}
-	
-
 }
