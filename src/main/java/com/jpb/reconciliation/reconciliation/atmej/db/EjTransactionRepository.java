@@ -3,7 +3,7 @@ package com.jpb.reconciliation.reconciliation.atmej.db;
 import org.slf4j.Logger; 
 import org.slf4j.LoggerFactory;
 
-import com.jpb.reconciliation.reconciliation.atmej.model.EjTransaction;
+import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction;
 
 import javax.sql.DataSource;
 import java.io.StringReader;
@@ -103,7 +103,7 @@ public final class EjTransactionRepository {
 
                 int inserted = 0;
                 for (int r : results) {
-                    if (r >= 0 || r == PreparedStatement.SUCCESS_NO_INFO) inserted++;
+                	if (r >= 0 || r == PreparedStatement.SUCCESS_NO_INFO) inserted++;
                 }
                 LOG.info("Inserted {} EJ transactions in batch.", inserted);
                 return inserted;

@@ -3,7 +3,7 @@ package com.jpb.reconciliation.reconciliation.atmej.reader;
 import org.slf4j.Logger; 
 import org.slf4j.LoggerFactory;
 
-import com.jpb.reconciliation.reconciliation.atmej.model.RawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
 import com.jpb.reconciliation.reconciliation.atmej.parser.EjPatterns;
 import com.jpb.reconciliation.reconciliation.atmej.util.TextUtils;
 

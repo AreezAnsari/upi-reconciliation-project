@@ -1,7 +1,7 @@
 package com.jpb.reconciliation.reconciliation.atmej.util;
 
-import com.jpb.reconciliation.reconciliation.atmej.model.EjTransaction; 
-import com.jpb.reconciliation.reconciliation.atmej.model.RawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction;
+import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
 import com.jpb.reconciliation.reconciliation.atmej.parser.EjTransactionParser;
 
 import org.junit.jupiter.api.Test;

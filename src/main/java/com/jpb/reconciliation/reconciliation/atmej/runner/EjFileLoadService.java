@@ -4,8 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.jpb.reconciliation.reconciliation.atmej.db.EjTransactionRepository;
-import com.jpb.reconciliation.reconciliation.atmej.model.EjTransaction;
-import com.jpb.reconciliation.reconciliation.atmej.model.RawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction;
+import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
 import com.jpb.reconciliation.reconciliation.atmej.parser.EjTransactionParser;
 import com.jpb.reconciliation.reconciliation.atmej.reader.EjFileReader;
 
@@ -72,12 +72,12 @@ public final class EjFileLoadService {
                 try {
                     txn = parser.parse(block);
                     parsedCount++;
-                } catch (RuntimeException ex) {
+                } catch (Exception ex) {
                     // Parser is built to never throw - this is paranoia.
                     errorCount++;
                     LOG.error("Parser error on block {} lines {}-{}: {}",
                             block.getFileName(), block.getLineStart(), block.getLineEnd(),
-                            ex.toString());
+                            ex.getMessage());
                     continue;
                 }
 

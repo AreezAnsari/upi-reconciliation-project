@@ -48,7 +48,7 @@ public class AtmEjLoaderController {
         if (inputDir == null || inputDir.trim().isEmpty()) {
             Map<String, Object> err = new LinkedHashMap<>();
             err.put("status", "ERROR");
-            err.put("message", "inputDir is required");
+            err.put("message", "InputDir is Required");
             return ResponseEntity.badRequest().body(err);
         }
 
@@ -75,7 +75,7 @@ public class AtmEjLoaderController {
         } catch (Exception e) {
             Map<String, Object> err = new LinkedHashMap<>();
             err.put("status", "ERROR");
-            err.put("message", "Invalid charset: " + charsetStr);
+            err.put("message", "Invalid charset: " + charsetStr + " " + e.getMessage());
             return ResponseEntity.badRequest().body(err);
         }
 

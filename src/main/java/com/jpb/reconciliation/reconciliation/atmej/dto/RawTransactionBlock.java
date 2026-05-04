@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.atmej.model;
+package com.jpb.reconciliation.reconciliation.atmej.dto;
 
 import java.util.ArrayList; 
 import java.util.Collections;

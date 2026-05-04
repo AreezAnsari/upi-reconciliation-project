@@ -3,10 +3,10 @@ package com.jpb.reconciliation.reconciliation.atmej.parser;
 import org.slf4j.Logger; 
 import org.slf4j.LoggerFactory;
 
-import com.jpb.reconciliation.reconciliation.atmej.model.EjTransaction;
-import com.jpb.reconciliation.reconciliation.atmej.model.EjTransaction.Status;
-import com.jpb.reconciliation.reconciliation.atmej.model.EjTransaction.Type;
-import com.jpb.reconciliation.reconciliation.atmej.model.RawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction;
+import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction.Status;
+import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction.Type;
 import com.jpb.reconciliation.reconciliation.atmej.util.TextUtils;
 
 import java.math.BigDecimal;

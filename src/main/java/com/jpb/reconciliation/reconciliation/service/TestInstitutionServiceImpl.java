@@ -83,7 +83,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         }
 
         // Generate unique institution code
-        String institutionCode = generateInstitutionCode(dto.getInstitutionNameFull());
+        String institutionCode = dto.getInstitutionCode();
         logger.info("Generated institution code: {}", institutionCode);
 
         // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
