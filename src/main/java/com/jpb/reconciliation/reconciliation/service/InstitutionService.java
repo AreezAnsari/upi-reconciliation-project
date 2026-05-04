@@ -1,19 +1,15 @@
 package com.jpb.reconciliation.reconciliation.service;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+import java.util.*;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.constants.EnableStatus;
 import com.jpb.reconciliation.reconciliation.dto.InstitutionDTO;
-import com.jpb.reconciliation.reconciliation.entity.Institution;
-import com.jpb.reconciliation.reconciliation.exception.DuplicateResourceException;
-import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
-import com.jpb.reconciliation.reconciliation.mapper.InstitutionMapper;
+import com.jpb.reconciliation.reconciliation.entity.*;
+import com.jpb.reconciliation.reconciliation.exception.*;
 import com.jpb.reconciliation.reconciliation.repository.InstitutionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -24,107 +20,235 @@ import lombok.RequiredArgsConstructor;
 public class InstitutionService {
 
     private final InstitutionRepository institutionRepository;
-    private final InstitutionMapper institutionMapper;
 
-    // ─── CREATE ───────────────────────────────────────────────────────────────
+    // =========================================================
+    // CREATE
+    // =========================================================
 
-    public InstitutionDTO createInstitution(InstitutionDTO dto) {
-        if (institutionRepository.existsByInstitutionName(dto.getInstitutionName())) {
-            throw new DuplicateResourceException(
-                    "Institution with name '" + dto.getInstitutionName() + "' already exists");
-        }
-        if (institutionRepository.existsByInstitutionUserId(dto.getInstitutionUserId())) {
-            throw new DuplicateResourceException(
-                    "Institution with user ID '" + dto.getInstitutionUserId() + "' already exists");
-        }
-        Institution institution = institutionMapper.toEntity(dto);
-        Institution saved = institutionRepository.save(institution);
-        return institutionMapper.toDTO(saved);
+    public Institution createInstitution(
+            InstitutionDTO dto) {
+
+        validateDuplicates(dto);
+
+        Institution institution = mapToEntity(dto);
+
+        return institutionRepository.save(institution);
     }
 
-    // ─── READ ─────────────────────────────────────────────────────────────────
+    // =========================================================
+    // GET ALL
+    // =========================================================
 
-    @Transactional(readOnly = true)
-    public InstitutionDTO getInstitutionById(Long id) {
-        Institution institution = findOrThrow(id);
-        return institutionMapper.toDTO(institution);
+    public List<Institution> getAllInstitutions() {
+        return institutionRepository.findAll();
     }
 
-    @Transactional(readOnly = true)
-    public List<InstitutionDTO> getAllInstitutions() {
-        return institutionRepository.findAll()
-                .stream()
-                .map(institutionMapper::toDTO)
-                .collect(Collectors.toList());
+    // =========================================================
+    // GET BY ID
+    // =========================================================
+
+    public Institution getInstitutionById(Long id) {
+
+        return institutionRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Institution not found"));
     }
 
-    @Transactional(readOnly = true)
-    public Page<InstitutionDTO> getAllInstitutionsPaged(Pageable pageable) {
-        return institutionRepository.findAll(pageable)
-                .map(institutionMapper::toDTO);
+    // =========================================================
+    // UPDATE
+    // =========================================================
+
+    public Institution updateInstitution(
+            Long id,
+            InstitutionDTO dto) {
+
+        Institution existing =
+                getInstitutionById(id);
+
+        existing.setInstitutionNameFull(
+                dto.getInstitutionNameFull());
+
+        existing.setInstitutionNameShort(
+                dto.getInstitutionNameShort());
+
+        existing.setPrimaryEmail(
+                dto.getPrimaryEmail());
+
+        existing.setPrimaryMobile(
+                dto.getPrimaryMobile());
+
+        existing.setStatus(dto.getStatus());
+
+        return institutionRepository.save(existing);
     }
 
-    @Transactional(readOnly = true)
-    public List<InstitutionDTO> getInstitutionsByStatus(EnableStatus status) {
-        return institutionRepository.findByEnableStatus(status)
-                .stream()
-                .map(institutionMapper::toDTO)
-                .collect(Collectors.toList());
+    // =========================================================
+    // UPDATE STATUS
+    // =========================================================
+
+    public Institution updateStatus(
+            Long id,
+            EnableStatus status) {
+
+        Institution institution =
+                getInstitutionById(id);
+
+        institution.setStatus(status);
+
+        return institutionRepository.save(institution);
     }
 
-    // ─── UPDATE ───────────────────────────────────────────────────────────────
+    // =========================================================
+    // DELETE
+    // =========================================================
 
-    public InstitutionDTO updateInstitution(Long id, InstitutionDTO dto) {
-        Institution existing = findOrThrow(id);
-
-        // Check name uniqueness if changed
-        if (!existing.getInstitutionName().equals(dto.getInstitutionName())
-                && institutionRepository.existsByInstitutionName(dto.getInstitutionName())) {
-            throw new DuplicateResourceException(
-                    "Institution with name '" + dto.getInstitutionName() + "' already exists");
-        }
-
-        institutionMapper.updateEntityFromDTO(dto, existing);
-        Institution updated = institutionRepository.save(existing);
-        return institutionMapper.toDTO(updated);
-    }
-
-    /**
-     * PATCH - change only the Enable Status
-     */
-    public InstitutionDTO updateStatus(Long id, EnableStatus status) {
-        Institution existing = findOrThrow(id);
-        existing.setEnableStatus(status);
-        return institutionMapper.toDTO(institutionRepository.save(existing));
-    }
-
-    // ─── DELETE ───────────────────────────────────────────────────────────────
-
-    /**
-     * Per the manual: institution records cannot be deleted; status is changed instead.
-     * This method changes status to INACTIVE as a "soft delete".
-     */
     public void deleteInstitution(Long id) {
-        Institution institution = findOrThrow(id);
-        institution.setEnableStatus(EnableStatus.INACTIVE);
+
+        Institution institution =
+                getInstitutionById(id);
+
+        institution.setStatus(
+                EnableStatus.INACTIVE);
+
         institutionRepository.save(institution);
     }
 
-    /**
-     * Hard delete (use with caution — not recommended per business rules).
-     */
+    // =========================================================
+    // HARD DELETE
+    // =========================================================
+
     public void hardDeleteInstitution(Long id) {
-        if (!institutionRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Institution not found with ID: " + id);
-        }
-        institutionRepository.deleteById(id);
+
+        Institution institution =
+                getInstitutionById(id);
+
+        institutionRepository.delete(institution);
     }
 
-    // ─── Helper ───────────────────────────────────────────────────────────────
+    // =========================================================
+    // DUPLICATE VALIDATION
+    // =========================================================
 
-    private Institution findOrThrow(Long id) {
-        return institutionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Institution not found with ID: " + id));
+    private void validateDuplicates(
+            InstitutionDTO dto) {
+
+        institutionRepository
+                .findByInstitutionNameFull(
+                        dto.getInstitutionNameFull())
+                .ifPresent(data -> {
+                    throw new DuplicateResourceException(
+                            "Institution already exists");
+                });
+
+        institutionRepository
+                .findByPrimaryEmail(
+                        dto.getPrimaryEmail())
+                .ifPresent(data -> {
+                    throw new DuplicateResourceException(
+                            "Primary email already exists");
+                });
+    }
+
+    // =========================================================
+    // MAP DTO TO ENTITY
+    // =========================================================
+
+    private Institution mapToEntity(
+            InstitutionDTO dto) {
+
+        Institution institution =
+                Institution.builder()
+
+                        .institutionCode(
+                                dto.getInstitutionCode())
+
+                        .institutionNameFull(
+                                dto.getInstitutionNameFull())
+
+                        .institutionNameShort(
+                                dto.getInstitutionNameShort())
+
+                        .bankType(dto.getBankType())
+
+                        .bankLogoName(
+                                dto.getBankLogoName())
+
+                        .bankLogoPath(
+                                dto.getBankLogoPath())
+
+                        .regAddressLine1(
+                                dto.getRegAddressLine1())
+
+                        .regAddressLine2(
+                                dto.getRegAddressLine2())
+
+                        .regAddressLine3(
+                                dto.getRegAddressLine3())
+
+                        .regCity(dto.getRegCity())
+                        .regState(dto.getRegState())
+                        .regCountry(dto.getRegCountry())
+
+                        .primaryFullName(
+                                dto.getPrimaryFullName())
+
+                        .primaryEmail(
+                                dto.getPrimaryEmail())
+
+                        .primaryMobile(
+                                dto.getPrimaryMobile())
+
+                        .selectedProducts(
+                                dto.getSelectedProducts())
+
+                        .enableMFA(
+                                dto.getEnableMFA())
+
+                        .enableHRMS(
+                                dto.getEnableHRMS())
+
+                        .enableOTP(
+                                dto.getEnableOTP())
+
+                        .status(
+                                dto.getStatus() == null
+                                        ? EnableStatus.ACTIVE
+                                        : dto.getStatus())
+
+                        .createdDate(
+                                LocalDateTime.now())
+
+                        .build();
+
+        // PRODUCT VARIANTS
+
+        if (dto.getSelectedVariants() != null) {
+
+            List<InstitutionProductVariant> variants =
+                    new ArrayList<>();
+
+            dto.getSelectedVariants()
+                    .forEach((product, variantList) -> {
+
+                        for (String variant : variantList) {
+
+                            InstitutionProductVariant pv =
+                                    InstitutionProductVariant
+                                            .builder()
+                                            .productName(product)
+                                            .variantName(variant)
+                                            .institution(institution)
+                                            .build();
+
+                            variants.add(pv);
+                        }
+                    });
+
+            institution.setSelectedVariants(
+                    variants);
+        }
+
+        return institution;
     }
 }
