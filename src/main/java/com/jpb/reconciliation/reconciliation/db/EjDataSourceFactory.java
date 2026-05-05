@@ -1,13 +1,13 @@
-package com.jpb.reconciliation.reconciliation.atmej.db;
+package com.jpb.reconciliation.reconciliation.db;
 
-import com.jpb.reconciliation.reconciliation.atmej.config.AppConfig; 
+import com.jpb.reconciliation.reconciliation.config.EjAppConfig;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
 import javax.sql.DataSource;
 
 /**
- * Builds the production {@link DataSource} from an {@link AppConfig}.
+ * Builds the production {@link DataSource} from an {@link EjAppConfig}.
  * HikariCP is used as the connection pool; its defaults are sensible but we
  * override sizing and timeouts from configuration.
  *
@@ -15,11 +15,11 @@ import javax.sql.DataSource;
  * either commit explicitly or accept the default rollback-on-close that
  * happens when a connection is returned to the pool.
  */
-public final class DataSourceFactory {
+public final class EjDataSourceFactory {
 
-    private DataSourceFactory() {}
+    private EjDataSourceFactory() {}
 
-    public static DataSource create(AppConfig cfg) {
+    public static DataSource create(EjAppConfig cfg) {
         HikariConfig hc = new HikariConfig();
         hc.setJdbcUrl(cfg.getRequired("db.url"));
         hc.setUsername(cfg.getRequired("db.username"));

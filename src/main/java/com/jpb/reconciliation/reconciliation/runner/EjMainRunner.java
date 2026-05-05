@@ -1,12 +1,12 @@
-package com.jpb.reconciliation.reconciliation.atmej.runner;
+package com.jpb.reconciliation.reconciliation.runner;
 
 import org.slf4j.Logger; 
 import org.slf4j.LoggerFactory;
 
-import com.jpb.reconciliation.reconciliation.atmej.config.AppConfig;
-import com.jpb.reconciliation.reconciliation.atmej.db.DataSourceFactory;
-import com.jpb.reconciliation.reconciliation.atmej.db.EjTransactionRepository;
-import com.jpb.reconciliation.reconciliation.atmej.parser.EjTransactionParser;
+import com.jpb.reconciliation.reconciliation.config.EjAppConfig;
+import com.jpb.reconciliation.reconciliation.db.EjDataSourceFactory;
+import com.jpb.reconciliation.reconciliation.service.EjFileLoadService;
+import com.jpb.reconciliation.reconciliation.service.EjFileLoadServiceImpl;
 import com.zaxxer.hikari.HikariDataSource;
 
 import javax.sql.DataSource;
@@ -41,18 +41,18 @@ import java.nio.file.Paths;
  *   <li>{@code 2} - configuration / startup error</li>
  * </ul>
  */
-public final class MainRunner {
+public final class EjMainRunner {
 
-    private static final Logger LOG = LoggerFactory.getLogger(MainRunner.class);
+    private static final Logger LOG = LoggerFactory.getLogger(EjMainRunner.class);
 
     public static void main(String[] args) {
         System.exit(run(args));
     }
 
     static int run(String[] args) {
-        AppConfig cfg;
+        EjAppConfig cfg;
         try {
-            cfg = AppConfig.load();
+            cfg = EjAppConfig.load();
         } catch (RuntimeException e) {
             System.err.println("Configuration error: " + e.getMessage());
             return 2;
@@ -75,37 +75,29 @@ public final class MainRunner {
         }
         LOG.info("Found {} files to process.", files.size());
 
-        DataSource ds = DataSourceFactory.create(cfg);
+        String archiveDirStr = cfg.get("input.archiveDir");
+        DataSource ds = EjDataSourceFactory.create(cfg);
         try {
-            EjTransactionRepository repo   = new EjTransactionRepository(ds);
-            EjTransactionParser     parser = new EjTransactionParser(
-                    batchId,
-                    cfg.getOrDefault("parser.atmIdPrefix", ""));
-
-            String archiveDirStr = cfg.get("input.archiveDir");
-            Path   archiveDir    = (archiveDirStr != null && !archiveDirStr.trim().isEmpty())
-                                       ? Paths.get(archiveDirStr) : null;
-
-            EjFileLoadService svc = new EjFileLoadService(
-                    parser,
-                    repo,
-                    cfg.getInt("db.batchSize", 500),
-                    cfg.inputCharset(),
-                    cfg.getBoolean("input.archiveOnSuccess", false),
-                    archiveDir);
+        	EjFileLoadServiceImpl svc = new EjFileLoadServiceImpl(
+        	        ds,
+        	        cfg.getInt("db.batchSize", 500),
+        	        cfg.getOrDefault("parser.atmIdPrefix", ""),
+        	        cfg.getOrDefault("input.charset", "ISO-8859-1"),
+        	        cfg.getBoolean("input.archiveOnSuccess", false),
+        	        archiveDirStr);
 
             long totalParsed = 0, totalInserted = 0, totalErrors = 0;
             int  failedFiles = 0;
 
             for (Path f : files) {
                 try {
-                    EjFileLoadService.LoadResult r = svc.loadFile(f);
+                    EjFileLoadService.EjLoadResult r = svc.loadFile(f);
                     totalParsed   += r.parsed;
                     totalInserted += r.inserted;
                     totalErrors   += r.errors;
                     if (!r.success) failedFiles++;
                 } catch (RuntimeException e) {
-                    LOG.error("Unhandled error processing {}: {}", f, e.toString(), e);
+                    LOG.error("Unhandled error processing {}: {}", f, e.getMessage());
                     failedFiles++;
                 }
             }
@@ -127,7 +119,7 @@ public final class MainRunner {
         }
     }
 
-    private static List<Path> collectFiles(AppConfig cfg, String[] args) throws IOException {
+    private static List<Path> collectFiles(EjAppConfig cfg, String[] args) throws IOException {
         List<Path> result = new ArrayList<>();
 
         if (args != null && args.length > 0) {

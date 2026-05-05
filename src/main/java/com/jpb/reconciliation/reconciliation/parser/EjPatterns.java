@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.atmej.parser;
+package com.jpb.reconciliation.reconciliation.parser;
 
 import java.util.Set; 
 import java.util.regex.Pattern;

@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.atmej.dto;
+package com.jpb.reconciliation.reconciliation.dto;
 
 import java.math.BigDecimal; 
 import java.time.LocalDateTime;

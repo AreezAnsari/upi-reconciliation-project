@@ -1,11 +1,11 @@
-package com.jpb.reconciliation.reconciliation.atmej.reader;
+package com.jpb.reconciliation.reconciliation.reader;
 
-import org.slf4j.Logger; 
+import org.slf4j.Logger;  
 import org.slf4j.LoggerFactory;
 
-import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
-import com.jpb.reconciliation.reconciliation.atmej.parser.EjPatterns;
-import com.jpb.reconciliation.reconciliation.atmej.util.TextUtils;
+import com.jpb.reconciliation.reconciliation.util.EjTextUtils;
+import com.jpb.reconciliation.reconciliation.dto.EjRawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.parser.EjPatterns;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
- * Streams {@link RawTransactionBlock} instances from an EJ log file.
+ * Streams {@link EjRawTransactionBlock} instances from an EJ log file.
  *
  * <p>Memory footprint is O(block size) - never the whole file - so this scales
  * to multi-gigabyte logs. Blocks are produced lazily; the returned {@link Stream}
@@ -76,9 +76,9 @@ public final class EjFileReader implements AutoCloseable {
     public String getFileName() { return fileName; }
 
     /** Returns a stream of transaction blocks. Must be closed (try-with-resources). */
-    public Stream<RawTransactionBlock> stream() {
-        Iterator<RawTransactionBlock> it = new BlockIterator();
-        Spliterator<RawTransactionBlock> sp = Spliterators.spliteratorUnknownSize(
+    public Stream<EjRawTransactionBlock> stream() {
+        Iterator<EjRawTransactionBlock> it = new BlockIterator();
+        Spliterator<EjRawTransactionBlock> sp = Spliterators.spliteratorUnknownSize(
                 it, Spliterator.ORDERED | Spliterator.NONNULL);
         return StreamSupport.stream(sp, false).onClose(this::closeQuietly);
     }
@@ -113,9 +113,9 @@ public final class EjFileReader implements AutoCloseable {
     }
 
     // ============== iterator over transaction blocks ========================
-    private final class BlockIterator implements Iterator<RawTransactionBlock> {
+    private final class BlockIterator implements Iterator<EjRawTransactionBlock> {
         private final Deque<NumberedLine> lookback = new ArrayDeque<>(LOOKBACK_LINES);
-        private RawTransactionBlock next = null;
+        private EjRawTransactionBlock next = null;
         private boolean exhausted = false;
 
         @Override
@@ -125,6 +125,7 @@ public final class EjFileReader implements AutoCloseable {
             try {
                 next = readNextBlock();
             } catch (IOException e) {
+                LOG.error("I/O error reading file: {}", e.getMessage());
                 throw new UncheckedIOException("I/O error reading " + fileName, e);
             }
             if (next == null) exhausted = true;
@@ -132,26 +133,26 @@ public final class EjFileReader implements AutoCloseable {
         }
 
         @Override
-        public RawTransactionBlock next() {
+        public EjRawTransactionBlock next() {
             if (!hasNext()) throw new NoSuchElementException();
-            RawTransactionBlock b = next;
+            EjRawTransactionBlock b = next;
             next = null;
             return b;
         }
 
-        private RawTransactionBlock readNextBlock() throws IOException {
+        private EjRawTransactionBlock readNextBlock() throws IOException {
             // 1. seek forward until *TRANSACTION START*
             NumberedLine nl;
             while ((nl = nextLine()) != null) {
                 pushLookback(nl);
-                if (EjPatterns.TXN_START.matcher(TextUtils.stripLeading(nl.text)).find()) {
+                if (EjPatterns.TXN_START.matcher(EjTextUtils.stripLeading(nl.text)).find()) {
                     return readBlockFromStart(nl);
                 }
             }
             return null; // EOF
         }
 
-        private RawTransactionBlock readBlockFromStart(NumberedLine startLine) throws IOException {
+        private EjRawTransactionBlock readBlockFromStart(NumberedLine startLine) throws IOException {
             List<String> blockLines = new ArrayList<>(64);
             long lineStart = startLine.lineNo;
 
@@ -159,7 +160,7 @@ public final class EjFileReader implements AutoCloseable {
             NumberedLine seqHeaderLine = null;
             for (NumberedLine n : lookback) {
                 if (n == startLine) continue;
-                if (EjPatterns.SEQ_HEADER.matcher(TextUtils.stripLeading(n.text)).find()) {
+                if (EjPatterns.SEQ_HEADER.matcher(EjTextUtils.stripLeading(n.text)).find()) {
                     seqHeaderLine = n;
                 }
             }
@@ -174,7 +175,7 @@ public final class EjFileReader implements AutoCloseable {
             boolean foundEnd = false;
             NumberedLine cur;
             while ((cur = nextLine()) != null) {
-                String s = TextUtils.stripLeading(cur.text);
+                String s = EjTextUtils.stripLeading(cur.text);
 
                 // Defensive: if we encounter a fresh TRANSACTION START before END,
                 // the prior block is malformed - emit what we have and push the
@@ -183,7 +184,7 @@ public final class EjFileReader implements AutoCloseable {
                     LOG.warn("Malformed: TRANSACTION START at line {} of {} without preceding END; emitting partial block.",
                             cur.lineNo, fileName);
                     pushBack(cur);
-                    return new RawTransactionBlock(fileName, lineStart, lineEnd, blockLines);
+                    return new EjRawTransactionBlock(fileName, lineStart, lineEnd, blockLines);
                 }
                 blockLines.add(cur.text);
                 lineEnd = cur.lineNo;
@@ -197,12 +198,12 @@ public final class EjFileReader implements AutoCloseable {
             if (!foundEnd) {
                 LOG.warn("Truncated transaction block at end of {} (lines {}-{})",
                         fileName, lineStart, lineEnd);
-                return new RawTransactionBlock(fileName, lineStart, lineEnd, blockLines);
+                return new EjRawTransactionBlock(fileName, lineStart, lineEnd, blockLines);
             }
 
             // 3. trailing diagnostic lines until next event (or EOF).
             while ((cur = nextLine()) != null) {
-                String s = TextUtils.stripLeading(cur.text);
+                String s = EjTextUtils.stripLeading(cur.text);
                 boolean isNextEvent = EjPatterns.SEQ_HEADER.matcher(s).find()
                         || s.contains(EjPatterns.PRIMARY_CARD_READER_MARKER);
                 if (isNextEvent) {
@@ -214,7 +215,7 @@ public final class EjFileReader implements AutoCloseable {
                 pushLookback(cur);
             }
 
-            return new RawTransactionBlock(fileName, lineStart, lineEnd, blockLines);
+            return new EjRawTransactionBlock(fileName, lineStart, lineEnd, blockLines);
         }
 
         private void pushLookback(NumberedLine nl) {

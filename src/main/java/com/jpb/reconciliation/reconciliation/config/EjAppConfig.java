@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.atmej.config;
+package com.jpb.reconciliation.reconciliation.config;
 
 import java.io.IOException; 
 import java.io.InputStream;
@@ -23,25 +23,25 @@ import java.util.Properties;
  * <p>This class never logs values - downstream code is responsible for
  * scrubbing secrets from log output.
  */
-public final class AppConfig {
+public final class EjAppConfig {
 
     private static final String DEFAULT_RESOURCE = "application.properties";
     private static final String ENV_PREFIX = "ATM_EJ_";
 
     private final Properties props;
 
-    private AppConfig(Properties props) {
+    private EjAppConfig(Properties props) {
         this.props = props;
     }
 
     /** Loads configuration from {@code application.properties} on the classpath. */
-    public static AppConfig load() {
+    public static EjAppConfig load() {
         return load(DEFAULT_RESOURCE);
     }
 
-    public static AppConfig load(String resourceName) {
+    public static EjAppConfig load(String resourceName) {
         Properties p = new Properties();
-        try (InputStream in = AppConfig.class.getClassLoader().getResourceAsStream(resourceName)) {
+        try (InputStream in = EjAppConfig.class.getClassLoader().getResourceAsStream(resourceName)) {
             if (in == null) {
                 throw new IllegalStateException("Configuration resource not found: " + resourceName);
             }
@@ -49,7 +49,7 @@ public final class AppConfig {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load configuration: " + resourceName, e);
         }
-        return new AppConfig(p);
+        return new EjAppConfig(p);
     }
 
     // ---- accessors -----------------------------------------------------------

@@ -1,13 +1,13 @@
-package com.jpb.reconciliation.reconciliation.atmej.util;
+package com.jpb.reconciliation.reconciliation.util;
 /**
  * Tiny collection of string helpers shared across parser and reader.
  *
  * <p>Each method is null-tolerant and never throws. Kept separate so reader
  * and parser can both use them without one depending on the other.
  */
-public final class TextUtils {
+public final class EjTextUtils {
 
-    private TextUtils() {}
+    private EjTextUtils() {}
 
     /**
      * Strip leading tab and space characters from {@code s}. Used only for
@@ -35,5 +35,14 @@ public final class TextUtils {
     public static String truncate(String s, int max) {
         if (s == null || s.length() <= max) return s;
         return s.substring(0, max) + "...";
+    }
+    
+    /** Java-8-safe replacement for String#isBlank() */
+    public static boolean isBlank(String s) {
+        if (s == null) return true;
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isWhitespace(s.charAt(i))) return false;
+        }
+        return true;
     }
 }

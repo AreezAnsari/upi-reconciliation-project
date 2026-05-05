@@ -1,8 +1,8 @@
-package com.jpb.reconciliation.reconciliation.atmej.util;
+package com.jpb.reconciliation.reconciliation.util;
 
-import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction;
-import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
-import com.jpb.reconciliation.reconciliation.atmej.parser.EjTransactionParser;
+import com.jpb.reconciliation.reconciliation.dto.EjRawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.dto.EjTransaction;
+import com.jpb.reconciliation.reconciliation.parser.EjTransactionParser;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,8 +36,8 @@ public class EjTransactionParserTest {
             "TRANSACTION END"
         );
 
-        RawTransactionBlock block =
-                new RawTransactionBlock("test.txt", 1, 16, lines);
+        EjRawTransactionBlock block =
+                new EjRawTransactionBlock("test.txt", 1, 16, lines);
 
         EjTransaction txn = parser.parse(block);
 
@@ -71,8 +71,8 @@ public class EjTransactionParserTest {
             "TRANSACTION END"
         );
 
-        RawTransactionBlock block =
-                new RawTransactionBlock("test.txt", 17, 23, lines);
+        EjRawTransactionBlock block =
+                new EjRawTransactionBlock("test.txt", 17, 23, lines);
 
         EjTransaction txn = parser.parse(block);
 
@@ -93,8 +93,8 @@ public class EjTransactionParserTest {
             "TRANSACTION END"
         );
 
-        RawTransactionBlock block =
-                new RawTransactionBlock("test.txt", 24, 29, lines);
+        EjRawTransactionBlock block =
+                new EjRawTransactionBlock("test.txt", 24, 29, lines);
 
         EjTransaction txn = parser.parse(block);
 
@@ -110,8 +110,8 @@ public class EjTransactionParserTest {
             "TRANSACTION END"
         );
 
-        RawTransactionBlock block =
-                new RawTransactionBlock("test.txt", 1, 2, lines);
+        EjRawTransactionBlock block =
+                new EjRawTransactionBlock("test.txt", 1, 2, lines);
 
         EjTransaction txn = parser.parse(block);
 

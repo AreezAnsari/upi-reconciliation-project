@@ -1,6 +1,6 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
-import com.jpb.reconciliation.reconciliation.service.EjFileLoadService;
+import com.jpb.reconciliation.reconciliation.service.HyosungEjFileLoadService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,13 +14,13 @@ import java.nio.file.*;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api/v1/atmej")
-public class AtmEjLoaderController {
+@RequestMapping("/api/v1/atmej/hyosung")
+public class HyosungEjLoaderController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AtmEjLoaderController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(HyosungEjLoaderController.class);
 
     @Autowired
-    private EjFileLoadService ejFileLoadService;
+    private HyosungEjFileLoadService ejFileLoadService;
 
     @PostMapping("/load")
     public ResponseEntity<Map<String, Object>> loadEjFiles(@RequestBody Map<String, Object> request) {
@@ -70,7 +70,7 @@ public class AtmEjLoaderController {
 
         // --- 4. Service call karo ---
         String batchId = "batch-" + UUID.randomUUID();
-        EjFileLoadService.EjLoadResult result = ejFileLoadService.loadDirectory(dirPath, glob);
+        HyosungEjFileLoadService.EjLoadResult result = ejFileLoadService.loadDirectory(dirPath, glob);
 
         // --- 5. Response banao ---
         String overallStatus = result.failedFiles == 0

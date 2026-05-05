@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.atmej.dto;
+package com.jpb.reconciliation.reconciliation.dto;
 
 import java.util.ArrayList; 
 import java.util.Collections;
@@ -13,14 +13,14 @@ import java.util.Objects;
  * NCR APTRA EJ format includes ESC bytes and tab indentation). Stripping
  * happens inside the parser, never here.
  */
-public final class RawTransactionBlock {
+public final class EjRawTransactionBlock {
 
     private final String fileName;
     private final long   lineStart;
     private final long   lineEnd;
     private final List<String> lines;
 
-    public RawTransactionBlock(String fileName, long lineStart, long lineEnd, List<String> lines) {
+    public EjRawTransactionBlock(String fileName, long lineStart, long lineEnd, List<String> lines) {
         this.fileName  = Objects.requireNonNull(fileName);
         this.lineStart = lineStart;
         this.lineEnd   = lineEnd;

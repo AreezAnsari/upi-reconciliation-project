@@ -1,13 +1,13 @@
-package com.jpb.reconciliation.reconciliation.atmej.parser;
+package com.jpb.reconciliation.reconciliation.parser;
 
-import org.slf4j.Logger; 
+import org.slf4j.Logger;  
 import org.slf4j.LoggerFactory;
 
-import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction;
-import com.jpb.reconciliation.reconciliation.atmej.dto.RawTransactionBlock;
-import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction.Status;
-import com.jpb.reconciliation.reconciliation.atmej.dto.EjTransaction.Type;
-import com.jpb.reconciliation.reconciliation.atmej.util.TextUtils;
+import com.jpb.reconciliation.reconciliation.util.EjTextUtils;
+import com.jpb.reconciliation.reconciliation.dto.EjRawTransactionBlock;
+import com.jpb.reconciliation.reconciliation.dto.EjTransaction;
+import com.jpb.reconciliation.reconciliation.dto.EjTransaction.Status;
+import com.jpb.reconciliation.reconciliation.dto.EjTransaction.Type;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -18,7 +18,7 @@ import java.time.format.DateTimeParseException;
 import java.util.regex.Matcher;
 
 /**
- * Parses a single {@link RawTransactionBlock} into an {@link EjTransaction}.
+ * Parses a single {@link EjRawTransactionBlock} into an {@link EjTransaction}.
  *
  * <p>The parser holds only immutable configuration on the instance; all
  * mutable parsing state lives in a per-call {@link ParseState} object. A
@@ -61,16 +61,16 @@ public final class EjTransactionParser {
         this(loadBatchId, "");
     }
 
-    public EjTransaction parse(RawTransactionBlock block) {
+    public EjTransaction parse(EjRawTransactionBlock block) {
         ParseState s = new ParseState();
 
         for (String raw : block.getLines()) {
             try {
-                parseLine(TextUtils.stripLeading(raw), s);
+                parseLine(EjTextUtils.stripLeading(raw), s);
             } catch (RuntimeException ex) {
                 PARSE_ERR.warn("file={} lines={}-{} unable to parse line: '{}' ({})",
                         block.getFileName(), block.getLineStart(), block.getLineEnd(),
-                        TextUtils.truncate(raw, 200), ex.toString());
+                        EjTextUtils.truncate(raw, 200), ex.toString());
             }
         }
 
@@ -89,9 +89,9 @@ public final class EjTransactionParser {
                 .receiptTime(s.receiptTime)
                 .cardNumber(s.cardNumber)
                 .cardNumberRaw(s.cardNumberRaw)
-                .txnNo(TextUtils.nullIfBlank(s.txnNo))
-                .referenceNo(TextUtils.nullIfBlank(s.referenceNo))
-                .responseCode(TextUtils.nullIfBlank(s.responseCode))
+                .txnNo(EjTextUtils.nullIfBlank(s.txnNo))
+                .referenceNo(EjTextUtils.nullIfBlank(s.referenceNo))
+                .responseCode(EjTextUtils.nullIfBlank(s.responseCode))
                 .functionId(s.functionId)
                 .txnSerialNo(s.txnSerialNo)
                 .transactionType(s.txnType != null ? s.txnType : Type.OTHER)
@@ -320,7 +320,7 @@ public final class EjTransactionParser {
             try {
                 sum += Long.parseLong(m.group());
             } catch (NumberFormatException e) {
-                // numbers in EJ are bounded - ignore truly broken tokens
+                LOG.warn("Skipping unparseable number token: {}", e.getMessage());
             }
         }
         return sum;
@@ -331,11 +331,12 @@ public final class EjTransactionParser {
         try {
             return new BigDecimal(raw.trim());
         } catch (NumberFormatException e) {
+            LOG.warn("Unable to parse decimal value, returning null: {}", e.getMessage());
             return null;
         }
     }
 
-    private static LocalDateTime buildDateTime(String logDate, String logTime, RawTransactionBlock block) {
+    private static LocalDateTime buildDateTime(String logDate, String logTime, EjRawTransactionBlock block) {
         if (logDate == null || logTime == null) return null;
         try {
             LocalDate date = LocalDate.parse(logDate, LOG_DATE);
