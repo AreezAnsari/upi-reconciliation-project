@@ -1,4 +1,3 @@
-
 package com.jpb.reconciliation.reconciliation.service;
 
 
@@ -64,17 +63,16 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
     @Autowired ReconTmpltFieldDtlsRepository   fieldDetailsRepository;
     @Autowired ReconFieldDtlMastService        reconFieldDtlMastService;
     @Autowired ObjectMapper                    objectMapper;
-    
+
     @Autowired
     ReconSftpServerService  reconSftpServerService;
-    
-    
+
     @Autowired
     ReconSftpServerMastRepository sftpServerRepo;
-    
+
     @Autowired
     ReconSftpServerMapper reconSftpServerMapper;
-    
+
     @Autowired
     ReconExecScheduleConfigService reconExecScheduleConfigService;
 
@@ -86,33 +84,6 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
     public ReconFileTemplateConfigServiceImpl(DataSource dataSource) {
         this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
-
-    // =========================================================================
-    // ADD TEMPLATE
-    // =========================================================================
-
-//    @Override
-//    public ResponseEntity<RestWithMapStatusList> addTemplate(ReconTemplateDetailsDto dto) {
-//        ReconFileTmpltMast template = ReconFileTemplateMastMapper
-//                .mapToReconFileTmpltMast(dto, new ReconFileTmpltMast());
-//
-//        if (template == null) {
-//            return ResponseEntity.badRequest().body(
-//                    ResponseBuilder.failure("Template could not be configured."));
-//        }
-//
-//        templateRepository.save(template);
-//
-//        Map<String, Object> row = new LinkedHashMap<>();
-//        row.put("templateId",   template.getTemplateId());
-//        row.put("templateCode", template.getTemplateCode());
-//        row.put("templateName", template.getTemplateName());
-//        row.put("status",       template.getStatus());
-//
-//        return new ResponseEntity<>(
-//                ResponseBuilder.ok("Template successfully configured.", "template", List.of(row)),
-//                HttpStatus.CREATED);
-//    }
 
     // =========================================================================
     // CONFIGURE TEMPLATE + FIELDS (CREATE)
@@ -133,8 +104,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             savedTemplate = self.saveTemplateAndFields(request);
             logger.info("Template saved. ID: {}, Code: {}",
                     savedTemplate.getTemplateId(), savedTemplate.getTemplateCode());
-            
-            
+
         } catch (IllegalArgumentException e) {
             logger.error("Validation error: {}", e.getMessage(), e);
             return new ResponseEntity<>(
@@ -147,37 +117,15 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-//        String spResult;
-//        try {
-//            spResult = self.callStageTableProcedure(savedTemplate);
-//            logger.info("SP result for [{}]: {}", savedTemplate.getTemplateCode(), spResult);
-//        } catch (Exception e) {
-//            logger.error("SP exception for [{}]. Rolling back.", savedTemplate.getTemplateCode(), e);
-//            self.rollbackTemplateAndFields(savedTemplate.getTemplateId());
-//            return new ResponseEntity<>(
-//                    ResponseBuilder.error(
-//                            "Stage table creation failed. Template rolled back. " + e.getMessage()),
-//                    HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-//
-//        if (spResult == null || !spResult.equalsIgnoreCase("OK")) {
-//            logger.warn("SP returned [{}] for [{}]. Rolling back.",
-//                    spResult, savedTemplate.getTemplateCode());
-//            self.rollbackTemplateAndFields(savedTemplate.getTemplateId());
-//            return new ResponseEntity<>(
-//                    ResponseBuilder.error(
-//                            "Stage table creation failed. Template rolled back. Reason: " + spResult),
-//                    HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("templateId",   savedTemplate.getTemplateId());
         row.put("templateCode", savedTemplate.getTemplateCode());
         row.put("templateName", savedTemplate.getTemplateName());
         row.put("stageTable",   savedTemplate.getStageTabName());
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("Template configured successfully.", "template", List.of(row)));
+                ResponseBuilder.ok("Template configured successfully.", "template", Collections.singletonList(row)));
     }
 
     // =========================================================================
@@ -237,16 +185,13 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         row.put("templateCode", updatedTemplate.getTemplateCode());
         row.put("templateName", updatedTemplate.getTemplateName());
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("Template updated successfully.", "template", List.of(row)));
+                ResponseBuilder.ok("Template updated successfully.", "template", Collections.singletonList(row)));
     }
 
     // =========================================================================
     // VIEW TEMPLATE — paginated
-    //
-    // FIX 1: empty page now returns "pagination" key too (consistent with non-empty)
-    // FIX 2: removed duplicate buildPaginationMap — uses ResponseBuilder.okPaged()
-    // FIX 3: input validation (page < 0, size out of range) preserved
     // =========================================================================
 
     @Override
@@ -264,14 +209,13 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             Pageable pageable = PageRequest.of(page, size);
             Page<ReconFileTmpltMast> templatePage = templateRepository.findTemplates(pageable);
 
-            // FIX: empty path now goes through okPaged so "pagination" key is always present
             if (templatePage.isEmpty()) {
                 return ResponseEntity.ok(
                         ResponseBuilder.okPaged(
                                 "No templates available.",
                                 "templates",
                                 Collections.emptyList(),
-                                templatePage));        // ← pagination metadata included
+                                templatePage));
             }
 
             List<ReconFileTmpltMast> withDetails =
@@ -314,16 +258,13 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("deletedTemplateId", templateId);
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("Template deleted successfully.", "deleted", List.of(row)));
+                ResponseBuilder.ok("Template deleted successfully.", "deleted", Collections.singletonList(row)));
     }
 
     // =========================================================================
     // SEARCH TEMPLATE — paginated
-    //
-    // FIX 1: empty results now returns "pagination" key (consistent with viewTemplate)
-    // FIX 2: removed duplicate buildPaginationMap — uses ResponseBuilder.okPaged()
-    // FIX 3: added input validation matching viewTemplate
     // =========================================================================
 
     @Override
@@ -353,7 +294,6 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             results = templateRepository.findTemplates(pageable);
         }
 
-        // FIX: empty results now consistent — "pagination" key always present
         if (results.isEmpty()) {
             return ResponseEntity.ok(
                     ResponseBuilder.okPaged(
@@ -388,8 +328,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             ReconFileTemplateMastDto dto = ReconFileTemplateMastMapper.toDTO(opt.get());
             Map<String, Object> row = ResponseBuilder.toMap(dto, objectMapper);
 
+            // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
             return ResponseEntity.ok(
-                    ResponseBuilder.ok("Template fetched successfully.", "template", List.of(row)));
+                    ResponseBuilder.ok("Template fetched successfully.", "template", Collections.singletonList(row)));
 
         } catch (Exception e) {
             logger.error("Error fetching template {}: {}", templateId, e.getMessage(), e);
@@ -404,14 +345,12 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ReconFileTmpltMast saveTemplateAndFields(ReconTemplateConfigRequest request) {
-    	
-    	
-    	
-    	 ReconSftpServerMast reconSftpServerMast = reconSftpServerMapper.toEntity(request.getSftpServerDetails());
-    	 if(request.getSftpServerDetails().getServerId() == null) {
-    		 reconSftpServerMast=sftpServerRepo.save(reconSftpServerMast);
-    		  }
-    	
+
+        ReconSftpServerMast reconSftpServerMast = reconSftpServerMapper.toEntity(request.getSftpServerDetails());
+        if (request.getSftpServerDetails().getServerId() == null) {
+            reconSftpServerMast = sftpServerRepo.save(reconSftpServerMast);
+        }
+
         ReconFileTmpltMast template = ReconFileTemplateMastMapper
                 .mapTemplateDtoToFileTmpltMast(request, new ReconFileTmpltMast());
         template.setTemplateCode(generateTemplateCode());
@@ -423,10 +362,11 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         List<ReconTmpltFieldDtls> fields = buildFieldEntities(request.getFieldDetails(), template);
         fieldDetailsRepository.saveAll(fields);
         logger.info("Saved {} fields for Template [{}]", fields.size(), template.getTemplateCode());
-        
-        ScheduleConfigResponse scheduleConfigResponse = reconExecScheduleConfigService.saveScheduleConfig(template.getTemplateId(), request.getSchedulerConfig());
-        logger.info("Saved scheduler config for Template [{}]", template.getTemplateCode());        
-        
+
+        ScheduleConfigResponse scheduleConfigResponse = reconExecScheduleConfigService
+                .saveScheduleConfig(template.getTemplateId(), request.getSchedulerConfig());
+        logger.info("Saved scheduler config for Template [{}]", template.getTemplateCode());
+
         return template;
     }
 
@@ -438,6 +378,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
         if (request.getTemplateName()      != null) template.setTemplateName(request.getTemplateName());
         if (request.getTemplateType()      != null) template.setTemplateType(request.getTemplateType());
+        // FIX: Long.valueOf(Integer) is fine in Java 8; kept as-is — safe if getColumnCount() returns Integer
         if (request.getColumnCount()       != null) template.setColumnCount(Long.valueOf(request.getColumnCount()));
         if (request.getReversalIndicator() != null) template.setReversalIndicator(request.getReversalIndicator());
         if (request.getDataReference()     != null) template.setDataReferenceFlag(request.getDataReference());
@@ -540,4 +481,3 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                 t.getTemplateCode()).toUpperCase().replace("-", "_") + "_STAGE_T";
     }
 }
-

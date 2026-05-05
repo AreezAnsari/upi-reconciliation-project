@@ -92,8 +92,10 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
         row.put("hasHeader",    t.getHasHeader());
         row.put("hasTrailer",   t.getHasTrailer());
 
+        // FIX 1: List.of() → Collections.singletonList() (Java 8 compatible)
+        // FIX 2: Removed extra closing parenthesis ')' that caused compile error
         return ResponseEntity.ok(
-                ResponseBuilder.ok("Template fetched successfully.", "template", List.of(row)));
+                ResponseBuilder.ok("Template fetched successfully.", "template", Collections.singletonList(row)));
     }
 
     // =========================================================================
@@ -157,9 +159,10 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "File configuration not found: " + fileId));
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
                 ResponseBuilder.ok("File configuration fetched successfully.",
-                        "fileConfig", List.of(toRowMap(config))));
+                        "fileConfig", Collections.singletonList(toRowMap(config))));
     }
 
     // =========================================================================
@@ -193,9 +196,10 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
         row.put("templateId",     saved.getTemplate().getTemplateId());
         row.put("templateName",   saved.getTemplate().getTemplateName());
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return new ResponseEntity<>(
                 ResponseBuilder.ok("File configuration created successfully.",
-                        "created", List.of(row)),
+                        "created", Collections.singletonList(row)),
                 HttpStatus.CREATED);
     }
 
@@ -228,9 +232,10 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
         ReconFileIngestConfig saved = fileConfigRepository.save(config);
         log.info("File ingest config updated. ID: {}", saved.getIngestConfigId());
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
                 ResponseBuilder.ok("File configuration updated successfully.",
-                        "updated", List.of(toRowMap(saved))));
+                        "updated", Collections.singletonList(toRowMap(saved))));
     }
 
     // =========================================================================
@@ -250,9 +255,10 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("deletedFileConfigId", fileId);
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
                 ResponseBuilder.ok("File configuration deleted successfully.",
-                        "deleted", List.of(row)));
+                        "deleted", Collections.singletonList(row)));
     }
 
     // =========================================================================

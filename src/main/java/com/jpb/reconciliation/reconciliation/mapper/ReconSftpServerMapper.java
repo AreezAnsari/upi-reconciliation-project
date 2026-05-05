@@ -1,7 +1,6 @@
 package com.jpb.reconciliation.reconciliation.mapper;
 
 import org.springframework.stereotype.Component;
-
 import com.jpb.reconciliation.reconciliation.dto.SftpServerRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.SftpServerResponseDTO;
 import com.jpb.reconciliation.reconciliation.entity.ReconSftpServerMast;
@@ -14,7 +13,6 @@ public class ReconSftpServerMapper {
      */
     public ReconSftpServerMast toEntity(SftpServerRequestDTO dto) {
         if (dto == null) return null;
-
         return ReconSftpServerMast.builder()
                 .serverName(dto.getServerName())
                 .host(dto.getHost())
@@ -33,7 +31,6 @@ public class ReconSftpServerMapper {
      */
     public SftpServerResponseDTO toResponseDTO(ReconSftpServerMast entity) {
         if (entity == null) return null;
-
         return SftpServerResponseDTO.builder()
                 .serverId(entity.getServerId())
                 .serverName(entity.getServerName())
@@ -56,16 +53,14 @@ public class ReconSftpServerMapper {
      */
     public void updateEntityFromRequest(SftpServerRequestDTO dto, ReconSftpServerMast entity) {
         if (dto == null || entity == null) return;
-
         entity.setServerName(dto.getServerName());
         entity.setHost(dto.getHost());
         entity.setPort(dto.getPort() != null ? dto.getPort() : 22);
         entity.setDefaultUsername(dto.getDefaultUsername());
         entity.setProtocol(dto.getProtocol());
         entity.setAuthType(dto.getAuthType() != null ? dto.getAuthType() : "PASSWORD");
-
-        // Only update password if explicitly provided
-        if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+        // FIX: isBlank() → null check + trim().isEmpty() (Java 8 compatible)
+        if (dto.getPassword() != null && !dto.getPassword().trim().isEmpty()) {
             entity.setPassword(dto.getPassword());
         }
         // updatedBy set in service via request header

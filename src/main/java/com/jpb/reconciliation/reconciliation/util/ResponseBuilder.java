@@ -109,7 +109,8 @@ public final class ResponseBuilder {
                                                 Page<?> page) {
         Map<String, List<Map<String, Object>>> data = new LinkedHashMap<>();
         data.put(dataKey,      rows != null ? rows : Collections.emptyList());
-        data.put("pagination", List.of(buildPaginationMap(page)));
+     //   data.put("pagination", List.of(buildPaginationMap(page)));
+        data.put("pagination", Collections.singletonList(buildPaginationMap(page)));
         return new RestWithMapStatusList(STATUS_SUCCESS, msg, data);
     }
 

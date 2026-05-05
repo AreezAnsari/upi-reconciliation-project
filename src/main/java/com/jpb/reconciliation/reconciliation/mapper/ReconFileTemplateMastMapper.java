@@ -1,4 +1,3 @@
-
 package com.jpb.reconciliation.reconciliation.mapper;
 
 
@@ -35,66 +34,6 @@ public class ReconFileTemplateMastMapper {
     private ReconFileTemplateMastMapper() {}
 
     // =========================================================================
-    // METHOD 1: mapToReconFileTmpltMast
-    // Called by: addTemplate(ReconTemplateDetailsDto)
-    // =========================================================================
-
-//    public static ReconFileTmpltMast mapToReconFileTmpltMast(ReconTemplateDetailsDto dto,
-//                                                               ReconFileTmpltMast entity) {
-//        if (dto == null) return null;
-//
-//        if (dto.getTemplateName()      != null) entity.setTemplateName(dto.getTemplateName());
-//        if (dto.getTemplateType()      != null) entity.setTemplateType(dto.getTemplateType());
-//        if (dto.getDescription()       != null) entity.setDescription(dto.getDescription());
-//        if (dto.getFilePath()          != null) entity.setFilePath(dto.getFilePath());
-//        if (dto.getFileEncoding()      != null) entity.setFileEncoding(dto.getFileEncoding());
-//        if (dto.getHasHeader()         != null) entity.setHasHeader(dto.getHasHeader());
-//        if (dto.getHasTrailer()        != null) entity.setHasTrailer(dto.getHasTrailer());
-//        if (dto.getHeaderLineCount()   != null) entity.setHeaderLineCount(dto.getHeaderLineCount());
-//        if (dto.getTrailerLineCount()  != null) entity.setTrailerLineCount(dto.getTrailerLineCount());
-//        if (dto.getFrequencyType()     != null) entity.setFrequencyType(dto.getFrequencyType());
-//        if (dto.getFileNamePattern()   != null) entity.setFileNamePattern(dto.getFileNamePattern());
-//        if (dto.getDateFormat()        != null) entity.setDateFormat(dto.getDateFormat());
-//        if (dto.getAmountFormat()      != null) entity.setAmountFormat(dto.getAmountFormat());
-//        if (dto.getDupCheckFlag()      != null) entity.setDupCheckFlag(dto.getDupCheckFlag());
-//        if (dto.getReversalHandling()  != null) entity.setReversalHandling(dto.getReversalHandling());
-//        if (dto.getDelimiter()         != null) entity.setDelimiter(dto.getDelimiter());
-//        if (dto.getTextQualifier()     != null) entity.setTextQualifier(dto.getTextQualifier());
-//        if (dto.getRecordLength()      != null) entity.setRecordLength(dto.getRecordLength());
-//        if (dto.getPaddingChar()       != null) entity.setPaddingChar(dto.getPaddingChar());
-//        if (dto.getXmlRootTag()        != null) entity.setXmlRootTag(dto.getXmlRootTag());
-//        if (dto.getXmlRowTag()         != null) entity.setXmlRowTag(dto.getXmlRowTag());
-//        if (dto.getXmlNamespace()      != null) entity.setXmlNamespace(dto.getXmlNamespace());
-//        if (dto.getSubTemplateId()     != null) entity.setSubTemplateId(dto.getSubTemplateId());
-//        if (dto.getTypeId()            != null) entity.setTypeId(dto.getTypeId());
-//        if (dto.getColumnCount()       != null) entity.setColumnCount(dto.getColumnCount());
-//        if (dto.getReversalIndicator() != null) entity.setReversalIndicator(dto.getReversalIndicator());
-//        if (dto.getDataReferenceFlag() != null) entity.setDataReferenceFlag(dto.getDataReferenceFlag());
-//        if (dto.getOnlRefundFlag()     != null) entity.setOnlRefundFlag(dto.getOnlRefundFlag());
-//        if (dto.getIssacqFlag()        != null) entity.setIssacqFlag(dto.getIssacqFlag());
-//        if (dto.getDataTableInd()      != null) entity.setDataTableInd(dto.getDataTableInd());
-//        if (dto.getMasterFlag()        != null) entity.setMasterFlag(dto.getMasterFlag());
-//        if (dto.getMasterTemplateId()  != null) entity.setMasterTemplateId(dto.getMasterTemplateId());
-//        if (dto.getSettlementFlag()    != null) entity.setSettlementFlag(dto.getSettlementFlag());
-//        if (dto.getProductType()       != null) entity.setProductType(dto.getProductType());
-//        if (dto.getTenantId()          != null) entity.setTenantId(dto.getTenantId());
-//
-//        // Safe defaults
-//        if (entity.getStatus()           == null) entity.setStatus("DRAFT");
-//        if (entity.getVersion()          == null) entity.setVersion(1);
-//        if (entity.getIsDeleted()        == null) entity.setIsDeleted("N");
-//        if (entity.getFileEncoding()     == null) entity.setFileEncoding("UTF-8");
-//        if (entity.getHasHeader()        == null) entity.setHasHeader("Y");
-//        if (entity.getHasTrailer()       == null) entity.setHasTrailer("N");
-//        if (entity.getHeaderLineCount()  == null) entity.setHeaderLineCount(1);
-//        if (entity.getTrailerLineCount() == null) entity.setTrailerLineCount(0);
-//        if (entity.getDupCheckFlag()     == null) entity.setDupCheckFlag("N");
-//
-//        entity.setCreatedAt(LocalDateTime.now());
-//        return entity;
-//    }
-
-    // =========================================================================
     // METHOD 2: mapTemplateDtoToFileTmpltMast
     // Called by: saveTemplateAndFields(TemplateFieldDto) — configure/create flow
     // =========================================================================
@@ -121,12 +60,11 @@ public class ReconFileTemplateMastMapper {
         if (request.getXmlRootTag()        != null) entity.setXmlRootTag(request.getXmlRootTag());
         if (request.getXmlRowTag()         != null) entity.setXmlRowTag(request.getXmlRowTag());
         if (request.getXmlNamespace()      != null) entity.setXmlNamespace(request.getXmlNamespace());
-        if (request.getDescription()      != null) entity.setDescription(request.getDescription());
-        if (request.getFilePath()      != null) entity.setFilePath(request.getFilePath());
+        if (request.getDescription()       != null) entity.setDescription(request.getDescription());
+        if (request.getFilePath()          != null) entity.setFilePath(request.getFilePath());
+        if (request.getTenantId()          != null) entity.setTenantId(request.getTenantId());
+        if (request.getCreatedBy()         != null) entity.setCreatedBy(request.getCreatedBy());
 
-        if (request.getTenantId()      != null) entity.setTenantId(request.getTenantId());
-        if (request.getCreatedBy()      != null) entity.setCreatedBy(request.getCreatedBy());
-        
         // Safe defaults
         if (entity.getStatus()           == null) entity.setStatus("ACTIVE");
         if (entity.getVersion()          == null) entity.setVersion(1);
@@ -240,7 +178,7 @@ public class ReconFileTemplateMastMapper {
     private static ReconFileTemplateMastDto.FieldDefinitionDTO toFieldDTO(ReconTmpltFieldDtls f) {
         return ReconFileTemplateMastDto.FieldDefinitionDTO.builder()
                 .fieldId(f.getFieldId())
-                // templateId via relationship — getTemplateMast() not getTemplate()
+                // templateId via relationship
                 .templateId(f.getTemplate() != null
                         ? f.getTemplate().getTemplateId() : null)
                 .fieldName(f.getFieldName())
@@ -276,7 +214,8 @@ public class ReconFileTemplateMastMapper {
     }
 
     private static Integer parseIntSafe(String value) {
-        if (value == null || value.isBlank()) return null;
+        // FIX: isBlank() → null check + trim().isEmpty() (Java 8 compatible)
+        if (value == null || value.trim().isEmpty()) return null;
         try {
             return Integer.parseInt(value.trim());
         } catch (NumberFormatException e) {

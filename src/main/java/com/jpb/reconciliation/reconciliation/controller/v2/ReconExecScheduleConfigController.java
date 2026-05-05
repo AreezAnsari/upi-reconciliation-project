@@ -1,7 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller.v2;
 
 
-import java.util.List;
+import java.util.Collections;
 
 import javax.validation.Valid;
 
@@ -132,6 +132,8 @@ public class ReconExecScheduleConfigController {
 	// ─────────────────────────────────────────────────────────────────────────
 	private ResponseEntity<RestWithStatusList> ok(String msg, Object data) {
 		return ResponseEntity.ok(RestWithStatusList.builder().status("SUCCESS").statusMsg(msg)
-				.data(data != null ? List.of(data) : List.of()).build());
+				//.data(data != null ? List.of(data) : List.of()).build());   old line Akash
+				.data(data != null ? Collections.singletonList(data) : Collections.emptyList())
+				.build());
 	}
 }

@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,8 +77,9 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
         }
 
         Map<String, Object> row = buildServerRow(saved);
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("SFTP Server created successfully.", "sftpServer", List.of(row)));
+                ResponseBuilder.ok("SFTP Server created successfully.", "sftpServer", Collections.singletonList(row)));
     }
 
     // ─── UPDATE ───────────────────────────────────────────────────────────────
@@ -107,7 +109,8 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
             entity.setHost(request.getHost());
             entity.setPort(request.getPort() != null ? request.getPort() : 22);
             entity.setDefaultUsername(request.getDefaultUsername());
-            if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            // FIX: isBlank() → null check + isEmpty() (Java 8 compatible)
+            if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
                 entity.setPassword(request.getPassword());
             }
             entity.setProtocol(request.getProtocol());
@@ -125,8 +128,9 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
         }
 
         Map<String, Object> row = buildServerRow(saved);
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("SFTP Server updated successfully.", "sftpServer", List.of(row)));
+                ResponseBuilder.ok("SFTP Server updated successfully.", "sftpServer", Collections.singletonList(row)));
     }
 
     // ─── GET BY ID ────────────────────────────────────────────────────────────
@@ -144,8 +148,9 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
         }
 
         Map<String, Object> row = buildServerRow(entity);
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("SFTP Server fetched successfully.", "sftpServer", List.of(row)));
+                ResponseBuilder.ok("SFTP Server fetched successfully.", "sftpServer", Collections.singletonList(row)));
     }
 
     // ─── GET ALL ──────────────────────────────────────────────────────────────
@@ -157,7 +162,6 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
                 ? sftpServerRepo.findByIsActive("Y")
                 : sftpServerRepo.findAll();
 
-     
         logger.info("Fetched {} SFTP server(s). activeOnly={}", list.size(), activeOnly);
 
         return ResponseEntity.ok(
@@ -193,12 +197,13 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
         }
 
         Map<String, Object> row = new LinkedHashMap<>();
-        row.put("serverId", entity.getServerId());
+        row.put("serverId",   entity.getServerId());
         row.put("serverName", entity.getServerName());
-        row.put("isActive", entity.getIsActive());
+        row.put("isActive",   entity.getIsActive());
 
+        // FIX: List.of() → Collections.singletonList() (Java 8 compatible)
         return ResponseEntity.ok(
-                ResponseBuilder.ok("SFTP Server deleted successfully.", "sftpServer", List.of(row)));
+                ResponseBuilder.ok("SFTP Server deleted successfully.", "sftpServer", Collections.singletonList(row)));
     }
 
     // ─── TEST CONNECTION ──────────────────────────────────────────────────────
@@ -223,17 +228,12 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
             channel = (ChannelSftp) session.openChannel("sftp");
             channel.connect();
 
-            if (request.getRemotePath() != null && !request.getRemotePath().isBlank()) {
+            // FIX: isBlank() → null check + isEmpty() (Java 8 compatible)
+            if (request.getRemotePath() != null && !request.getRemotePath().trim().isEmpty()) {
                 channel.ls(request.getRemotePath());
             }
 
             logger.info("SFTP Test Connection SUCCESS -> {}:{}", request.getHost(), request.getPort());
-
-//            Map<String, Object> row = new LinkedHashMap<>();
-//            row.put("host", request.getHost());
-//            row.put("port", request.getPort());
-//            row.put("remotePath", request.getRemotePath());
-//            row.put("status", "CONNECTED");
 
             return ResponseEntity.ok(
                     ResponseBuilder.okEmpty("Connection successful! Remote path is accessible."));
@@ -242,11 +242,11 @@ public class ReconSftpServerServiceImpl implements ReconSftpServerService {
             logger.warn("SFTP Test Connection FAILED -> {}:{} | {}", request.getHost(), request.getPort(), e.getMessage());
 
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("host", request.getHost());
-            row.put("port", request.getPort());
+            row.put("host",       request.getHost());
+            row.put("port",       request.getPort());
             row.put("remotePath", request.getRemotePath());
-            row.put("status", "FAILED");
-            row.put("reason", e.getMessage());
+            row.put("status",     "FAILED");
+            row.put("reason",     e.getMessage());
 
             return new ResponseEntity<>(
                     ResponseBuilder.errorList("Connection failed: " + e.getMessage()),
