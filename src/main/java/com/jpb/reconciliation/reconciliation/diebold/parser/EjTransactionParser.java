@@ -52,7 +52,6 @@ public final class EjTransactionParser {
         this(loadBatchId, "");
     }
 
-    // ===================================================================
     public EjTransaction parse(RawTransactionBlock block) {
         ParseState s = new ParseState();
 
