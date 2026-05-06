@@ -209,4 +209,15 @@ public class EjFileLoadServiceImpl implements EjFileLoadService {
 			super(msg, cause);
 		}
 	}
+	
+	public EjFileLoadServiceImpl(DataSource dataSource, int batchSize,
+	        String atmIdPrefix, String charsetName,
+	        boolean archiveOnSuccess, String archiveDirStr) {
+	    this.dataSource       = dataSource;
+	    this.batchSize        = batchSize;
+	    this.atmIdPrefix      = atmIdPrefix;
+	    this.charsetName      = charsetName;
+	    this.archiveOnSuccess = archiveOnSuccess;
+	    this.archiveDirStr    = archiveDirStr;
+	}
 }
