@@ -34,6 +34,8 @@ public class EjFileLoadServiceImpl implements EjFileLoadService {
 
 	private static final Logger logger = LoggerFactory.getLogger(EjFileLoadServiceImpl.class);
 
+	public EjFileLoadServiceImpl() {}
+	
 	@Autowired
 	private DataSource dataSource;
 
