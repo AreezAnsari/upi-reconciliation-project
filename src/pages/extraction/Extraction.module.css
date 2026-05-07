@@ -1,0 +1,645 @@
+/* Extraction Pages Styles */
+
+.pageContainer {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  margin-bottom: 2rem;
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.headerIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--teal-500), var(--teal-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 12px rgba(6, 78, 74, 0.3);
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 0;
+}
+
+.pageSubtitle {
+  color: var(--navy-500);
+  margin: 0.25rem 0 0 0;
+  font-size: 0.95rem;
+}
+
+/* File Path Display */
+.filePathCard {
+  margin-bottom: 1.5rem;
+}
+
+.filePath {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--navy-50);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--navy-700);
+}
+
+.filePathIcon {
+  color: var(--teal-600);
+}
+
+.filePathText {
+  flex: 1;
+  word-break: break-all;
+}
+
+/* Process Info */
+.processInfo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.infoItem {
+  background: white;
+  border: 1px solid var(--navy-100);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.infoLabel {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--navy-500);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.infoValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--navy-900);
+}
+
+/* Execution Card */
+.executionCard {
+  text-align: center;
+  padding: 2rem;
+}
+
+.executionIcon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--teal-500), var(--teal-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  color: white;
+  box-shadow: 0 8px 24px rgba(6, 78, 74, 0.3);
+}
+
+.executionTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 0 0 0.5rem 0;
+}
+
+.executionDescription {
+  color: var(--navy-500);
+  margin: 0 0 1.5rem 0;
+}
+
+/* Progress */
+.progressContainer {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.progressLabel {
+  color: var(--navy-600);
+}
+
+.progressPercent {
+  font-weight: 700;
+  color: var(--teal-600);
+}
+
+.progressBar {
+  height: 8px;
+  background: var(--navy-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal-500), var(--teal-400));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Steps */
+.stepsContainer {
+  margin-top: 2rem;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+
+.stepIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stepIcon.completed {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success-600);
+}
+
+.stepIcon.active {
+  background: rgba(6, 78, 74, 0.1);
+  color: var(--teal-600);
+  animation: pulse 2s infinite;
+}
+
+.stepIcon.pending {
+  background: var(--navy-100);
+  color: var(--navy-400);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.stepContent {
+  flex: 1;
+}
+
+.stepTitle {
+  font-weight: 600;
+  color: var(--navy-900);
+  font-size: 0.9375rem;
+}
+
+.stepDescription {
+  font-size: 0.8125rem;
+  color: var(--navy-500);
+}
+
+/* Results */
+.resultsCard {
+  margin-top: 1.5rem;
+}
+
+.resultsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .resultsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.resultItem {
+  text-align: center;
+  padding: 1rem;
+  background: var(--navy-50);
+  border-radius: 8px;
+}
+
+.resultValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  font-family: var(--font-mono);
+}
+
+.resultLabel {
+  font-size: 0.75rem;
+  color: var(--navy-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+
+.resultValue.success {
+  color: var(--success-600);
+}
+
+.resultValue.error {
+  color: var(--error-500);
+}
+
+/* Data Table */
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.dataTable th {
+  background: var(--navy-50);
+  padding: 0.875rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--navy-700);
+  white-space: nowrap;
+  border-bottom: 2px solid var(--navy-100);
+}
+
+.dataTable td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--navy-100);
+  color: var(--navy-700);
+}
+
+.dataTable tbody tr {
+  transition: background 0.15s ease;
+}
+
+.dataTable tbody tr:hover {
+  background: var(--navy-50);
+}
+
+/* Status Badge */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.statusSuccess {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success-700);
+}
+
+.statusError {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error-600);
+}
+
+.statusPending {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--gold-600);
+}
+
+.statusProcessing {
+  background: rgba(6, 78, 74, 0.1);
+  color: var(--teal-600);
+}
+
+/* Empty State */
+.emptyState {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: var(--navy-50);
+  border-radius: 16px;
+}
+
+.emptyIcon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  color: var(--navy-300);
+  box-shadow: 0 4px 12px rgba(10, 22, 40, 0.05);
+}
+
+.emptyState h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--navy-900);
+  margin: 0 0 0.5rem 0;
+}
+
+.emptyState p {
+  color: var(--navy-500);
+  margin: 0;
+}
+
+/* Success State */
+.successState {
+  text-align: center;
+  padding: 2rem;
+}
+
+.successIcon {
+  color: var(--success-500);
+  margin-bottom: 1rem;
+}
+
+.successTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 0 0 0.5rem 0;
+}
+
+.successDescription {
+  color: var(--navy-500);
+  margin: 0;
+}
+
+/* Log Output */
+.logContainer {
+  background: var(--navy-900);
+  border-radius: 8px;
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.logLine {
+  color: var(--navy-300);
+  padding: 0.25rem 0;
+}
+
+.logLine.success {
+  color: #4ade80;
+}
+
+.logLine.error {
+  color: #f87171;
+}
+
+.logLine.warning {
+  color: #fbbf24;
+}
+
+.logLine.info {
+  color: #38bdf8;
+}
+
+/* Config Form */
+.configGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.searchRow {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.searchRow > *:first-child {
+  flex: 1;
+}
+
+/* File Path Wrapper with Copy Button */
+.filePathWrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.filePathWrapper .filePath {
+  flex: 1;
+}
+
+.copyButton {
+  flex-shrink: 0;
+}
+
+/* Loading State */
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: var(--navy-500);
+  gap: 1rem;
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error State */
+.errorState {
+  text-align: center;
+  padding: 2rem;
+  color: var(--error-600);
+}
+
+.errorState h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 1rem 0 0.5rem 0;
+}
+
+.errorState p {
+  color: var(--navy-500);
+  margin: 0;
+}
+
+.errorIcon {
+  color: var(--error-500);
+  margin-bottom: 1rem;
+}
+
+.errorTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--error-600);
+  margin: 0 0 0.5rem 0;
+}
+
+/* Status Link Button */
+.statusLink {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease;
+}
+
+.statusLink:hover {
+  transform: scale(1.05);
+}
+
+.statusLink:hover .statusBadge {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Modal Overlay */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+/* Modal */
+.modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--navy-100);
+}
+
+.modalTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--teal-600);
+}
+
+.modalTitle h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--navy-900);
+}
+
+.modalClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--navy-50);
+  border-radius: 8px;
+  color: var(--navy-500);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modalClose:hover {
+  background: var(--navy-100);
+  color: var(--navy-700);
+}
+
+.modalContent {
+  padding: 1.5rem;
+}
+
+.modalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+}
+
+.modalItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modalLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--navy-500);
+}
+
+.modalValue {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--navy-900);
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--navy-100);
+  background: var(--navy-50);
+}
+
+@media (max-width: 480px) {
+  .modalGrid {
+    grid-template-columns: 1fr;
+  }
+}

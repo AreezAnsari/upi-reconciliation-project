@@ -1,0 +1,665 @@
+/* Page Layout */
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.header h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--color-neutral-900);
+  margin-bottom: var(--space-1);
+}
+
+.header p {
+  color: var(--color-neutral-500);
+}
+
+.backBtn {
+  margin-bottom: var(--space-3);
+}
+
+/* ── Form Grid ── */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.formGrid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.formGrid4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+/* ── Section Card ── */
+.sectionCard {
+  background: var(--color-white);
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+
+.sectionHead {
+  background: var(--color-primary-900);
+  padding: var(--space-3) var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sectionNum {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  color: var(--color-white);
+  flex-shrink: 0;
+}
+
+.sectionTitle {
+  color: var(--color-white);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  font-family: var(--font-display);
+}
+
+.sectionSub {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--text-xs);
+  margin-left: auto;
+}
+
+.sectionBody {
+  padding: var(--space-5);
+}
+
+/* ── Source Cards (Step 2) ── */
+.sourceLayout {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.sourceCard {
+  border: 2px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  position: relative;
+  transition: all var(--transition-normal);
+}
+
+.sourceCard.filled {
+  border-color: var(--color-primary-900);
+  background: linear-gradient(135deg, rgba(15, 31, 61, 0.02), rgba(15, 31, 61, 0.04));
+}
+
+.sourceLabel {
+  position: absolute;
+  top: -10px;
+  left: 14px;
+  background: var(--color-white);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-neutral-500);
+}
+
+.sourceCard.filled .sourceLabel {
+  color: var(--color-primary-900);
+}
+
+.sourceIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+}
+
+.sourceFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.stagingInfo {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+}
+
+.stagingInfo span {
+  font-family: var(--font-display);
+  font-weight: var(--font-semibold);
+}
+
+/* ── Match Connector ── */
+.matchConnector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-width: 100px;
+}
+
+.matchLine {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-neutral-200);
+}
+
+.matchBadge {
+  position: relative;
+  z-index: 1;
+  background: var(--color-gold-500);
+  color: var(--color-primary-900);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(232, 160, 32, 0.25);
+  font-family: var(--font-display);
+}
+
+/* Source C row (3-way) */
+.sourceCRow {
+  margin-top: var(--space-3);
+}
+
+/* ── Matching Rules (Step 3) ── */
+.rulesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.rulesTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rulesTitle span:first-child {
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+}
+
+.rulesCount {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+}
+
+.ruleLabels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-2);
+  font-size: 10.5px;
+  font-weight: var(--font-bold);
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ruleLabels > div:first-child {
+  width: 28px;
+  text-align: center;
+}
+
+.ruleLabelGrid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 120px 1fr 100px 80px;
+  gap: var(--space-2);
+}
+
+.ruleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  background: var(--color-white);
+  transition: all var(--transition-fast);
+}
+
+.ruleRow:hover {
+  border-color: var(--color-primary-900);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.ruleNum {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-gold-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  color: var(--color-primary-900);
+  flex-shrink: 0;
+  font-family: var(--font-display);
+}
+
+.ruleBody {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 120px 1fr 100px 80px;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.ruleBody select,
+.ruleBody input {
+  height: 34px;
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-neutral-900);
+  outline: none;
+  background: var(--color-white);
+  width: 100%;
+  transition: border-color var(--transition-fast);
+}
+
+.ruleBody select:focus,
+.ruleBody input:focus {
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 3px rgba(23, 163, 152, 0.1);
+}
+
+.ruleEquals {
+  text-align: center;
+  font-size: var(--text-base);
+  font-weight: var(--font-bold);
+  color: var(--color-gold-500);
+}
+
+.ruleDel {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-error-50, #FDE8E8);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+  color: var(--color-error-600, #C0392B);
+}
+
+.ruleDel:hover {
+  background: var(--color-error-600, #C0392B);
+  color: var(--color-white);
+}
+
+/* ── Quick Presets ── */
+.presetSection {
+  margin-top: var(--space-4);
+}
+
+.presetLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+
+.presetBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ── Info Box ── */
+.infoBox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  margin-top: var(--space-3);
+}
+
+.infoBox svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.infoBoxBlue {
+  composes: infoBox;
+  background: rgba(29, 95, 163, 0.08);
+  border: 1px solid rgba(29, 95, 163, 0.2);
+  color: var(--color-accent-700, #1D5FA3);
+}
+
+.infoBoxGold {
+  composes: infoBox;
+  background: rgba(232, 160, 32, 0.08);
+  border: 1px solid rgba(232, 160, 32, 0.15);
+  color: var(--color-gold-700, #B86E00);
+}
+
+.infoBoxGreen {
+  composes: infoBox;
+  background: rgba(26, 127, 75, 0.08);
+  border: 1px solid rgba(26, 127, 75, 0.15);
+  color: var(--color-success-600, #1A7F4B);
+}
+
+/* ── Filter Row (Step 4) ── */
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-neutral-100);
+}
+
+.filterRow:last-child {
+  border-bottom: none;
+}
+
+.filterRow select,
+.filterRow input {
+  height: 34px;
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-neutral-900);
+  outline: none;
+  background: var(--color-white);
+  transition: border-color var(--transition-fast);
+}
+
+.filterRow select:focus,
+.filterRow input:focus {
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 3px rgba(23, 163, 152, 0.1);
+}
+
+.fSrc { width: 120px; }
+.fCol { width: 170px; }
+.fOp { width: 120px; }
+.fVal { flex: 1; min-width: 100px; }
+
+.filterLabels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2);
+  font-size: 10.5px;
+  font-weight: var(--font-bold);
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Logic Chip ── */
+.logicChip {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.logicBtn {
+  border: none;
+  padding: var(--space-1) var(--space-3);
+  font-size: 10.5px;
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-neutral-500);
+  transition: all var(--transition-fast);
+  font-family: var(--font-body);
+}
+
+.logicBtn.active {
+  background: var(--color-primary-900);
+  color: var(--color-white);
+}
+
+/* ── Schedule Days (Step 5) ── */
+.schedDays {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.dayBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--color-neutral-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--color-neutral-500);
+  background: var(--color-white);
+}
+
+.dayBtn:hover {
+  border-color: var(--color-primary-900);
+}
+
+.dayBtn.active {
+  background: var(--color-primary-900);
+  border-color: var(--color-primary-900);
+  color: var(--color-white);
+}
+
+/* ── Summary Cards (Step 6) ── */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.summaryCard {
+  text-align: center;
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1.5px solid var(--color-neutral-200);
+  background: var(--color-white);
+}
+
+.summaryValue {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  font-family: var(--font-display);
+  margin-bottom: var(--space-1);
+}
+
+.summaryLabel {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Review Flow ── */
+.reviewFlow {
+  background: var(--color-neutral-50);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.reviewFlowTitle {
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--space-3);
+  color: var(--color-primary-900);
+}
+
+.reviewFlowText {
+  font-size: var(--text-sm);
+  line-height: 1.8;
+  color: var(--color-neutral-900);
+}
+
+/* ── JSON Preview ── */
+.jsonHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.jsonLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+}
+
+.jsonBox {
+  background: var(--color-primary-900);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  overflow-x: auto;
+  max-height: 320px;
+}
+
+.jsonBox code {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  color: var(--color-gold-500);
+  line-height: 1.7;
+  white-space: pre;
+}
+
+/* ── Toggle ── */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.toggleSwitch {
+  position: relative;
+  width: 42px;
+  height: 22px;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.toggleSwitch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggleSlider {
+  position: absolute;
+  inset: 0;
+  background: var(--color-neutral-200);
+  border-radius: 22px;
+  transition: 0.2s;
+}
+
+.toggleSlider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-white);
+  left: 3px;
+  top: 3px;
+  transition: 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.toggleSwitch input:checked + .toggleSlider {
+  background: var(--color-success-500, #1A7F4B);
+}
+
+.toggleSwitch input:checked + .toggleSlider::before {
+  transform: translateX(20px);
+}
+
+.toggleLabel {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+}
+
+/* ── Step Actions ── */
+.stepActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-6);
+}
+
+.stepActionsRight {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* ── Checkbox in rules ── */
+.ruleRequired {
+  text-align: center;
+}
+
+.ruleRequired input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary-900);
+}

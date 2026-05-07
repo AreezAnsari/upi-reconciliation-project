@@ -1,0 +1,16 @@
+.approveBar {
+  display: none; align-items: center; gap: var(--space-4);
+  border-radius: var(--radius-xl); padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4); border: 2px solid;
+  flex-wrap: wrap;
+}
+.approveBarShow {
+  display: flex;
+  background: var(--color-success-100);
+  border-color: rgba(16,185,129,0.25);
+}
+.abLeft { display: flex; align-items: center; gap: var(--space-3); flex: 1; }
+.abIcon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.abTxt { font-size: var(--text-sm); font-weight: var(--font-bold); color: var(--color-neutral-800); margin-bottom: 2px; }
+.abSub { font-size: var(--text-xs); color: var(--color-neutral-500); }
+.decidedRow { opacity: 0.6; }

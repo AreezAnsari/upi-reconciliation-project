@@ -1,0 +1,156 @@
+/* FluxRecon Design System - CSS Variables */
+
+:root {
+  /* Primary Colors - Deep Navy & Teal */
+  --color-primary-900: #0a1628;
+  --color-primary-800: #0f2137;
+  --color-primary-700: #152d47;
+  --color-primary-600: #1b3a5a;
+  --color-primary-500: #234b73;
+  --color-primary-400: #3d6a94;
+  --color-primary-300: #5d8ab4;
+  --color-primary-200: #8fb0d1;
+  --color-primary-100: #c7d8eb;
+  --color-primary-50: #e9f0f7;
+
+  /* Accent Colors - Teal */
+  --color-accent-900: #064e4a;
+  --color-accent-800: #0d6963;
+  --color-accent-700: #0f7b73;
+  --color-accent-600: #149086;
+  --color-accent-500: #17a398;
+  --color-accent-400: #2ebfb3;
+  --color-accent-300: #5dd4c9;
+  --color-accent-200: #99e6df;
+  --color-accent-100: #ccf3ef;
+  --color-accent-50: #e6f9f7;
+
+  /* Gold Highlights */
+  --color-gold-900: #78350f;
+  --color-gold-800: #92400e;
+  --color-gold-700: #b45309;
+  --color-gold-600: #d97706;
+  --color-gold-500: #f59e0b;
+  --color-gold-400: #fbbf24;
+  --color-gold-300: #fcd34d;
+  --color-gold-200: #fde68a;
+  --color-gold-100: #fef3c7;
+  --color-gold-50: #fffbeb;
+
+  /* Semantic Colors */
+  --color-success-500: #10b981;
+  --color-success-100: #d1fae5;
+  --color-warning-500: #f59e0b;
+  --color-warning-100: #fef3c7;
+  --color-error-500: #ef4444;
+  --color-error-100: #fee2e2;
+  --color-info-500: #3b82f6;
+  --color-info-100: #dbeafe;
+
+  /* Neutrals */
+  --color-neutral-950: #030712;
+  --color-neutral-900: #111827;
+  --color-neutral-800: #1f2937;
+  --color-neutral-700: #374151;
+  --color-neutral-600: #4b5563;
+  --color-neutral-500: #6b7280;
+  --color-neutral-400: #9ca3af;
+  --color-neutral-300: #d1d5db;
+  --color-neutral-200: #e5e7eb;
+  --color-neutral-100: #f3f4f6;
+  --color-neutral-50: #f9fafb;
+  --color-white: #ffffff;
+
+  /* Typography */
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Font Sizes */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+
+  /* Font Weights */
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-glow: 0 0 40px -10px var(--color-accent-500);
+  --shadow-gold: 0 0 30px -10px var(--color-gold-500);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+  --transition-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Z-Index */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+  --z-tooltip: 500;
+
+  /* Teal Aliases (maps to accent colors) */
+  --teal-400: var(--color-accent-400);
+  --teal-500: var(--color-accent-500);
+  --teal-600: var(--color-accent-600);
+  --teal-700: var(--color-accent-700);
+
+  /* Navy Aliases (maps to primary colors) */
+  --navy-50: var(--color-primary-50);
+  --navy-100: var(--color-primary-100);
+  --navy-300: var(--color-neutral-300);
+  --navy-400: var(--color-neutral-400);
+  --navy-500: var(--color-neutral-500);
+  --navy-600: var(--color-neutral-600);
+  --navy-700: var(--color-neutral-700);
+  --navy-800: var(--color-primary-800);
+  --navy-900: var(--color-primary-900);
+
+  /* Gold Aliases */
+  --gold-600: var(--color-gold-600);
+
+  /* Semantic Color Aliases */
+  --success-500: var(--color-success-500);
+  --success-600: #059669;
+  --success-700: #047857;
+  --error-500: var(--color-error-500);
+  --error-600: #dc2626;
+}

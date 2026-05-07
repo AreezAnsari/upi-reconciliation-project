@@ -1,0 +1,120 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-neutral-700);
+}
+
+.required {
+  color: var(--color-error-500);
+  margin-left: var(--space-1);
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--color-white);
+  border: 2px solid var(--color-neutral-200);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-fast);
+}
+
+.inputWrapper:focus-within {
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 3px rgba(23, 163, 152, 0.1);
+}
+
+.inputWrapper.hasError {
+  border-color: var(--color-error-500);
+}
+
+.inputWrapper.hasError:focus-within {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.input {
+  flex: 1;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  color: var(--color-neutral-900);
+  background: transparent;
+  border: none;
+  outline: none;
+  min-height: 48px;
+}
+
+.input::placeholder {
+  color: var(--color-neutral-400);
+}
+
+.input.hasLeftIcon {
+  padding-left: 0;
+}
+
+.input.hasRightIcon {
+  padding-right: 0;
+}
+
+.leftIcon,
+.rightIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  color: var(--color-neutral-400);
+}
+
+.leftIcon svg,
+.rightIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.passwordToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  color: var(--color-neutral-400);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.passwordToggle:hover {
+  color: var(--color-neutral-600);
+}
+
+.inputWrapper.hasSuccess {
+  border-color: var(--color-success-500, #1A7F4B);
+}
+
+.inputWrapper.hasSuccess:focus-within {
+  box-shadow: 0 0 0 3px rgba(26, 127, 75, 0.1);
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--color-error-500);
+}
+
+.success {
+  font-size: var(--text-sm);
+  color: var(--color-success-500, #1A7F4B);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-500);
+}

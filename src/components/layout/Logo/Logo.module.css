@@ -1,0 +1,57 @@
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.icon svg {
+  display: block;
+}
+
+/* Sizes */
+.sm .icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.md .icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+.lg .icon svg {
+  width: 48px;
+  height: 48px;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  color: var(--color-white);
+  line-height: 1.2;
+}
+
+.sm .name {
+  font-size: var(--text-lg);
+}
+
+.md .name {
+  font-size: var(--text-xl);
+}
+
+.lg .name {
+  font-size: var(--text-2xl);
+}
+
+.highlight {
+  color: var(--color-accent-600);
+}

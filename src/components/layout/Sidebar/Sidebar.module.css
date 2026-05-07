@@ -1,0 +1,538 @@
+/* ===== Sidebar Shell ===== */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 64px;
+  background: linear-gradient(180deg, var(--color-primary-800) 0%, var(--color-primary-900) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  transition: width 250ms ease-in-out;
+  overflow: hidden;
+}
+
+.sidebar:hover,
+.sidebar[data-expanded="true"] {
+  width: 260px;
+}
+
+/* ===== Logo ===== */
+.logoSection {
+  display: flex;
+  align-items: center;
+  height: 64px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.logoLink {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.logoText {
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  font-size: var(--text-lg);
+  color: var(--color-white);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+}
+
+.sidebar:hover .logoText,
+.sidebar[data-expanded="true"] .logoText {
+  opacity: 1;
+}
+
+.logoHighlight {
+  color: var(--color-accent-400);
+}
+
+/* ===== Scrollable Nav Area ===== */
+.navSection {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-2) 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.navSection::-webkit-scrollbar {
+  width: 4px;
+}
+
+.navSection::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.navSection::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+}
+
+.navList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ===== Divider ===== */
+.divider {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: var(--space-2) var(--space-3);
+}
+
+/* ===== Nav Item (top-level) ===== */
+.navItem {
+  position: relative;
+}
+
+.navItemButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--space-5);
+  gap: var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-neutral-300);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+}
+
+.navItemButton:hover {
+  color: var(--color-white);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.navItemButton.active {
+  color: var(--color-white);
+  background: rgba(23, 163, 152, 0.18);
+}
+
+.navItemButton.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  background: var(--color-accent-400);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.navIcon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navLabel {
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar:hover .navLabel,
+.sidebar[data-expanded="true"] .navLabel {
+  opacity: 1;
+}
+
+/* Chevron for expandable items */
+.chevron {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out, transform 200ms ease;
+  color: var(--color-neutral-400);
+}
+
+.sidebar:hover .chevron,
+.sidebar[data-expanded="true"] .chevron {
+  opacity: 1;
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+
+/* ===== Tooltip (collapsed state only) ===== */
+.tooltip {
+  position: fixed;
+  background: var(--color-neutral-900);
+  color: var(--color-white);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+  box-shadow: var(--shadow-md);
+}
+
+.tooltip::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-right-color: var(--color-neutral-900);
+  border-left: none;
+}
+
+/* ===== Child list (accordion) ===== */
+.childList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 250ms ease-in-out;
+}
+
+.childList.open {
+  max-height: 800px; /* generous ceiling — actual height is content-driven */
+}
+
+/* ===== Child Item (level 1 children) ===== */
+.childItem {
+  position: relative;
+}
+
+.childButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-4) 0 calc(var(--space-5) + 20px + var(--space-3));
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--font-normal);
+  color: var(--color-neutral-400);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  position: relative;
+}
+
+.childButton::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-5) + 9px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-neutral-500);
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.childButton:hover {
+  color: var(--color-white);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.childButton:hover::before {
+  border-color: var(--color-accent-400);
+  background: var(--color-accent-400);
+}
+
+.childButton.active {
+  color: var(--color-accent-300);
+}
+
+.childButton.active::before {
+  border-color: var(--color-accent-400);
+  background: var(--color-accent-400);
+}
+
+.childLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+}
+
+.sidebar:hover .childLabel,
+.sidebar[data-expanded="true"] .childLabel {
+  opacity: 1;
+}
+
+.childChevron {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out, transform 200ms ease;
+  color: var(--color-neutral-500);
+}
+
+.sidebar:hover .childChevron,
+.sidebar[data-expanded="true"] .childChevron {
+  opacity: 1;
+}
+
+.childChevron.open {
+  transform: rotate(90deg);
+}
+
+/* ===== Grandchild list (nested accordion) ===== */
+.grandchildList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 250ms ease-in-out;
+}
+
+.grandchildList.open {
+  max-height: 500px;
+}
+
+/* ===== Grandchild Item (level 2 children) ===== */
+.grandchildButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-4) 0 calc(var(--space-5) + 20px + var(--space-3) + var(--space-4));
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--font-normal);
+  color: var(--color-neutral-500);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  position: relative;
+}
+
+.grandchildButton::before {
+  content: '–';
+  position: absolute;
+  left: calc(var(--space-5) + 20px + var(--space-3));
+  color: var(--color-neutral-600);
+  font-size: var(--text-xs);
+  transition: color var(--transition-fast);
+}
+
+.grandchildButton:hover {
+  color: var(--color-white);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.grandchildButton:hover::before {
+  color: var(--color-accent-400);
+}
+
+.grandchildButton.active {
+  color: var(--color-accent-300);
+}
+
+.grandchildButton.active::before {
+  color: var(--color-accent-400);
+}
+
+.grandchildLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: var(--space-2);
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+}
+
+.sidebar:hover .grandchildLabel,
+.sidebar[data-expanded="true"] .grandchildLabel {
+  opacity: 1;
+}
+
+/* ===== Bottom Section (User) ===== */
+.bottomSection {
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.userButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  padding: 0 var(--space-3);
+  gap: var(--space-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  overflow: hidden;
+}
+
+.userButton:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-accent-500) 0%, var(--color-accent-600) 100%);
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  color: var(--color-white);
+  font-size: var(--text-sm);
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+}
+
+.sidebar:hover .userInfo,
+.sidebar[data-expanded="true"] .userInfo {
+  opacity: 1;
+}
+
+.userName {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.userRole {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-400);
+  white-space: nowrap;
+}
+
+/* User Dropdown (pops up above) */
+.userDropdown {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: var(--space-2);
+  right: var(--space-2);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: var(--space-2);
+  z-index: var(--z-dropdown);
+}
+
+.userDropdownHeader {
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--color-neutral-100);
+  margin-bottom: var(--space-1);
+}
+
+.userDropdownName {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-neutral-900);
+}
+
+.userDropdownMeta {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-500);
+  margin-top: 2px;
+}
+
+.userDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-neutral-700);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+}
+
+.userDropdownItem:hover {
+  background: var(--color-accent-50);
+  color: var(--color-accent-700);
+}
+
+.userDropdownDivider {
+  border: none;
+  border-top: 1px solid var(--color-neutral-100);
+  margin: var(--space-1) 0;
+}
+
+/* ===== Loading ===== */
+.loadingItem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  color: var(--color-neutral-400);
+  font-size: var(--text-xs);
+}
+
+/* Spin animation for loader */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

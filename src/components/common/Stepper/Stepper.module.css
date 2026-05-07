@@ -1,0 +1,157 @@
+.stepper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-4) var(--space-2);
+  background: var(--color-neutral-50);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-6);
+  gap: 0;
+}
+
+.stepWrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 200px;
+}
+
+.stepWrapper:first-child {
+  flex: 0 0 auto;
+}
+
+.connectorWrapper {
+  flex: 1;
+  padding: 0 var(--space-2);
+  display: flex;
+  align-items: center;
+}
+
+.connector {
+  height: 2px;
+  width: 100%;
+  background: var(--color-neutral-200);
+  border-radius: 1px;
+  transition: background-color 0.3s ease;
+}
+
+.connectorActive {
+  background: linear-gradient(90deg, var(--color-teal-500), var(--color-gold-400));
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.step:hover {
+  background: var(--color-neutral-100);
+}
+
+.step:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-gold-300);
+}
+
+.stepActive {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.stepActive:hover {
+  background: rgba(212, 175, 55, 0.15);
+}
+
+.stepCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  color: var(--color-neutral-600);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.stepActive .stepCircle {
+  color: var(--color-neutral-900);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
+
+.stepCompleted .stepCircle {
+  color: white;
+}
+
+.stepNumber {
+  font-size: var(--text-sm);
+}
+
+.checkIcon {
+  color: black;
+}
+
+.stepContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+.stepLabel {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-neutral-600);
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.stepActive .stepLabel {
+  color: var(--color-gold-600);
+  font-weight: var(--font-semibold);
+}
+
+.stepCompleted .stepLabel {
+  color: var(--color-teal-600);
+}
+
+.stepDescription {
+  font-size: var(--text-xs);
+  color: var(--color-neutral-400);
+  text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .stepper {
+    padding: var(--space-3) var(--space-1);
+  }
+
+  .step {
+    padding: var(--space-2);
+    min-width: 80px;
+  }
+
+  .stepCircle {
+    width: 32px;
+    height: 32px;
+  }
+
+  .stepLabel {
+    font-size: var(--text-xs);
+  }
+
+  .connectorWrapper {
+    padding: 0 var(--space-1);
+  }
+}

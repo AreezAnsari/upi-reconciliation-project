@@ -1,0 +1,81 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupLabel {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-neutral-700);
+}
+
+.options {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.options.horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.options.vertical {
+  flex-direction: column;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-neutral-300);
+  border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+}
+
+.radio.checked {
+  border-color: var(--color-accent-500);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.radio.checked .dot {
+  background: linear-gradient(135deg, var(--color-accent-600) 0%, var(--color-accent-500) 100%);
+}
+
+.option:hover .radio:not(.checked) {
+  border-color: var(--color-accent-400);
+}
+
+.input:focus-visible + .radio {
+  box-shadow: 0 0 0 3px rgba(23, 163, 152, 0.2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-700);
+}
