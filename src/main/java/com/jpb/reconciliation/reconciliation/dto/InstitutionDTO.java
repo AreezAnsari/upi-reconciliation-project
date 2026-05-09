@@ -1,116 +1,127 @@
 package com.jpb.reconciliation.reconciliation.dto;
 
+import java.util.List;
+import java.util.Map;
+
 import javax.validation.constraints.Email;
-import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 
 import com.jpb.reconciliation.reconciliation.constants.EnableStatus;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class InstitutionDTO {
 
-    private Long institutionId;
+    private Long id;
 
-    @NotBlank(message = "Institution name is required")
-    private String institutionName;
+    private String institutionCode;
 
-    private String description;
+    // =========================================================
+    // BASIC DETAILS
+    // =========================================================
 
-    @NotBlank(message = "Institution user ID is required")
-    private String institutionUserId;
+    @NotBlank(message = "Institution Name is required")
+    private String institutionNameFull;
 
-    private String userRole;
+    private String institutionNameShort;
 
-    @NotNull(message = "Enable status is required")
-    private EnableStatus enableStatus;
+    private List<String> bankType;
 
-    @NotBlank(message = "Web address is required")
-    private String webAddress;
+    private String bankLogoName;
+    private String bankLogoPath;
 
-    private String dataEncryptionKey;
+    // =========================================================
+    // REGISTERED ADDRESS
+    // =========================================================
 
-    @NotBlank(message = "Language is required")
-    private String language;
+    private String regAddressLine1;
+    private String regAddressLine2;
+    private String regAddressLine3;
 
-    @NotNull(message = "Number of users allowed is required")
-    @Min(value = 1, message = "At least 1 user must be allowed")
-    private Integer numberOfUsersAllowed;
+    private String regCity;
+    private String regState;
+    private String regCountry;
 
-    private String logoPath;
+    private String regPhoneCode;
+    private String regCityCode;
+    private String regPhone;
 
-    @NotBlank(message = "Address line 1 is required")
-    private String addressLine1;
+    // =========================================================
+    // COMMUNICATION ADDRESS
+    // =========================================================
 
-    private String addressLine2;
-    private String addressLine3;
+    private Boolean sameAsRegistered;
 
-    @NotBlank(message = "City is required")
-    private String city;
+    private String commAddressLine1;
+    private String commAddressLine2;
+    private String commAddressLine3;
 
-    @NotBlank(message = "State is required")
-    private String state;
+    private String commCity;
+    private String commState;
+    private String commCountry;
 
-    @NotBlank(message = "Country is required")
-    private String country;
+    private String commPhoneCode;
+    private String commCityCode;
+    private String commPhone;
 
-    @NotBlank(message = "Zip code is required")
-    private String zipCode;
+    // =========================================================
+    // PRIMARY CONTACT
+    // =========================================================
 
-    @NotBlank(message = "Contact name is required")
-    private String contactName;
+    private String primaryFullName;
 
-    @NotBlank(message = "Mobile number is required")
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Invalid mobile number")
-    private String mobileNumber;
+    @Email(message = "Invalid primary email")
+    private String primaryEmail;
 
-    private String faxNumber;
+    private String primaryMobileCode;
 
-    @NotBlank(message = "Email address is required")
-    @Email(message = "Invalid email address")
-    private String emailAddress;
+    @Pattern(
+            regexp = "^[6-9][0-9]{9}$",
+            message = "Invalid Mobile Number"
+    )
+    private String primaryMobile;
 
-    private String technicalContactName;
-    private String technicalPhoneNumber;
-    private String technicalEmailAddress;
+    private String primaryAltMobileCode;
+    private String primaryAltMobile;
 
-    private Boolean enableCaptcha;
-    private Boolean enableBlockingUnsecureIp;
-    private Boolean enableProfilePasswordAuthentication;
-    private Boolean enableFees;
-    private Boolean enableSecureAuthentication;
+    // =========================================================
+    // SECONDARY CONTACT
+    // =========================================================
 
-    @Min(value = 1, message = "Batch thread count must be at least 1")
-    private Integer allowedBatchThreadCount;
+    private String secondaryFullName;
+    private String secondaryEmail;
 
-    private Boolean enableRiskManagement;
-    private Boolean enableInternetBanking;
-    private String internetBankingPrefix;
-    private String internetBankingUrl;
-    private String internetBankingInquiryUrl;
-    private Integer internetBankingConnectionTimeout;
-    private Integer internetBankingReadTimeout;
-    private Boolean enableVpasAcquiringBin;
-    private Boolean enableImpsPayment;
-    private Boolean enableIvr3d;
-    private Boolean chooseCryptographicMethod;
-    private String authorizationLevel;
-    private Boolean enableOtp;
-    private String otpModel;
-    private String otpAllowed;
-    private Boolean enableCurrencyConversion;
-    private Boolean enableStandingInstruction;
-    private Boolean enableSdkIntegration;
-    private Boolean enable3dSecurePreAuthentication;
-    private Boolean enableOneClickCheckout;
-    private Boolean enableSingleTid;
+    private String secondaryMobileCode;
+    private String secondaryMobile;
+
+    private String secondaryAltMobileCode;
+    private String secondaryAltMobile;
+
+    // =========================================================
+    // PRODUCTS
+    // =========================================================
+
+    private List<String> selectedProducts;
+
+    private Map<String, List<String>> selectedVariants;
+
+    // =========================================================
+    // SECURITY
+    // =========================================================
+
+    private Boolean enableMFA;
+    private Boolean enableHRMS;
+    private Boolean enableOTP;
+
+    // =========================================================
+    // STATUS
+    // =========================================================
+
+    private EnableStatus status;
 }

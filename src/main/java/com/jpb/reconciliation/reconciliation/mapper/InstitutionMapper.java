@@ -1,197 +1,331 @@
+
 package com.jpb.reconciliation.reconciliation.mapper;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
 import com.jpb.reconciliation.reconciliation.dto.InstitutionDTO;
 import com.jpb.reconciliation.reconciliation.entity.Institution;
+import com.jpb.reconciliation.reconciliation.entity.InstitutionProductVariant;
 
 @Component
 public class InstitutionMapper {
 
-    /**
-     * Convert Entity → DTO
-     */
+    // =========================================================
+    // ENTITY -> DTO
+    // =========================================================
+
     public InstitutionDTO toDTO(Institution institution) {
-        if (institution == null) return null;
+
+        if (institution == null) {
+            return null;
+        }
 
         return InstitutionDTO.builder()
-                .institutionId(institution.getInstitutionId())
-                .institutionName(institution.getInstitutionName())
-                .description(institution.getDescription())
-                .institutionUserId(institution.getInstitutionUserId())
-                .userRole(institution.getUserRole())
-                .enableStatus(institution.getEnableStatus())
-                .webAddress(institution.getWebAddress())
-                .dataEncryptionKey(institution.getDataEncryptionKey())
-                .language(institution.getLanguage())
-                .numberOfUsersAllowed(institution.getNumberOfUsersAllowed())
-                .logoPath(institution.getLogoPath())
-                // Address
-                .addressLine1(institution.getAddressLine1())
-                .addressLine2(institution.getAddressLine2())
-                .addressLine3(institution.getAddressLine3())
-                .city(institution.getCity())
-                .state(institution.getState())
-                .country(institution.getCountry())
-                .zipCode(institution.getZipCode())
-                // Contact
-                .contactName(institution.getContactName())
-                .mobileNumber(institution.getMobileNumber())
-                .faxNumber(institution.getFaxNumber())
-                .emailAddress(institution.getEmailAddress())
-                .technicalContactName(institution.getTechnicalContactName())
-                .technicalPhoneNumber(institution.getTechnicalPhoneNumber())
-                .technicalEmailAddress(institution.getTechnicalEmailAddress())
-                // Configuration
-                .enableCaptcha(institution.getEnableCaptcha())
-                .enableBlockingUnsecureIp(institution.getEnableBlockingUnsecureIp())
-                .enableProfilePasswordAuthentication(institution.getEnableProfilePasswordAuthentication())
-                .enableFees(institution.getEnableFees())
-                .enableSecureAuthentication(institution.getEnableSecureAuthentication())
-                .allowedBatchThreadCount(institution.getAllowedBatchThreadCount())
-                .enableRiskManagement(institution.getEnableRiskManagement())
-                .enableInternetBanking(institution.getEnableInternetBanking())
-                .internetBankingPrefix(institution.getInternetBankingPrefix())
-                .internetBankingUrl(institution.getInternetBankingUrl())
-                .internetBankingInquiryUrl(institution.getInternetBankingInquiryUrl())
-                .internetBankingConnectionTimeout(institution.getInternetBankingConnectionTimeout())
-                .internetBankingReadTimeout(institution.getInternetBankingReadTimeout())
-                .enableVpasAcquiringBin(institution.getEnableVpasAcquiringBin())
-                .enableImpsPayment(institution.getEnableImpsPayment())
-                .enableIvr3d(institution.getEnableIvr3d())
-                .chooseCryptographicMethod(institution.getChooseCryptographicMethod())
-                .authorizationLevel(institution.getAuthorizationLevel())
-                .enableOtp(institution.getEnableOtp())
-                .otpModel(institution.getOtpModel())
-                .otpAllowed(institution.getOtpAllowed())
-                .enableCurrencyConversion(institution.getEnableCurrencyConversion())
-                .enableStandingInstruction(institution.getEnableStandingInstruction())
-                .enableSdkIntegration(institution.getEnableSdkIntegration())
-                .enable3dSecurePreAuthentication(institution.getEnable3dSecurePreAuthentication())
-                .enableOneClickCheckout(institution.getEnableOneClickCheckout())
-                .enableSingleTid(institution.getEnableSingleTid())
+
+                // BASIC
+                .id(institution.getId())
+                .institutionCode(institution.getInstitutionCode())
+                .institutionNameFull(institution.getInstitutionNameFull())
+                .institutionNameShort(institution.getInstitutionNameShort())
+
+                // BANK
+                .bankType(institution.getBankType())
+                .bankLogoName(institution.getBankLogoName())
+                .bankLogoPath(institution.getBankLogoPath())
+
+                // REGISTERED ADDRESS
+                .regAddressLine1(institution.getRegAddressLine1())
+                .regAddressLine2(institution.getRegAddressLine2())
+                .regAddressLine3(institution.getRegAddressLine3())
+                .regCity(institution.getRegCity())
+                .regState(institution.getRegState())
+                .regCountry(institution.getRegCountry())
+                .regPhoneCode(institution.getRegPhoneCode())
+                .regCityCode(institution.getRegCityCode())
+                .regPhone(institution.getRegPhone())
+
+                // COMMUNICATION ADDRESS
+                .sameAsRegistered(institution.getSameAsRegistered())
+                .commAddressLine1(institution.getCommAddressLine1())
+                .commAddressLine2(institution.getCommAddressLine2())
+                .commAddressLine3(institution.getCommAddressLine3())
+                .commCity(institution.getCommCity())
+                .commState(institution.getCommState())
+                .commCountry(institution.getCommCountry())
+                .commPhoneCode(institution.getCommPhoneCode())
+                .commCityCode(institution.getCommCityCode())
+                .commPhone(institution.getCommPhone())
+
+                // PRIMARY CONTACT
+                .primaryFullName(institution.getPrimaryFullName())
+                .primaryEmail(institution.getPrimaryEmail())
+                .primaryMobileCode(institution.getPrimaryMobileCode())
+                .primaryMobile(institution.getPrimaryMobile())
+                .primaryAltMobileCode(institution.getPrimaryAltMobileCode())
+                .primaryAltMobile(institution.getPrimaryAltMobile())
+
+                // SECONDARY CONTACT
+                .secondaryFullName(institution.getSecondaryFullName())
+                .secondaryEmail(institution.getSecondaryEmail())
+                .secondaryMobileCode(institution.getSecondaryMobileCode())
+                .secondaryMobile(institution.getSecondaryMobile())
+                .secondaryAltMobileCode(institution.getSecondaryAltMobileCode())
+                .secondaryAltMobile(institution.getSecondaryAltMobile())
+
+                // PRODUCTS
+                .selectedProducts(institution.getSelectedProducts())
+
+                // VARIANTS
+                .selectedVariants(
+                        institution.getSelectedVariants()
+                                .stream()
+                                .collect(Collectors.groupingBy(
+                                        InstitutionProductVariant::getProductName,
+                                        Collectors.mapping(
+                                                InstitutionProductVariant::getVariantName,
+                                                Collectors.toList()
+                                        )
+                                ))
+                )
+
+                // SECURITY
+                .enableMFA(institution.getEnableMFA())
+                .enableHRMS(institution.getEnableHRMS())
+                .enableOTP(institution.getEnableOTP())
+
+                // STATUS
+                .status(institution.getStatus())
+
                 .build();
     }
 
-    /**
-     * Convert DTO → Entity
-     */
+    // =========================================================
+    // DTO -> ENTITY
+    // =========================================================
+
     public Institution toEntity(InstitutionDTO dto) {
-        if (dto == null) return null;
 
-        return Institution.builder()
-                .institutionName(dto.getInstitutionName())
-                .description(dto.getDescription())
-                .institutionUserId(dto.getInstitutionUserId())
-                .userRole(dto.getUserRole())
-                .enableStatus(dto.getEnableStatus())
-                .webAddress(dto.getWebAddress())
-                .dataEncryptionKey(dto.getDataEncryptionKey())
-                .language(dto.getLanguage())
-                .numberOfUsersAllowed(dto.getNumberOfUsersAllowed())
-                .logoPath(dto.getLogoPath())
-                // Address
-                .addressLine1(dto.getAddressLine1())
-                .addressLine2(dto.getAddressLine2())
-                .addressLine3(dto.getAddressLine3())
-                .city(dto.getCity())
-                .state(dto.getState())
-                .country(dto.getCountry())
-                .zipCode(dto.getZipCode())
-                // Contact
-                .contactName(dto.getContactName())
-                .mobileNumber(dto.getMobileNumber())
-                .faxNumber(dto.getFaxNumber())
-                .emailAddress(dto.getEmailAddress())
-                .technicalContactName(dto.getTechnicalContactName())
-                .technicalPhoneNumber(dto.getTechnicalPhoneNumber())
-                .technicalEmailAddress(dto.getTechnicalEmailAddress())
-                // Configuration
-                .enableCaptcha(dto.getEnableCaptcha())
-                .enableBlockingUnsecureIp(dto.getEnableBlockingUnsecureIp())
-                .enableProfilePasswordAuthentication(dto.getEnableProfilePasswordAuthentication())
-                .enableFees(dto.getEnableFees())
-                .enableSecureAuthentication(dto.getEnableSecureAuthentication())
-                .allowedBatchThreadCount(dto.getAllowedBatchThreadCount())
-                .enableRiskManagement(dto.getEnableRiskManagement())
-                .enableInternetBanking(dto.getEnableInternetBanking())
-                .internetBankingPrefix(dto.getInternetBankingPrefix())
-                .internetBankingUrl(dto.getInternetBankingUrl())
-                .internetBankingInquiryUrl(dto.getInternetBankingInquiryUrl())
-                .internetBankingConnectionTimeout(dto.getInternetBankingConnectionTimeout())
-                .internetBankingReadTimeout(dto.getInternetBankingReadTimeout())
-                .enableVpasAcquiringBin(dto.getEnableVpasAcquiringBin())
-                .enableImpsPayment(dto.getEnableImpsPayment())
-                .enableIvr3d(dto.getEnableIvr3d())
-                .chooseCryptographicMethod(dto.getChooseCryptographicMethod())
-                .authorizationLevel(dto.getAuthorizationLevel())
-                .enableOtp(dto.getEnableOtp())
-                .otpModel(dto.getOtpModel())
-                .otpAllowed(dto.getOtpAllowed())
-                .enableCurrencyConversion(dto.getEnableCurrencyConversion())
-                .enableStandingInstruction(dto.getEnableStandingInstruction())
-                .enableSdkIntegration(dto.getEnableSdkIntegration())
-                .enable3dSecurePreAuthentication(dto.getEnable3dSecurePreAuthentication())
-                .enableOneClickCheckout(dto.getEnableOneClickCheckout())
-                .enableSingleTid(dto.getEnableSingleTid())
+        if (dto == null) {
+            return null;
+        }
+
+        Institution institution = Institution.builder()
+
+                // BASIC
+                .institutionCode(dto.getInstitutionCode())
+                .institutionNameFull(dto.getInstitutionNameFull())
+                .institutionNameShort(dto.getInstitutionNameShort())
+
+                // BANK
+                .bankType(dto.getBankType())
+                .bankLogoName(dto.getBankLogoName())
+                .bankLogoPath(dto.getBankLogoPath())
+
+                // REGISTERED ADDRESS
+                .regAddressLine1(dto.getRegAddressLine1())
+                .regAddressLine2(dto.getRegAddressLine2())
+                .regAddressLine3(dto.getRegAddressLine3())
+                .regCity(dto.getRegCity())
+                .regState(dto.getRegState())
+                .regCountry(dto.getRegCountry())
+                .regPhoneCode(dto.getRegPhoneCode())
+                .regCityCode(dto.getRegCityCode())
+                .regPhone(dto.getRegPhone())
+
+                // COMMUNICATION ADDRESS
+                .sameAsRegistered(dto.getSameAsRegistered())
+                .commAddressLine1(dto.getCommAddressLine1())
+                .commAddressLine2(dto.getCommAddressLine2())
+                .commAddressLine3(dto.getCommAddressLine3())
+                .commCity(dto.getCommCity())
+                .commState(dto.getCommState())
+                .commCountry(dto.getCommCountry())
+                .commPhoneCode(dto.getCommPhoneCode())
+                .commCityCode(dto.getCommCityCode())
+                .commPhone(dto.getCommPhone())
+
+                // PRIMARY CONTACT
+                .primaryFullName(dto.getPrimaryFullName())
+                .primaryEmail(dto.getPrimaryEmail())
+                .primaryMobileCode(dto.getPrimaryMobileCode())
+                .primaryMobile(dto.getPrimaryMobile())
+                .primaryAltMobileCode(dto.getPrimaryAltMobileCode())
+                .primaryAltMobile(dto.getPrimaryAltMobile())
+
+                // SECONDARY CONTACT
+                .secondaryFullName(dto.getSecondaryFullName())
+                .secondaryEmail(dto.getSecondaryEmail())
+                .secondaryMobileCode(dto.getSecondaryMobileCode())
+                .secondaryMobile(dto.getSecondaryMobile())
+                .secondaryAltMobileCode(dto.getSecondaryAltMobileCode())
+                .secondaryAltMobile(dto.getSecondaryAltMobile())
+
+                // PRODUCTS
+                .selectedProducts(dto.getSelectedProducts())
+
+                // SECURITY
+                .enableMFA(dto.getEnableMFA())
+                .enableHRMS(dto.getEnableHRMS())
+                .enableOTP(dto.getEnableOTP())
+
+                // STATUS
+                .status(dto.getStatus())
+
+                // DATE
+                .createdDate(LocalDateTime.now())
+
                 .build();
+
+        // =========================================================
+        // PRODUCT VARIANTS
+        // =========================================================
+
+        List<InstitutionProductVariant> variantList =
+                new ArrayList<>();
+
+        if (dto.getSelectedVariants() != null) {
+
+            for (Map.Entry<String, List<String>> entry :
+                    dto.getSelectedVariants().entrySet()) {
+
+                String productName = entry.getKey();
+
+                List<String> variants = entry.getValue();
+
+                if (variants != null) {
+
+                    for (String variantName : variants) {
+
+                        InstitutionProductVariant variant =
+                                new InstitutionProductVariant();
+
+                        variant.setInstitution(institution);
+
+                        variant.setProductName(productName);
+
+                        // ERROR FIXED HERE
+                        variant.setVariantName(variantName);
+
+                        variantList.add(variant);
+                    }
+                }
+            }
+        }
+
+        institution.setSelectedVariants(variantList);
+
+        return institution;
     }
 
-    /**
-     * Update existing entity from DTO (for PUT/PATCH)
-     */
-    public void updateEntityFromDTO(InstitutionDTO dto, Institution institution) {
-        institution.setInstitutionName(dto.getInstitutionName());
-        institution.setDescription(dto.getDescription());
-        institution.setUserRole(dto.getUserRole());
-        institution.setEnableStatus(dto.getEnableStatus());
-        institution.setWebAddress(dto.getWebAddress());
-        institution.setLanguage(dto.getLanguage());
-        institution.setNumberOfUsersAllowed(dto.getNumberOfUsersAllowed());
-        institution.setLogoPath(dto.getLogoPath());
-        // Address
-        institution.setAddressLine1(dto.getAddressLine1());
-        institution.setAddressLine2(dto.getAddressLine2());
-        institution.setAddressLine3(dto.getAddressLine3());
-        institution.setCity(dto.getCity());
-        institution.setState(dto.getState());
-        institution.setCountry(dto.getCountry());
-        institution.setZipCode(dto.getZipCode());
-        // Contact
-        institution.setContactName(dto.getContactName());
-        institution.setMobileNumber(dto.getMobileNumber());
-        institution.setFaxNumber(dto.getFaxNumber());
-        institution.setEmailAddress(dto.getEmailAddress());
-        institution.setTechnicalContactName(dto.getTechnicalContactName());
-        institution.setTechnicalPhoneNumber(dto.getTechnicalPhoneNumber());
-        institution.setTechnicalEmailAddress(dto.getTechnicalEmailAddress());
-        // Configuration
-        institution.setEnableCaptcha(dto.getEnableCaptcha());
-        institution.setEnableBlockingUnsecureIp(dto.getEnableBlockingUnsecureIp());
-        institution.setEnableProfilePasswordAuthentication(dto.getEnableProfilePasswordAuthentication());
-        institution.setEnableFees(dto.getEnableFees());
-        institution.setEnableSecureAuthentication(dto.getEnableSecureAuthentication());
-        institution.setAllowedBatchThreadCount(dto.getAllowedBatchThreadCount());
-        institution.setEnableRiskManagement(dto.getEnableRiskManagement());
-        institution.setEnableInternetBanking(dto.getEnableInternetBanking());
-        institution.setInternetBankingPrefix(dto.getInternetBankingPrefix());
-        institution.setInternetBankingUrl(dto.getInternetBankingUrl());
-        institution.setInternetBankingInquiryUrl(dto.getInternetBankingInquiryUrl());
-        institution.setInternetBankingConnectionTimeout(dto.getInternetBankingConnectionTimeout());
-        institution.setInternetBankingReadTimeout(dto.getInternetBankingReadTimeout());
-        institution.setEnableVpasAcquiringBin(dto.getEnableVpasAcquiringBin());
-        institution.setEnableImpsPayment(dto.getEnableImpsPayment());
-        institution.setEnableIvr3d(dto.getEnableIvr3d());
-        institution.setChooseCryptographicMethod(dto.getChooseCryptographicMethod());
-        institution.setAuthorizationLevel(dto.getAuthorizationLevel());
-        institution.setEnableOtp(dto.getEnableOtp());
-        institution.setOtpModel(dto.getOtpModel());
-        institution.setOtpAllowed(dto.getOtpAllowed());
-        institution.setEnableCurrencyConversion(dto.getEnableCurrencyConversion());
-        institution.setEnableStandingInstruction(dto.getEnableStandingInstruction());
-        institution.setEnableSdkIntegration(dto.getEnableSdkIntegration());
-        institution.setEnable3dSecurePreAuthentication(dto.getEnable3dSecurePreAuthentication());
-        institution.setEnableOneClickCheckout(dto.getEnableOneClickCheckout());
-        institution.setEnableSingleTid(dto.getEnableSingleTid());
+    // =========================================================
+    // UPDATE ENTITY
+    // =========================================================
+
+    public void updateEntityFromDTO(
+            InstitutionDTO dto,
+            Institution institution
+    ) {
+
+        // BASIC
+        institution.setInstitutionCode(dto.getInstitutionCode());
+        institution.setInstitutionNameFull(dto.getInstitutionNameFull());
+        institution.setInstitutionNameShort(dto.getInstitutionNameShort());
+
+        // BANK
+        institution.setBankType(dto.getBankType());
+        institution.setBankLogoName(dto.getBankLogoName());
+        institution.setBankLogoPath(dto.getBankLogoPath());
+
+        // REGISTERED ADDRESS
+        institution.setRegAddressLine1(dto.getRegAddressLine1());
+        institution.setRegAddressLine2(dto.getRegAddressLine2());
+        institution.setRegAddressLine3(dto.getRegAddressLine3());
+        institution.setRegCity(dto.getRegCity());
+        institution.setRegState(dto.getRegState());
+        institution.setRegCountry(dto.getRegCountry());
+        institution.setRegPhoneCode(dto.getRegPhoneCode());
+        institution.setRegCityCode(dto.getRegCityCode());
+        institution.setRegPhone(dto.getRegPhone());
+
+        // COMMUNICATION ADDRESS
+        institution.setSameAsRegistered(dto.getSameAsRegistered());
+        institution.setCommAddressLine1(dto.getCommAddressLine1());
+        institution.setCommAddressLine2(dto.getCommAddressLine2());
+        institution.setCommAddressLine3(dto.getCommAddressLine3());
+        institution.setCommCity(dto.getCommCity());
+        institution.setCommState(dto.getCommState());
+        institution.setCommCountry(dto.getCommCountry());
+        institution.setCommPhoneCode(dto.getCommPhoneCode());
+        institution.setCommCityCode(dto.getCommCityCode());
+        institution.setCommPhone(dto.getCommPhone());
+
+        // PRIMARY CONTACT
+        institution.setPrimaryFullName(dto.getPrimaryFullName());
+        institution.setPrimaryEmail(dto.getPrimaryEmail());
+        institution.setPrimaryMobileCode(dto.getPrimaryMobileCode());
+        institution.setPrimaryMobile(dto.getPrimaryMobile());
+        institution.setPrimaryAltMobileCode(dto.getPrimaryAltMobileCode());
+        institution.setPrimaryAltMobile(dto.getPrimaryAltMobile());
+
+        // SECONDARY CONTACT
+        institution.setSecondaryFullName(dto.getSecondaryFullName());
+        institution.setSecondaryEmail(dto.getSecondaryEmail());
+        institution.setSecondaryMobileCode(dto.getSecondaryMobileCode());
+        institution.setSecondaryMobile(dto.getSecondaryMobile());
+        institution.setSecondaryAltMobileCode(dto.getSecondaryAltMobileCode());
+        institution.setSecondaryAltMobile(dto.getSecondaryAltMobile());
+
+        // PRODUCTS
+        institution.setSelectedProducts(dto.getSelectedProducts());
+
+        // SECURITY
+        institution.setEnableMFA(dto.getEnableMFA());
+        institution.setEnableHRMS(dto.getEnableHRMS());
+        institution.setEnableOTP(dto.getEnableOTP());
+
+        // STATUS
+        institution.setStatus(dto.getStatus());
+
+        // =========================================================
+        // UPDATE VARIANTS
+        // =========================================================
+
+        institution.getSelectedVariants().clear();
+
+        if (dto.getSelectedVariants() != null) {
+
+            for (Map.Entry<String, List<String>> entry :
+                    dto.getSelectedVariants().entrySet()) {
+
+                String productName = entry.getKey();
+
+                List<String> variants = entry.getValue();
+
+                if (variants != null) {
+
+                    for (String variantName : variants) {
+
+                        InstitutionProductVariant variant =
+                                new InstitutionProductVariant();
+
+                        variant.setInstitution(institution);
+
+                        variant.setProductName(productName);
+
+                        variant.setVariantName(variantName);
+
+                        institution.getSelectedVariants()
+                                .add(variant);
+                    }
+                }
+            }
+        }
     }
 }
+

@@ -10,15 +10,18 @@ import com.jpb.reconciliation.reconciliation.constants.EnableStatus;
 import com.jpb.reconciliation.reconciliation.entity.Institution;
 
 @Repository
-public interface InstitutionRepository extends JpaRepository<Institution, Long> {
+public interface InstitutionRepository
+        extends JpaRepository<Institution, Long> {
 
-    Optional<Institution> findByInstitutionName(String institutionName);
+    Optional<Institution> findByInstitutionNameFull(
+            String institutionNameFull);
 
-    Optional<Institution> findByInstitutionUserId(String institutionUserId);
+    Optional<Institution> findByPrimaryEmail(
+            String primaryEmail);
 
-    List<Institution> findByEnableStatus(EnableStatus enableStatus);
+    Optional<Institution> findByPrimaryMobile(
+            String primaryMobile);
 
-    boolean existsByInstitutionName(String institutionName);
-
-    boolean existsByInstitutionUserId(String institutionUserId);
+    List<Institution> findByStatus(
+            EnableStatus status);
 }

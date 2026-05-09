@@ -25,4 +25,11 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     List<TestInstitution> findByStatusNot(String status);
     
     Optional<TestInstitution> findByVerificationToken(String verificationToken);
+    
+    
+    //SuperUser
+    Optional<TestInstitution> findByInstitutionCodeAndSuperUserId(
+            String institutionCode,
+            String superUserId
+    );
 }
