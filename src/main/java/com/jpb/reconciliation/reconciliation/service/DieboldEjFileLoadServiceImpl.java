@@ -8,11 +8,9 @@ import com.jpb.reconciliation.reconciliation.db.DieboldEjTransactionRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
@@ -26,16 +24,19 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
 
     private static final Logger logger = LoggerFactory.getLogger(DieboldEjFileLoadServiceImpl.class);
 
-    @Autowired
-    private DataSource dataSource;
+    private final DieboldEjTransactionRepository ejRepository;
 
     @Value("${db.batchSize:500}")
     private int batchSize;
@@ -53,24 +54,70 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
     private String archiveDirStr;
 
     // -------------------------------------------------------------------------
+    // Request handler — business logic moved from controller
+    // -------------------------------------------------------------------------
+    @Override
+    public EjLoadResult loadEjFiles(Map<String, Object> request) {
+        String inputDir = (String) request.get("inputDir");
+        if (inputDir == null || inputDir.trim().isEmpty()) {
+            return new EjLoadResult(0, 0, 0, 0, false, 0, 0, null, "inputDir is required");
+        }
+
+        Path dirPath = Paths.get(inputDir.trim());
+        if (!Files.isDirectory(dirPath)) {
+            return new EjLoadResult(0, 0, 0, 0, false, 0, 0, null,
+                    "inputDir does not exist: " + inputDir);
+        }
+
+        String glob = getOrDefault(request, "glob", "*.txt");
+
+        List<Path> files = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath, glob)) {
+            for (Path p : stream) {
+                if (Files.isRegularFile(p)) files.add(p);
+            }
+        } catch (IOException e) {
+            logger.error("Could not read directory {}: {}", inputDir, e.getMessage());
+            return new EjLoadResult(0, 0, 0, 0, false, 0, 0, null,
+                    "Could not read directory: " + e.getMessage());
+        }
+
+        if (files.isEmpty()) {
+            logger.warn("No files found in directory: {}", inputDir);
+            return new EjLoadResult(0, 0, 0, 0, true, 0, 0, null, "No files found in: " + inputDir);
+        }
+
+        String batchId = "batch-" + UUID.randomUUID();
+        logger.info("Diebold EJ Load started. batchId={}, files={}, dir={}", batchId, files.size(), inputDir);
+
+        EjLoadResult result = loadDirectory(dirPath, glob);
+
+        logger.info("Diebold EJ Load complete. batchId={}, status={}, inserted={}",
+                batchId, result.overallStatus(), result.inserted);
+
+        return new EjLoadResult(result.parsed, result.inserted, result.errors,
+                result.elapsedMs, result.success, result.totalFiles, result.failedFiles,
+                batchId, null);
+    }
+
+    // -------------------------------------------------------------------------
     // Single file load
     // -------------------------------------------------------------------------
     @Override
     public EjLoadResult loadFile(Path file) {
         String batchId = "batch-" + UUID.randomUUID();
-        DieboldEjTransactionRepository repo   = new DieboldEjTransactionRepository(dataSource);
-        EjTransactionParser     parser = new EjTransactionParser(batchId, atmIdPrefix);
-        Charset                 charset = resolveCharset();
+        EjTransactionParser parser = new EjTransactionParser(batchId, atmIdPrefix);
+        Charset charset = resolveCharset();
 
         long t0 = System.nanoTime();
         long parsedCount = 0, insertedCount = 0, errorCount = 0;
         List<EjTransaction> batch = new ArrayList<>(batchSize);
         boolean fileLevelFailure = false;
 
-        logger.info("Loading EJ file: {}", file);
+        logger.info("Loading Diebold EJ file: {}", file);
 
         try (EjFileReader reader = new EjFileReader(file, charset);
-             Stream<RawTransactionBlock> blocks = reader.stream()) {
+                Stream<RawTransactionBlock> blocks = reader.stream()) {
 
             for (RawTransactionBlock block : (Iterable<RawTransactionBlock>) blocks::iterator) {
                 EjTransaction txn;
@@ -79,18 +126,17 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
                     parsedCount++;
                 } catch (Exception ex) {
                     errorCount++;
-                    logger.error("Parser error on block {} lines {}-{}: {}",
-                            block.getFileName(), block.getLineStart(), block.getLineEnd(),
-                            ex.getMessage());
+                    logger.error("Parser error on block {} lines {}-{}: {}", block.getFileName(),
+                            block.getLineStart(), block.getLineEnd(), ex.getMessage());
                     continue;
                 }
 
                 batch.add(txn);
                 if (batch.size() >= batchSize) {
-                    insertedCount += flush(batch, repo);
+                    insertedCount += flush(batch);
                 }
             }
-            insertedCount += flush(batch, repo);
+            insertedCount += flush(batch);
 
         } catch (IOException | UncheckedIOException ioe) {
             logger.error("I/O error reading {}: {}", file, ioe.toString());
@@ -109,10 +155,9 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
             logger.warn("Aborted {} : parsed={}, inserted={}, errors={}, elapsed={}ms",
                     file.getFileName(), parsedCount, insertedCount, errorCount, elapsedMs);
             return new EjLoadResult(parsedCount, insertedCount, errorCount + 1,
-                    elapsedMs, false, 1, 1);
+                    elapsedMs, false, 1, 1, null, null);
         }
 
-        // Archive if configured
         if (archiveOnSuccess && archiveDirStr != null && !archiveDirStr.trim().isEmpty()) {
             archive(file, Paths.get(archiveDirStr));
         }
@@ -120,7 +165,8 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
         logger.info("Done {} : parsed={}, inserted={}, errors={}, elapsed={}ms",
                 file.getFileName(), parsedCount, insertedCount, errorCount, elapsedMs);
 
-        return new EjLoadResult(parsedCount, insertedCount, errorCount, elapsedMs, true, 1, 0);
+        return new EjLoadResult(parsedCount, insertedCount, errorCount,
+                elapsedMs, true, 1, 0, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -137,12 +183,12 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
             }
         } catch (IOException e) {
             logger.error("Failed to list files in directory {}: {}", inputDir, e.getMessage());
-            return new EjLoadResult(0, 0, 0, 0, false, 0, 0);
+            return new EjLoadResult(0, 0, 0, 0, false, 0, 0, null, null);
         }
 
         if (files.isEmpty()) {
             logger.warn("No files found in directory: {}", inputDir);
-            return new EjLoadResult(0, 0, 0, 0, true, 0, 0);
+            return new EjLoadResult(0, 0, 0, 0, true, 0, 0, null, null);
         }
 
         files.sort(Comparator.comparing(p -> p.getFileName().toString()));
@@ -153,10 +199,10 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
 
         for (Path file : files) {
             EjLoadResult result = loadFile(file);
-            totalParsed    += result.parsed;
-            totalInserted  += result.inserted;
-            totalErrors    += result.errors;
-            totalElapsed   += result.elapsedMs;
+            totalParsed   += result.parsed;
+            totalInserted += result.inserted;
+            totalErrors   += result.errors;
+            totalElapsed  += result.elapsedMs;
             if (!result.success) failedFiles++;
         }
 
@@ -165,16 +211,16 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
                 files.size(), failedFiles, totalInserted, totalElapsed);
 
         return new EjLoadResult(totalParsed, totalInserted, totalErrors,
-                totalElapsed, overallSuccess, files.size(), failedFiles);
+                totalElapsed, overallSuccess, files.size(), failedFiles, null, null);
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
-    private int flush(List<EjTransaction> batch, DieboldEjTransactionRepository repo) {
+    private int flush(List<EjTransaction> batch) {
         if (batch.isEmpty()) return 0;
         try {
-            int n = repo.insertBatch(batch);
+            int n = ejRepository.insertBatch(batch);
             batch.clear();
             return n;
         } catch (SQLException e) {
@@ -201,6 +247,13 @@ public class DieboldEjFileLoadServiceImpl implements DieboldEjFileLoadService {
             logger.warn("Invalid charset '{}', falling back to ISO-8859-1", charsetName);
             return StandardCharsets.ISO_8859_1;
         }
+    }
+
+    private String getOrDefault(Map<String, Object> map, String key, String defaultValue) {
+        Object val = map.get(key);
+        if (val == null) return defaultValue;
+        String str = val.toString().trim();
+        return str.isEmpty() ? defaultValue : str;
     }
 
     private static final class BatchInsertFailedException extends RuntimeException {

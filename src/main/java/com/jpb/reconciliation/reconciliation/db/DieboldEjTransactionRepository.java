@@ -4,6 +4,7 @@ import com.jpb.reconciliation.reconciliation.diebold.model.EjTransaction;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.io.StringReader;
@@ -21,7 +22,8 @@ import java.util.Collection;
  * JDBC-based repository for Diebold {@link EjTransaction}.
  * Inserts one batch into {@code atm_ej_transaction_diebold} table.
  */
-public final class DieboldEjTransactionRepository {
+@Repository
+public class DieboldEjTransactionRepository {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(DieboldEjTransactionRepository.class);

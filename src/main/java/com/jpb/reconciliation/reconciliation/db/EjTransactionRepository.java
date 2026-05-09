@@ -1,7 +1,8 @@
 package com.jpb.reconciliation.reconciliation.db;
 
-import org.slf4j.Logger; 
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import com.jpb.reconciliation.reconciliation.dto.EjTransaction;
 
@@ -31,7 +32,8 @@ import java.util.Collection;
  * {@code autoCommit=false}; this is the case for the pool created by
  * {@link EjDataSourceFactory}.
  */
-public final class EjTransactionRepository {
+@Repository
+public class EjTransactionRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(EjTransactionRepository.class);
 

@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.db;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import com.jpb.reconciliation.reconciliation.hyosung.model.EjTransaction;
 
@@ -22,7 +23,8 @@ import java.util.Collection;
  * {@code atm_ej_transaction_hyosung} table in a single DB transaction.
  * On failure the batch is rolled back and the {@link SQLException} re-thrown.
  */
-public final class HyosungEjTransactionRepository {
+@Repository
+public class HyosungEjTransactionRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(HyosungEjTransactionRepository.class);
 

@@ -1,30 +1,20 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import java.nio.file.Path;
+import java.util.Map;
 
 public interface HyosungEjFileLoadService {
 
-    /**
-     * Single EJ file ko parse karke DB mein insert karta hai.
-     *
-     * @param file  .txt EJ file ka path
-     * @return      LoadResult — parsed/inserted/errors counts + success flag
-     */
     EjLoadResult loadFile(Path file);
 
-    /**
-     * Ek directory ke saare matching files load karta hai.
-     *
-     * @param inputDir  folder jahan EJ .txt files hain
-     * @param glob      file pattern, e.g. "*.txt"
-     * @return          total summary result
-     */
     EjLoadResult loadDirectory(Path inputDir, String glob);
 
-    // -------------------------------------------------------------------------
-    // Result DTO — interface ke andar rakha taaki dono (service + controller)
-    // same class use karein bina extra import ke
-    // -------------------------------------------------------------------------
+    /**
+     * Validates request, collects files, runs loadDirectory,
+     * and returns a response map ready for the controller.
+     */
+    EjLoadResult loadEjFiles(Map<String, Object> request);
+
     final class EjLoadResult {
 
         public final long    parsed;
@@ -34,17 +24,27 @@ public interface HyosungEjFileLoadService {
         public final boolean success;
         public final int     totalFiles;
         public final int     failedFiles;
+        public final String  batchId;
+        public final String  errorMessage;
 
         public EjLoadResult(long parsed, long inserted, long errors,
                             long elapsedMs, boolean success,
-                            int totalFiles, int failedFiles) {
-            this.parsed      = parsed;
-            this.inserted    = inserted;
-            this.errors      = errors;
-            this.elapsedMs   = elapsedMs;
-            this.success     = success;
-            this.totalFiles  = totalFiles;
-            this.failedFiles = failedFiles;
+                            int totalFiles, int failedFiles,
+                            String batchId, String errorMessage) {
+            this.parsed       = parsed;
+            this.inserted     = inserted;
+            this.errors       = errors;
+            this.elapsedMs    = elapsedMs;
+            this.success      = success;
+            this.totalFiles   = totalFiles;
+            this.failedFiles  = failedFiles;
+            this.batchId      = batchId;
+            this.errorMessage = errorMessage;
+        }
+
+        public String overallStatus() {
+            return failedFiles == 0 ? "SUCCESS"
+                    : (failedFiles == totalFiles ? "FAILED" : "PARTIAL");
         }
 
         @Override
