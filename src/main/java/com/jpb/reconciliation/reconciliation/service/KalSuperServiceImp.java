@@ -167,6 +167,14 @@ public class KalSuperServiceImp implements KalSuperService {
                 "Super User saved successfully: {}",
                 dto.getUsername());
 
+        // ✅ default_password null karo — kaam khatam, dobara use nahi hoga
+        institution.setDefaultPassword(null);
+        testInstitutionRepository.save(institution);
+
+        logger.info(
+                "default_password cleared for institution: {}",
+                dto.getInstitutionCode());
+
         return new ResponseEntity<>(
                 new RestWithStatusList(
                         "SUCCESS",
