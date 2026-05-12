@@ -33,4 +33,15 @@ public interface TestInstitutionService {
     ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader);
 
     ResponseEntity<RestWithStatusList> verifyEmail(String token);
+
+    // Check if institution name already exists — used for Step 1 real-time validation
+    ResponseEntity<RestWithStatusList> checkNameExists(String name);
+
+    // Export institutions as Excel
+    ResponseEntity<byte[]> exportToExcel() throws java.io.IOException;
+
+    // Export institutions as CSV
+    ResponseEntity<byte[]> exportToCsv();
+    
+    ResponseEntity<RestWithStatusList> checkEmailExists(String email);
 }

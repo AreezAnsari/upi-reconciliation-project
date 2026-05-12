@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
+import com.jpb.reconciliation.reconciliation.service.KalSuperService;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;
 
@@ -24,6 +25,9 @@ public class OtpController {
 
     @Autowired
     private JwtHelper jwtHelper;
+
+    @Autowired
+    private KalSuperService kalSuperService;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -74,7 +78,6 @@ public class OtpController {
         if (result == OtpVerifyResult.SUCCESS) {
 
             // ── JWT generate karo email se ──
-            // UserDetails banao — email as username, no password needed (already verified via OTP)
             UserDetails userDetails = User.builder()
                     .username(email)
                     .password("")
@@ -83,6 +86,16 @@ public class OtpController {
 
             String accessToken  = jwtHelper.generateToken(userDetails);
             String refreshToken = jwtHelper.generateTokenForRefresh(email);
+
+            // ── Institution status → ACTIVE (first login ke baad) ──
+            try {
+                kalSuperService.activateInstitution(email);
+            } catch (Exception e) {
+                // Abhi ye silently fail ho rha hai — status ACTIVE nhi hoti
+                System.out.println("Warning: Could not activate institution for "
+                    + email + ": " + e.getMessage());
+                e.printStackTrace(); // ← ye add karo taaki full stack trace dikhe
+            }
 
             Map<String, Object> res = new HashMap<>();
             res.put("success",      true);

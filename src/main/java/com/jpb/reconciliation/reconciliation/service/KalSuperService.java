@@ -16,4 +16,8 @@ public interface KalSuperService {
     // ✅ Sirf yeh add karo
     ResponseEntity<RestWithStatusList>
     login(KalSuperUserVerifyDto dto);
+
+    // ── Called after OTP verified — sets institution status to ACTIVE ──
+    ResponseEntity<RestWithStatusList>
+    activateInstitution(String email);
 }

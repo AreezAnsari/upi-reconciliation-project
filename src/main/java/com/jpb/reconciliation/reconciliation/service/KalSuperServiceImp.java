@@ -167,18 +167,32 @@ public class KalSuperServiceImp implements KalSuperService {
                 "Super User saved successfully: {}",
                 dto.getUsername());
 
+        // ✅ Sir's rule: VERIFIED status is set HERE — after successful new password setup
+        // This is the correct moment: user proved identity (Step 1) AND set new password (Step 2)
+        // Token also nullified here — link is now dead (success path)
+        if ("REQUEST".equals(institution.getStatus())) {
+            institution.setStatus("VERIFIED");
+            logger.info("Institution {} status set to VERIFIED after successful password setup",
+                    dto.getInstitutionCode());
+        }
+
         // ✅ default_password null karo — kaam khatam, dobara use nahi hoga
         institution.setDefaultPassword(null);
+
+        // ✅ Token null karo — link expired on success (still valid 36hrs on failure path)
+        institution.setVerificationToken(null);
+        institution.setTokenExpiry(LocalDateTime.now()); // expire immediately on success
+
+        institution.setUpdatedAt(LocalDateTime.now());
         testInstitutionRepository.save(institution);
 
-        logger.info(
-                "default_password cleared for institution: {}",
+        logger.info("default_password and token cleared for institution: {}",
                 dto.getInstitutionCode());
 
         return new ResponseEntity<>(
                 new RestWithStatusList(
                         "SUCCESS",
-                        "Password set successfully. Please login.",
+                        "Password set successfully. Please login with your new password.",
                         new ArrayList<>()),
                 HttpStatus.OK);
     }
@@ -207,6 +221,44 @@ public class KalSuperServiceImp implements KalSuperService {
         }
 
         KalSuperUser user = optUser.get();
+
+        // ── Check institution status before allowing login ──
+        Optional<TestInstitution> optInst =
+                testInstitutionRepository
+                        .findByInstitutionCodeAndSuperUserId(
+                                dto.getInstitutionCode(),
+                                dto.getUsername());
+
+        if (optInst.isPresent()) {
+            String instStatus = optInst.get().getStatus();
+
+            if ("RETIRED".equals(instStatus)) {
+                return new ResponseEntity<>(
+                        new RestWithStatusList(
+                                "FAILURE",
+                                "This institution has been permanently retired. Access is no longer possible.",
+                                null),
+                        HttpStatus.FORBIDDEN);
+            }
+
+            if ("BLOCKED".equals(instStatus)) {
+                return new ResponseEntity<>(
+                        new RestWithStatusList(
+                                "FAILURE",
+                                "This institution is currently blocked. Please contact KalInfotech Admin.",
+                                null),
+                        HttpStatus.FORBIDDEN);
+            }
+
+            if ("INACTIVE".equals(instStatus)) {
+                return new ResponseEntity<>(
+                        new RestWithStatusList(
+                                "FAILURE",
+                                "This institution is inactive. Please contact KalInfotech Admin.",
+                                null),
+                        HttpStatus.FORBIDDEN);
+            }
+        }
 
         // ✅ Verify password
         if (!passwordEncoder.matches(
@@ -255,6 +307,66 @@ public class KalSuperServiceImp implements KalSuperService {
                         "SUCCESS",
                         "OTP sent successfully.",
                         data),
+                HttpStatus.OK);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 3.5 — After OTP verified → Set institution status ACTIVE
+    // Called from OtpController after successful OTP verification
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> activateInstitution(String email) {
+
+        // Find KalSuperUser by email
+        Optional<KalSuperUser> optUser =
+                kalSuperUserRepository.findByEmail(email);
+
+        if (!optUser.isPresent()) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE",
+                            "Super User not found for email: " + email, null),
+                    HttpStatus.NOT_FOUND);
+        }
+
+        KalSuperUser user = optUser.get();
+
+        Optional<TestInstitution> optInst =
+        	    testInstitutionRepository.findByInstitutionCodeAndSuperUserId(
+        	        user.getInstitutionCode(),
+        	        user.getSuperUserId()   // ya user.getUsername() — jo column map hai
+        	    );
+
+        if (!optInst.isPresent()) {
+            logger.warn("Institution not found for activateInstitution: {}", email);
+            return new ResponseEntity<>(
+                    new RestWithStatusList("SUCCESS",
+                            "Login successful.", new ArrayList<>()),
+                    HttpStatus.OK);
+        }
+
+        TestInstitution institution = optInst.get();
+
+        // RETIRED check — never change
+        if ("RETIRED".equals(institution.getStatus())) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE",
+                            "Retired institution cannot be activated.", null),
+                    HttpStatus.FORBIDDEN);
+        }
+
+        // Set ACTIVE only if currently VERIFIED
+        // (INACTIVE and BLOCKED should NOT become ACTIVE automatically)
+        if ("VERIFIED".equals(institution.getStatus())) {
+            institution.setStatus("ACTIVE");
+            institution.setUpdatedAt(LocalDateTime.now());
+            testInstitutionRepository.save(institution);
+            logger.info("Institution {} status set to ACTIVE after first login",
+                    institution.getInstitutionCode());
+        }
+
+        return new ResponseEntity<>(
+                new RestWithStatusList("SUCCESS",
+                        "Institution activated successfully.", new ArrayList<>()),
                 HttpStatus.OK);
     }
 }

@@ -1,11 +1,13 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,6 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
 import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
@@ -81,10 +87,22 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
             return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
+        
+        if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
+            return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
+        }
 
-        // Generate unique institution code
-        String institutionCode = generateInstitutionCode(dto.getInstitutionNameFull());
-        logger.info("Generated institution code: {}", institutionCode);
+        // ── Institution code: accept from frontend — validate uniqueness only ──
+        // Frontend generates pure 8-digit code and sends in payload
+        // Backend: validate format + uniqueness → save as-is
+        String institutionCode = dto.getInstitutionCode();
+        if (institutionCode == null || !institutionCode.matches("\\d{8}")) {
+            return bad("Institution code must be exactly 8 digits.");
+        }
+        if (testInstitutionRepository.findByInstitutionCode(institutionCode).isPresent()) {
+            return bad("Institution code already exists. Please regenerate and try again.");
+        }
+        logger.info("Institution code accepted from frontend: {}", institutionCode);
 
         // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
         // e.g. "Rajesh Kumar" → "rajesh.kumar"
@@ -97,7 +115,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         // Map DTO → Entity
         TestInstitution institution = TestInstitutionMapper.mapToEntity(dto, new TestInstitution());
         institution.setInstitutionCode(institutionCode);
-        institution.setStatus("PENDING");
+        institution.setStatus("REQUEST");  // Sir's rule: REQUEST when onboarded by Kal Admin
         institution.setCreatedAt(LocalDateTime.now());
 
         // Save Super User credentials in institution record
@@ -249,9 +267,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     @Transactional
     public ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status) {
 
-        List<String> validStatuses = Arrays.asList("ACTIVE", "INACTIVE", "PENDING", "BLOCKED");
+        // Valid statuses per sir's rules
+        List<String> validStatuses = Arrays.asList(
+            "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"
+        );
         if (!validStatuses.contains(status.toUpperCase())) {
-            return bad("Invalid status. Allowed: ACTIVE, INACTIVE, PENDING, BLOCKED.");
+            return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, RETIRED.");
         }
 
         Optional<TestInstitution> optional = testInstitutionRepository.findByInstitutionId(institutionId);
@@ -260,11 +281,22 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         }
 
         TestInstitution institution = optional.get();
+        String currentStatus = institution.getStatus();
+
+        // ── RETIRED is permanent — cannot be changed by anyone ──
+        if ("RETIRED".equals(currentStatus)) {
+            return bad("This institution is RETIRED. Its status cannot be changed by anyone.");
+        }
+
+        // ── Cannot set back to RETIRED from code (only forward transition allowed) ──
+        // RETIRED can only be set if current status is not already RETIRED
+        // (admin can set any → RETIRED but not out of RETIRED)
+
         institution.setStatus(status.toUpperCase());
         institution.setUpdatedAt(LocalDateTime.now());
         testInstitutionRepository.save(institution);
 
-        logger.info("Institution {} status updated to: {}", institutionId, status);
+        logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, status.toUpperCase());
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Institution status updated to '" + status.toUpperCase() + "'.", new ArrayList<>()));
@@ -373,26 +405,28 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Verification link has expired. Please contact KalInfotech Admin.");
         }
 
-        // ── Already ACTIVE hai — second time click ──
-        if ("ACTIVE".equals(institution.getStatus())) {
+        // ── Already VERIFIED or ACTIVE — link clicked again ──
+        // Sir's rule: VERIFIED status is set ONLY when user successfully enters
+        // Institution Code + UserID + Default Password (Step 1 of SuperUserLogin)
+        // Email link click just validates the token and redirects to login page.
+        if ("VERIFIED".equals(institution.getStatus()) ||
+            "ACTIVE".equals(institution.getStatus())) {
             return ResponseEntity.ok(new RestWithStatusList(
                 "ALREADY_VERIFIED",
-                "Your email is already verified. Please proceed to login.",
+                "Link already used. Please proceed to login.",
                 new ArrayList<>()
             ));
         }
 
-        // ── First time — PENDING → ACTIVE ──
-        institution.setStatus("ACTIVE");
-        // Token DELETE MAT KARO — 48 hrs tak valid rahega
-        institution.setUpdatedAt(LocalDateTime.now());
-        testInstitutionRepository.save(institution);
-
-        logger.info("Institution {} verified and ACTIVE", institution.getInstitutionCode());
+        // ── Status stays REQUEST — do NOT change to VERIFIED here ──
+        // VERIFIED is set in KalSuperServiceImp.setNewPassword() after Step 2 success
+        // Token stays valid for 36 hrs so user can come back if Step 1/2 fails
+        logger.info("Email link clicked for institution {} — status remains REQUEST, redirecting to login",
+                institution.getInstitutionCode());
 
         return ResponseEntity.ok(new RestWithStatusList(
             "SUCCESS",
-            "Email verified successfully! Please proceed to login.",
+            "Link is valid. Please proceed to login with your credentials.",
             new ArrayList<>()
         ));
     }
@@ -401,20 +435,8 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     // PRIVATE HELPERS
     // ─────────────────────────────────────────────────────────────────────────
 
-    // Institution code: first 4 letters of name + 4 random digits e.g. AXIS4298
-    private String generateInstitutionCode(String institutionNameFull) {
-        String cleaned = institutionNameFull.replaceAll("[^a-zA-Z]", "").toUpperCase();
-        String prefix  = cleaned.length() >= 4 ? cleaned.substring(0, 4) : cleaned;
-        while (prefix.length() < 4) prefix += "_";
-
-        String code;
-        do {
-            int digits = 1000 + new Random().nextInt(9000);
-            code = prefix + digits;
-        } while (testInstitutionRepository.findByInstitutionCode(code).isPresent());
-
-        return code;
-    }
+    // Institution code is generated by frontend (pure 8 digits)
+    // Backend only validates format and uniqueness — no generation needed here
 
     // Super User ID: firstname.lastname all lowercase
     // e.g. "Rajesh Kumar Sharma" → "rajesh.kumar"  (first 2 words only)
@@ -439,4 +461,185 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new RestWithStatusList("FAILURE", message, new ArrayList<>()));
     }
+    
+ // ─────────────────────────────────────────────────────────────────────────
+ // CHECK NAME EXISTS — Step 1 real-time validation
+ // ─────────────────────────────────────────────────────────────────────────
+ @Override
+ public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
+     if (name == null || name.trim().isEmpty()) {
+         return bad("Institution name is required.");
+     }
+     boolean exists = testInstitutionRepository
+             .existsByInstitutionNameFull(name.trim());
+     if (exists) {
+         return ResponseEntity.ok(
+                 new RestWithStatusList("EXISTS",
+                         "Institution '" + name.trim() + "' is already registered.",
+                         new ArrayList<>()));
+     }
+     return ResponseEntity.ok(
+             new RestWithStatusList("AVAILABLE",
+                     "Institution name is available.",
+                     new ArrayList<>()));
+ }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHECK NAME EXISTS — Step 1 real-time validation
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> checkEmailExists(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return bad("Email is required.");
+        }
+        boolean exists = testInstitutionRepository.existsByPrimaryEmail(email.trim());
+        if (exists) {
+            return ResponseEntity.ok(
+                    new RestWithStatusList("EXISTS",
+                            "Email '" + email.trim() + "' is already registered.",
+                            new ArrayList<>()));
+        }
+        return ResponseEntity.ok(
+                new RestWithStatusList("AVAILABLE",
+                        "Email is available.",
+                        new ArrayList<>()));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXPORT TO EXCEL
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<byte[]> exportToExcel() throws java.io.IOException {
+
+        List<TestInstitution> institutions = testInstitutionRepository.findAll();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            Sheet sheet = workbook.createSheet("Institutions");
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+
+            CellStyle altStyle = workbook.createCellStyle();
+            altStyle.cloneStyleFrom(dataStyle);
+            altStyle.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
+            altStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            String[] headers = {
+                "S.No", "Institution Code", "Institution Name (Full)",
+                "Institution Name (Short)", "Bank Type", "Super User ID",
+                "Primary Email", "Primary Mobile", "Status", "Created At"
+            };
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            int rowNum = 1;
+            for (TestInstitution inst : institutions) {
+                Row row = sheet.createRow(rowNum);
+                CellStyle style = (rowNum % 2 == 0) ? altStyle : dataStyle;
+                setCell(row, 0, String.valueOf(rowNum), style);
+                setCell(row, 1, inst.getInstitutionCode(), style);
+                setCell(row, 2, inst.getInstitutionNameFull(), style);
+                setCell(row, 3, inst.getInstitutionNameShort(), style);
+                setCell(row, 4, inst.getBankType() != null ? inst.getBankType() : "", style);
+                setCell(row, 5, inst.getSuperUserId(), style);
+                setCell(row, 6, inst.getPrimaryEmail(), style);
+                setCell(row, 7, inst.getPrimaryMobile(), style);
+                setCell(row, 8, inst.getStatus(), style);
+                setCell(row, 9, inst.getCreatedAt() != null
+                        ? inst.getCreatedAt().format(fmt) : "", style);
+                rowNum++;
+            }
+
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            workbook.write(out);
+            byte[] data = out.toByteArray();
+
+            String filename = "Institutions_" +
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType(
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .contentLength(data.length)
+                    .body(data);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXPORT TO CSV
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<byte[]> exportToCsv() {
+
+        List<TestInstitution> institutions = testInstitutionRepository.findAll();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("S.No,Institution Code,Institution Name (Full),Institution Name (Short),")
+           .append("Bank Type,Super User ID,Primary Email,Primary Mobile,Status,Created At\n");
+
+        int sno = 1;
+        for (TestInstitution inst : institutions) {
+            csv.append(sno++).append(",")
+               .append(safeCsv(inst.getInstitutionCode())).append(",")
+               .append(safeCsv(inst.getInstitutionNameFull())).append(",")
+               .append(safeCsv(inst.getInstitutionNameShort())).append(",")
+               .append(safeCsv(inst.getBankType())).append(",")
+               .append(safeCsv(inst.getSuperUserId())).append(",")
+               .append(safeCsv(inst.getPrimaryEmail())).append(",")
+               .append(safeCsv(inst.getPrimaryMobile())).append(",")
+               .append(safeCsv(inst.getStatus())).append(",")
+               .append(safeCsv(inst.getCreatedAt() != null
+                       ? inst.getCreatedAt().format(fmt) : ""))
+               .append("\n");
+        }
+
+        byte[] data = csv.toString().getBytes();
+        String filename = "Institutions_" +
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .contentLength(data.length)
+                .body(data);
+    }
+
+    private void setCell(Row row, int col, String value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value != null ? value : "");
+        cell.setCellStyle(style);
+    }
+
+    private String safeCsv(String val) {
+        if (val == null) return "";
+        if (val.contains(",")) return "\"" + val + "\"";
+        return val;
+    }
+
 }
