@@ -32,4 +32,6 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
             String institutionCode,
             String superUserId
     );
+    
+    boolean existsByPrimaryEmail(String primaryEmail);
 }

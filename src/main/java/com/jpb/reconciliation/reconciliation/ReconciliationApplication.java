@@ -15,10 +15,6 @@ import com.ulisesbocchio.jasyptspringboot.annotation.EnableEncryptableProperties
 public class ReconciliationApplication {
 
 	public static void main(String[] args) {
-		 System.setProperty("oracle.net.tns_admin",
-	                "C:/Reconciliation/Wallet_RECONDB1");
-	        System.setProperty("oracle.net.wallet_location",
-	                "C:/Reconciliation/Wallet_RECONDB1");
 		SpringApplication.run(ReconciliationApplication.class, args);
 		System.out.println("Recon Running!");
 	}
