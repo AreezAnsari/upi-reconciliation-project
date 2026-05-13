@@ -6,22 +6,30 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.jpb.reconciliation.reconciliation.constants.EnableStatus;
 import com.jpb.reconciliation.reconciliation.entity.Institution;
 
 @Repository
-public interface InstitutionRepository
-        extends JpaRepository<Institution, Long> {
+public interface InstitutionRepository extends JpaRepository<Institution, Long> {
 
-    Optional<Institution> findByInstitutionNameFull(
-            String institutionNameFull);
+    Optional<Institution> findByInstitutionId(Long institutionId);
 
-    Optional<Institution> findByPrimaryEmail(
-            String primaryEmail);
+    Optional<Institution> findByInstitutionCode(String institutionCode);
 
-    Optional<Institution> findByPrimaryMobile(
-            String primaryMobile);
+    // Check if same full name already exists
+    Boolean existsByInstitutionNameFull(String institutionNameFull);
 
-    List<Institution> findByStatus(
-            EnableStatus status);
+    // Filter by status: ACTIVE / INACTIVE / PENDING / BLOCKED
+    List<Institution> findByStatus(String status);
+
+    // For docx dashboard — show only active institutions
+    List<Institution> findByStatusNot(String status);
+    
+    Optional<Institution> findByVerificationToken(String verificationToken);
+    
+    
+    //SuperUser
+    Optional<Institution> findByInstitutionCodeAndSuperUserId(
+            String institutionCode,
+            String superUserId
+    );
 }

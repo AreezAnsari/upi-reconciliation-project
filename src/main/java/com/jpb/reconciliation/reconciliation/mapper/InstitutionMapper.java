@@ -1,331 +1,159 @@
-
 package com.jpb.reconciliation.reconciliation.mapper;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Component;
+import java.util.Arrays;
 
 import com.jpb.reconciliation.reconciliation.dto.InstitutionDTO;
 import com.jpb.reconciliation.reconciliation.entity.Institution;
-import com.jpb.reconciliation.reconciliation.entity.InstitutionProductVariant;
 
-@Component
 public class InstitutionMapper {
 
-    // =========================================================
-    // ENTITY -> DTO
-    // =========================================================
+    // DTO → Entity (for create)
+    public static Institution mapToEntity(InstitutionDTO dto, Institution entity) {
 
-    public InstitutionDTO toDTO(Institution institution) {
+        entity.setInstitutionNameFull(dto.getInstitutionNameFull() != null
+                ? dto.getInstitutionNameFull().trim() : null);
+        entity.setInstitutionNameShort(dto.getInstitutionNameShort());
 
-        if (institution == null) {
-            return null;
+        // List<String> → comma-separated String
+        if (dto.getBankType() != null) {
+            entity.setBankType(String.join(",", dto.getBankType()));
         }
 
-        return InstitutionDTO.builder()
+        // Registered address
+        entity.setRegAddressLine1(dto.getRegAddressLine1());
+        entity.setRegAddressLine2(dto.getRegAddressLine2());
+        entity.setRegAddressLine3(dto.getRegAddressLine3());
+        entity.setRegCity(dto.getRegCity());
+        entity.setRegState(dto.getRegState());
+        entity.setRegCountry(dto.getRegCountry());
+        entity.setRegPhoneCode(dto.getRegPhoneCode());
+        entity.setRegCityCode(dto.getRegCityCode());
+        entity.setRegPhone(dto.getRegPhone());
 
-                // BASIC
-                .id(institution.getId())
-                .institutionCode(institution.getInstitutionCode())
-                .institutionNameFull(institution.getInstitutionNameFull())
-                .institutionNameShort(institution.getInstitutionNameShort())
+        // Communication address
+        if (dto.getSameAsRegistered() != null) {
+            entity.setSameAsRegistered(dto.getSameAsRegistered() ? "Y" : "N");
 
-                // BANK
-                .bankType(institution.getBankType())
-                .bankLogoName(institution.getBankLogoName())
-                .bankLogoPath(institution.getBankLogoPath())
-
-                // REGISTERED ADDRESS
-                .regAddressLine1(institution.getRegAddressLine1())
-                .regAddressLine2(institution.getRegAddressLine2())
-                .regAddressLine3(institution.getRegAddressLine3())
-                .regCity(institution.getRegCity())
-                .regState(institution.getRegState())
-                .regCountry(institution.getRegCountry())
-                .regPhoneCode(institution.getRegPhoneCode())
-                .regCityCode(institution.getRegCityCode())
-                .regPhone(institution.getRegPhone())
-
-                // COMMUNICATION ADDRESS
-                .sameAsRegistered(institution.getSameAsRegistered())
-                .commAddressLine1(institution.getCommAddressLine1())
-                .commAddressLine2(institution.getCommAddressLine2())
-                .commAddressLine3(institution.getCommAddressLine3())
-                .commCity(institution.getCommCity())
-                .commState(institution.getCommState())
-                .commCountry(institution.getCommCountry())
-                .commPhoneCode(institution.getCommPhoneCode())
-                .commCityCode(institution.getCommCityCode())
-                .commPhone(institution.getCommPhone())
-
-                // PRIMARY CONTACT
-                .primaryFullName(institution.getPrimaryFullName())
-                .primaryEmail(institution.getPrimaryEmail())
-                .primaryMobileCode(institution.getPrimaryMobileCode())
-                .primaryMobile(institution.getPrimaryMobile())
-                .primaryAltMobileCode(institution.getPrimaryAltMobileCode())
-                .primaryAltMobile(institution.getPrimaryAltMobile())
-
-                // SECONDARY CONTACT
-                .secondaryFullName(institution.getSecondaryFullName())
-                .secondaryEmail(institution.getSecondaryEmail())
-                .secondaryMobileCode(institution.getSecondaryMobileCode())
-                .secondaryMobile(institution.getSecondaryMobile())
-                .secondaryAltMobileCode(institution.getSecondaryAltMobileCode())
-                .secondaryAltMobile(institution.getSecondaryAltMobile())
-
-                // PRODUCTS
-                .selectedProducts(institution.getSelectedProducts())
-
-                // VARIANTS
-                .selectedVariants(
-                        institution.getSelectedVariants()
-                                .stream()
-                                .collect(Collectors.groupingBy(
-                                        InstitutionProductVariant::getProductName,
-                                        Collectors.mapping(
-                                                InstitutionProductVariant::getVariantName,
-                                                Collectors.toList()
-                                        )
-                                ))
-                )
-
-                // SECURITY
-                .enableMFA(institution.getEnableMFA())
-                .enableHRMS(institution.getEnableHRMS())
-                .enableOTP(institution.getEnableOTP())
-
-                // STATUS
-                .status(institution.getStatus())
-
-                .build();
-    }
-
-    // =========================================================
-    // DTO -> ENTITY
-    // =========================================================
-
-    public Institution toEntity(InstitutionDTO dto) {
-
-        if (dto == null) {
-            return null;
-        }
-
-        Institution institution = Institution.builder()
-
-                // BASIC
-                .institutionCode(dto.getInstitutionCode())
-                .institutionNameFull(dto.getInstitutionNameFull())
-                .institutionNameShort(dto.getInstitutionNameShort())
-
-                // BANK
-                .bankType(dto.getBankType())
-                .bankLogoName(dto.getBankLogoName())
-                .bankLogoPath(dto.getBankLogoPath())
-
-                // REGISTERED ADDRESS
-                .regAddressLine1(dto.getRegAddressLine1())
-                .regAddressLine2(dto.getRegAddressLine2())
-                .regAddressLine3(dto.getRegAddressLine3())
-                .regCity(dto.getRegCity())
-                .regState(dto.getRegState())
-                .regCountry(dto.getRegCountry())
-                .regPhoneCode(dto.getRegPhoneCode())
-                .regCityCode(dto.getRegCityCode())
-                .regPhone(dto.getRegPhone())
-
-                // COMMUNICATION ADDRESS
-                .sameAsRegistered(dto.getSameAsRegistered())
-                .commAddressLine1(dto.getCommAddressLine1())
-                .commAddressLine2(dto.getCommAddressLine2())
-                .commAddressLine3(dto.getCommAddressLine3())
-                .commCity(dto.getCommCity())
-                .commState(dto.getCommState())
-                .commCountry(dto.getCommCountry())
-                .commPhoneCode(dto.getCommPhoneCode())
-                .commCityCode(dto.getCommCityCode())
-                .commPhone(dto.getCommPhone())
-
-                // PRIMARY CONTACT
-                .primaryFullName(dto.getPrimaryFullName())
-                .primaryEmail(dto.getPrimaryEmail())
-                .primaryMobileCode(dto.getPrimaryMobileCode())
-                .primaryMobile(dto.getPrimaryMobile())
-                .primaryAltMobileCode(dto.getPrimaryAltMobileCode())
-                .primaryAltMobile(dto.getPrimaryAltMobile())
-
-                // SECONDARY CONTACT
-                .secondaryFullName(dto.getSecondaryFullName())
-                .secondaryEmail(dto.getSecondaryEmail())
-                .secondaryMobileCode(dto.getSecondaryMobileCode())
-                .secondaryMobile(dto.getSecondaryMobile())
-                .secondaryAltMobileCode(dto.getSecondaryAltMobileCode())
-                .secondaryAltMobile(dto.getSecondaryAltMobile())
-
-                // PRODUCTS
-                .selectedProducts(dto.getSelectedProducts())
-
-                // SECURITY
-                .enableMFA(dto.getEnableMFA())
-                .enableHRMS(dto.getEnableHRMS())
-                .enableOTP(dto.getEnableOTP())
-
-                // STATUS
-                .status(dto.getStatus())
-
-                // DATE
-                .createdDate(LocalDateTime.now())
-
-                .build();
-
-        // =========================================================
-        // PRODUCT VARIANTS
-        // =========================================================
-
-        List<InstitutionProductVariant> variantList =
-                new ArrayList<>();
-
-        if (dto.getSelectedVariants() != null) {
-
-            for (Map.Entry<String, List<String>> entry :
-                    dto.getSelectedVariants().entrySet()) {
-
-                String productName = entry.getKey();
-
-                List<String> variants = entry.getValue();
-
-                if (variants != null) {
-
-                    for (String variantName : variants) {
-
-                        InstitutionProductVariant variant =
-                                new InstitutionProductVariant();
-
-                        variant.setInstitution(institution);
-
-                        variant.setProductName(productName);
-
-                        // ERROR FIXED HERE
-                        variant.setVariantName(variantName);
-
-                        variantList.add(variant);
-                    }
-                }
+            // Auto-copy reg address to comm if sameAsRegistered = true
+            if (dto.getSameAsRegistered()) {
+                entity.setCommAddressLine1(dto.getRegAddressLine1());
+                entity.setCommAddressLine2(dto.getRegAddressLine2());
+                entity.setCommAddressLine3(dto.getRegAddressLine3());
+                entity.setCommCity(dto.getRegCity());
+                entity.setCommState(dto.getRegState());
+                entity.setCommCountry(dto.getRegCountry());
+                entity.setCommPhoneCode(dto.getRegPhoneCode());
+                entity.setCommCityCode(dto.getRegCityCode());
+                entity.setCommPhone(dto.getRegPhone());
+            } else {
+                entity.setCommAddressLine1(dto.getCommAddressLine1());
+                entity.setCommAddressLine2(dto.getCommAddressLine2());
+                entity.setCommAddressLine3(dto.getCommAddressLine3());
+                entity.setCommCity(dto.getCommCity());
+                entity.setCommState(dto.getCommState());
+                entity.setCommCountry(dto.getCommCountry());
+                entity.setCommPhoneCode(dto.getCommPhoneCode());
+                entity.setCommCityCode(dto.getCommCityCode());
+                entity.setCommPhone(dto.getCommPhone());
             }
         }
 
-        institution.setSelectedVariants(variantList);
+        // Primary contact
+        entity.setPrimaryFullName(dto.getPrimaryFullName());
+        entity.setPrimaryEmail(dto.getPrimaryEmail());
+        entity.setPrimaryMobileCode(dto.getPrimaryMobileCode());
+        entity.setPrimaryMobile(dto.getPrimaryMobile());
+        entity.setPrimaryAltMobileCode(dto.getPrimaryAltMobileCode());
+        entity.setPrimaryAltMobile(dto.getPrimaryAltMobile());
 
-        return institution;
+        // Secondary contact
+        entity.setSecondaryFullName(dto.getSecondaryFullName());
+        entity.setSecondaryEmail(dto.getSecondaryEmail());
+        entity.setSecondaryMobileCode(dto.getSecondaryMobileCode());
+        entity.setSecondaryMobile(dto.getSecondaryMobile());
+        entity.setSecondaryAltMobileCode(dto.getSecondaryAltMobileCode());
+        entity.setSecondaryAltMobile(dto.getSecondaryAltMobile());
+
+        // Products — List<String> → comma-separated String
+        if (dto.getSelectedProducts() != null) {
+            entity.setSelectedProducts(String.join(",", dto.getSelectedProducts()));
+        }
+
+        // Security
+        if (dto.getEnableMfa() != null)  entity.setEnableMfa(dto.getEnableMfa() ? "Y" : "N");
+        if (dto.getEnableHrms() != null) entity.setEnableHrms(dto.getEnableHrms() ? "Y" : "N");
+        if (dto.getEnableOtp() != null)  entity.setEnableOtp(dto.getEnableOtp() ? "Y" : "N");
+
+        return entity;
     }
 
-    // =========================================================
-    // UPDATE ENTITY
-    // =========================================================
+    // Entity → DTO (for API responses)
+    public static InstitutionDTO mapToDTO(Institution entity) {
+        InstitutionDTO dto = new InstitutionDTO();
 
-    public void updateEntityFromDTO(
-            InstitutionDTO dto,
-            Institution institution
-    ) {
+        dto.setInstitutionId(entity.getInstitutionId());
+        dto.setInstitutionCode(entity.getInstitutionCode());
+        dto.setStatus(entity.getStatus());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setLogoPath(entity.getLogoPath());
 
-        // BASIC
-        institution.setInstitutionCode(dto.getInstitutionCode());
-        institution.setInstitutionNameFull(dto.getInstitutionNameFull());
-        institution.setInstitutionNameShort(dto.getInstitutionNameShort());
+        dto.setInstitutionNameFull(entity.getInstitutionNameFull());
+        dto.setInstitutionNameShort(entity.getInstitutionNameShort());
 
-        // BANK
-        institution.setBankType(dto.getBankType());
-        institution.setBankLogoName(dto.getBankLogoName());
-        institution.setBankLogoPath(dto.getBankLogoPath());
-
-        // REGISTERED ADDRESS
-        institution.setRegAddressLine1(dto.getRegAddressLine1());
-        institution.setRegAddressLine2(dto.getRegAddressLine2());
-        institution.setRegAddressLine3(dto.getRegAddressLine3());
-        institution.setRegCity(dto.getRegCity());
-        institution.setRegState(dto.getRegState());
-        institution.setRegCountry(dto.getRegCountry());
-        institution.setRegPhoneCode(dto.getRegPhoneCode());
-        institution.setRegCityCode(dto.getRegCityCode());
-        institution.setRegPhone(dto.getRegPhone());
-
-        // COMMUNICATION ADDRESS
-        institution.setSameAsRegistered(dto.getSameAsRegistered());
-        institution.setCommAddressLine1(dto.getCommAddressLine1());
-        institution.setCommAddressLine2(dto.getCommAddressLine2());
-        institution.setCommAddressLine3(dto.getCommAddressLine3());
-        institution.setCommCity(dto.getCommCity());
-        institution.setCommState(dto.getCommState());
-        institution.setCommCountry(dto.getCommCountry());
-        institution.setCommPhoneCode(dto.getCommPhoneCode());
-        institution.setCommCityCode(dto.getCommCityCode());
-        institution.setCommPhone(dto.getCommPhone());
-
-        // PRIMARY CONTACT
-        institution.setPrimaryFullName(dto.getPrimaryFullName());
-        institution.setPrimaryEmail(dto.getPrimaryEmail());
-        institution.setPrimaryMobileCode(dto.getPrimaryMobileCode());
-        institution.setPrimaryMobile(dto.getPrimaryMobile());
-        institution.setPrimaryAltMobileCode(dto.getPrimaryAltMobileCode());
-        institution.setPrimaryAltMobile(dto.getPrimaryAltMobile());
-
-        // SECONDARY CONTACT
-        institution.setSecondaryFullName(dto.getSecondaryFullName());
-        institution.setSecondaryEmail(dto.getSecondaryEmail());
-        institution.setSecondaryMobileCode(dto.getSecondaryMobileCode());
-        institution.setSecondaryMobile(dto.getSecondaryMobile());
-        institution.setSecondaryAltMobileCode(dto.getSecondaryAltMobileCode());
-        institution.setSecondaryAltMobile(dto.getSecondaryAltMobile());
-
-        // PRODUCTS
-        institution.setSelectedProducts(dto.getSelectedProducts());
-
-        // SECURITY
-        institution.setEnableMFA(dto.getEnableMFA());
-        institution.setEnableHRMS(dto.getEnableHRMS());
-        institution.setEnableOTP(dto.getEnableOTP());
-
-        // STATUS
-        institution.setStatus(dto.getStatus());
-
-        // =========================================================
-        // UPDATE VARIANTS
-        // =========================================================
-
-        institution.getSelectedVariants().clear();
-
-        if (dto.getSelectedVariants() != null) {
-
-            for (Map.Entry<String, List<String>> entry :
-                    dto.getSelectedVariants().entrySet()) {
-
-                String productName = entry.getKey();
-
-                List<String> variants = entry.getValue();
-
-                if (variants != null) {
-
-                    for (String variantName : variants) {
-
-                        InstitutionProductVariant variant =
-                                new InstitutionProductVariant();
-
-                        variant.setInstitution(institution);
-
-                        variant.setProductName(productName);
-
-                        variant.setVariantName(variantName);
-
-                        institution.getSelectedVariants()
-                                .add(variant);
-                    }
-                }
-            }
+        // comma-separated → List<String>
+        if (entity.getBankType() != null && !entity.getBankType().isEmpty()) {
+            dto.setBankType(Arrays.asList(entity.getBankType().split(",")));
         }
+
+        // Registered address
+        dto.setRegAddressLine1(entity.getRegAddressLine1());
+        dto.setRegAddressLine2(entity.getRegAddressLine2());
+        dto.setRegAddressLine3(entity.getRegAddressLine3());
+        dto.setRegCity(entity.getRegCity());
+        dto.setRegState(entity.getRegState());
+        dto.setRegCountry(entity.getRegCountry());
+        dto.setRegPhoneCode(entity.getRegPhoneCode());
+        dto.setRegCityCode(entity.getRegCityCode());
+        dto.setRegPhone(entity.getRegPhone());
+
+        // Communication address
+        dto.setSameAsRegistered("Y".equals(entity.getSameAsRegistered()));
+        dto.setCommAddressLine1(entity.getCommAddressLine1());
+        dto.setCommAddressLine2(entity.getCommAddressLine2());
+        dto.setCommAddressLine3(entity.getCommAddressLine3());
+        dto.setCommCity(entity.getCommCity());
+        dto.setCommState(entity.getCommState());
+        dto.setCommCountry(entity.getCommCountry());
+        dto.setCommPhoneCode(entity.getCommPhoneCode());
+        dto.setCommCityCode(entity.getCommCityCode());
+        dto.setCommPhone(entity.getCommPhone());
+
+        // Primary contact
+        dto.setPrimaryFullName(entity.getPrimaryFullName());
+        dto.setPrimaryEmail(entity.getPrimaryEmail());
+        dto.setPrimaryMobileCode(entity.getPrimaryMobileCode());
+        dto.setPrimaryMobile(entity.getPrimaryMobile());
+        dto.setPrimaryAltMobileCode(entity.getPrimaryAltMobileCode());
+        dto.setPrimaryAltMobile(entity.getPrimaryAltMobile());
+
+        // Secondary contact
+        dto.setSecondaryFullName(entity.getSecondaryFullName());
+        dto.setSecondaryEmail(entity.getSecondaryEmail());
+        dto.setSecondaryMobileCode(entity.getSecondaryMobileCode());
+        dto.setSecondaryMobile(entity.getSecondaryMobile());
+        dto.setSecondaryAltMobileCode(entity.getSecondaryAltMobileCode());
+        dto.setSecondaryAltMobile(entity.getSecondaryAltMobile());
+
+        // Products — comma-separated → List<String>
+        if (entity.getSelectedProducts() != null && !entity.getSelectedProducts().isEmpty()) {
+            dto.setSelectedProducts(Arrays.asList(entity.getSelectedProducts().split(",")));
+        }
+
+        // Security
+        dto.setEnableMfa("Y".equals(entity.getEnableMfa()));
+        dto.setEnableHrms("Y".equals(entity.getEnableHrms()));
+        dto.setEnableOtp("Y".equals(entity.getEnableOtp()));
+
+        return dto;
     }
 }
-

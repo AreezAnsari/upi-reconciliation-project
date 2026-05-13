@@ -1,21 +1,20 @@
 package com.jpb.reconciliation.reconciliation.dto;
 
+import lombok.Data;
+
+@Data
 public class ResetPasswordRequest {
 
+    private String institutionCode;
+
+    private String username;
+
+    // ✅ Also support email-based reset (for forgot password via email input)
     private String emailId;
-    private String otpCode;
+
+    private String otp;
+
     private String newPassword;
+
     private String confirmNewPassword;
-
-    public String getEmailId() { return emailId; }
-    public void setEmailId(String emailId) { this.emailId = emailId; }
-
-    public String getOtpCode() { return otpCode; }
-    public void setOtpCode(String otpCode) { this.otpCode = otpCode; }
-
-    public String getNewPassword() { return newPassword; }
-    public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
-
-    public String getConfirmNewPassword() { return confirmNewPassword; }
-    public void setConfirmNewPassword(String confirmNewPassword) { this.confirmNewPassword = confirmNewPassword; }
 }

@@ -1,9 +1,7 @@
 package com.jpb.reconciliation.reconciliation.entity;
 
 import java.time.LocalDateTime;
-
 import javax.persistence.*;
-
 import lombok.Data;
 
 @Data
@@ -18,11 +16,10 @@ public class KalSuperUser {
     @Column(name = "institution_code")
     private String institutionCode;
 
-    // ✅ DB requires this column
+    // username aur superUserId same value rakhte hain
     @Column(name = "username", nullable = false)
     private String username;
 
-    // ✅ only required data
     @Column(name = "super_user_id")
     private String superUserId;
 
@@ -35,6 +32,22 @@ public class KalSuperUser {
     @Column(name = "status")
     private String status;
 
+    // ✅ One-time setup guard — ek baar set hone ke baad dobara verify nahi hoga
+    @Column(name = "password_set")
+    private Boolean passwordSet = false;
+
+    // ✅ Forgot password OTP — DB mein store, 10-min expiry
+    @Column(name = "forgot_otp")
+    private String forgotOtp;
+
+    @Column(name = "forgot_otp_expiry")
+    private LocalDateTime forgotOtpExpiry;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+    
+    
 }
