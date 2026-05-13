@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,4 +145,49 @@ public class TestInstitutionController {
     public ResponseEntity<RestWithStatusList> verifyEmail(@RequestParam String token) {
         return testInstitutionService.verifyEmail(token);
     }
+
+    // ─────────────────────────────────────────────
+    // CHECK NAME EXISTS
+    // GET /test/api/v1/institution/check-name?name=State Bank of India
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Check if institution name already exists")
+    @GetMapping(value = "/check-name", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> checkNameExists(@RequestParam String name) {
+        logger.info("Check institution name request: {}", name);
+        return testInstitutionService.checkNameExists(name);
+    }
+
+    // ─────────────────────────────────────────────
+    // CHECK EMAIL EXISTS
+    // GET /test/api/v1/institution/check-email?email=rajesh@sbi.co.in
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Check if primary contact email already exists")
+    @GetMapping(value = "/check-email", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> checkEmailExists(@RequestParam String email) {
+        logger.info("Check institution email request: {}", email);
+        return testInstitutionService.checkEmailExists(email);
+    }
+
+    // ─────────────────────────────────────────────
+    // EXPORT EXCEL
+    // GET /test/api/v1/institution/export/excel
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Export all institutions as Excel (.xlsx)")
+    @GetMapping(value = "/export/excel")
+    public ResponseEntity<byte[]> exportExcel() throws IOException {
+        logger.info("Export institutions as Excel request received");
+        return testInstitutionService.exportToExcel();
+    }
+
+    // ─────────────────────────────────────────────
+    // EXPORT CSV
+    // GET /test/api/v1/institution/export/csv
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Export all institutions as CSV")
+    @GetMapping(value = "/export/csv")
+    public ResponseEntity<byte[]> exportCsv() {
+        logger.info("Export institutions as CSV request received");
+        return testInstitutionService.exportToCsv();
+    }
+
 }
