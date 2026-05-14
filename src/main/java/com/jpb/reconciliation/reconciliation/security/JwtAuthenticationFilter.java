@@ -49,6 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         return path.startsWith("/api/kalinfotech/")   // ← KalInfotech register + login (PUBLIC)
             || path.startsWith("/auth/login")
+            || path.startsWith("/auth/admin-login")
             || path.startsWith("/auth/google")
             || path.startsWith("/auth/refresh-token")
             || path.startsWith("/authentication/app")
@@ -75,7 +76,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token    = null;
         String jti      = null;
 
-        if (requestHeader != null && requestHeader.startsWith("Bearer")) {
+        if (requestHeader != null && requestHeader.startsWith("Bearer ")) {
             token = requestHeader.substring(7);
             try {
                 username = this.jwtHelper.getUsernameFromToken(token);

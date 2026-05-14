@@ -466,4 +466,7 @@ public class KalSuperUserServiceImp implements KalSuperService {
         if (local.length() <= 2) return "**@" + domain;
         return local.substring(0, 2) + "***@" + domain;
     }
+
+	
+    
 }

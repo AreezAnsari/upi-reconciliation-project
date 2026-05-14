@@ -48,6 +48,8 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/webjars/**")).permitAll()
 
                 // Auth APIs
+                .requestMatchers(new AntPathRequestMatcher("/auth/admin-login")).permitAll()
+
                 .requestMatchers(new AntPathRequestMatcher("/auth/login")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/refresh-token")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/forgot-password")).permitAll()

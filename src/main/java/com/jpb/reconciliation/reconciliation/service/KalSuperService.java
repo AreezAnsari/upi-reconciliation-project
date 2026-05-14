@@ -14,19 +14,13 @@ public interface KalSuperService {
 
     ResponseEntity<RestWithStatusList> setNewPassword(KalSuperUserSetPasswordDto dto);
 
-<<<<<<< HEAD
-    ResponseEntity<RestWithStatusList> login(KalSuperUserVerifyDto dto);
 
     ResponseEntity<RestWithStatusList> forgotPassword(ForgotPasswordRequest request);
 
     ResponseEntity<RestWithStatusList> resetPassword(ResetPasswordRequest request);
-=======
     // ✅ Sirf yeh add karo
     ResponseEntity<RestWithStatusList>
     login(KalSuperUserVerifyDto dto);
 
-    // ── Called after OTP verified — sets institution status to ACTIVE ──
-    ResponseEntity<RestWithStatusList>
-    activateInstitution(String email);
->>>>>>> origin/feature/areez-ui
+    
 }
