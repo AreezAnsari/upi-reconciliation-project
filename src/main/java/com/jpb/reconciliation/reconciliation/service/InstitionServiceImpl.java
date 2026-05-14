@@ -114,7 +114,7 @@ public class InstitionServiceImpl implements InstitutionService {
                     dto.getInstitutionNameFull(), institutionCode, superUserId);
 
         // ── Send welcome email with Institution Code, User ID, Default Password ──
-        String verifyLink = frontendUrl + "/verify-email?token=" + token;
+        String verifyLink =  frontendUrl +  "/verify-email?token=" + token +   "&type=subinstitution";
         try {
             emailService.sendSuperUserWelcome(
                 dto.getPrimaryEmail(),

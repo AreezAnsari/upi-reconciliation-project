@@ -1,8 +1,3 @@
-// src/main/java/.../config/SecurityConfig.java
-// CHANGES:
-//  1. /test/api/v1/institution/forgot-password — permitAll added
-//  2. /test/api/v1/institution/reset-password — permitAll added
-
 package com.jpb.reconciliation.reconciliation.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,45 +36,68 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .authorizeHttpRequests(auth -> auth
 
-                // Swagger
+                // ── Swagger ────────────────────────────────────────────────────
                 .requestMatchers(new AntPathRequestMatcher("/swagger-ui/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/swagger-ui.html")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/v3/api-docs/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/webjars/**")).permitAll()
 
-                // Auth APIs
+                // ── KalAdmin Auth ───────────────────────────────────────────────
                 .requestMatchers(new AntPathRequestMatcher("/auth/admin-login")).permitAll()
-
                 .requestMatchers(new AntPathRequestMatcher("/auth/login")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/refresh-token")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/forgot-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/reset-password")).permitAll()
 
-                // User APIs
+                // ── User APIs ───────────────────────────────────────────────────
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create-user")).permitAll()
 
-                // Google OAuth
+                // ── Google OAuth ────────────────────────────────────────────────
                 .requestMatchers(new AntPathRequestMatcher("/authentication/app")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/google")).permitAll()
 
-                // Kalinfotech APIs
+                // ── KalInfotech APIs ────────────────────────────────────────────
                 .requestMatchers(new AntPathRequestMatcher("/api/kalinfotech/**")).permitAll()
 
-                // H2
+                // ── H2 Console ──────────────────────────────────────────────────
                 .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
 
-                // SUPER USER APIs — all public (JWT not available during onboarding)
+                // ── OTP ─────────────────────────────────────────────────────────
+                .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()
+
+                // ════════════════════════════════════════════════════════════════
+                // SUPER USER — Onboarding Auth endpoints (no JWT during these)
+                // ════════════════════════════════════════════════════════════════
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-email")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-credentials")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/set-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/login")).permitAll()
-
-                // ✅ ADDED: Forgot & Reset password — public endpoints
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/forgot-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/reset-password")).permitAll()
 
-                // OTP verify — public
-                .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()
+                // ════════════════════════════════════════════════════════════════
+                // INSTITUTION endpoints — KalAdmin + SuperUser dashboard use karta
+                // SuperUser ka token standard JWT nahi hota (OTP service se aata)
+                // isliye permitAll rakha hai
+                // ════════════════════════════════════════════════════════════════
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/create")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/get-all")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/get/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/get-by-status")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/update/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/update-status/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/delete/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/upload-logo/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-name")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/export/**")).permitAll()
+
+                // ════════════════════════════════════════════════════════════════
+                // SUB-INSTITUTION endpoints — SuperUser dashboard ka /subinstitution page
+                // Frontend: SubInstitutionOnboarding.jsx calls authAPI.getAllSubInstitutions
+                //           authAPI.createSubInstitution, etc.
+                // ════════════════════════════════════════════════════════════════
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/**")).permitAll()
 
                 .anyRequest().authenticated()
             )
