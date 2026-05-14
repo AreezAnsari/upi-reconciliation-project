@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -83,7 +85,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Primary contact mobile is required.");
         }
 
-        if (testInstitutionRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
+        if (testInstitutionRepository.existsByInstitutionNameFullIgnoreCase(dto.getInstitutionNameFull().trim())) {
             logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
             return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
@@ -287,6 +289,21 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         if ("RETIRED".equals(currentStatus)) {
             return bad("This institution is RETIRED. Its status cannot be changed by anyone.");
         }
+        
+     // ── Transition validation ──
+        Map<String, List<String>> allowedTransitions = new HashMap<>();
+        allowedTransitions.put("ACTIVE",   Arrays.asList("INACTIVE", "BLOCKED", "RETIRED"));
+        allowedTransitions.put("INACTIVE", Arrays.asList("ACTIVE", "BLOCKED", "RETIRED"));  // ← ACTIVE add
+        allowedTransitions.put("BLOCKED",  Arrays.asList("ACTIVE", "RETIRED"));              // ← ACTIVE add
+        allowedTransitions.put("PENDING",  Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
+        allowedTransitions.put("VERIFIED", Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
+
+        List<String> allowed = allowedTransitions.getOrDefault(currentStatus, new ArrayList<>());
+        if (!allowed.contains(status.toUpperCase())) {
+            return bad("Cannot change status from '" + currentStatus 
+                + "' to '" + status.toUpperCase() + "'. "
+                + "Allowed transitions: " + allowed);
+        }
 
         // ── Cannot set back to RETIRED from code (only forward transition allowed) ──
         // RETIRED can only be set if current status is not already RETIRED
@@ -471,7 +488,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
          return bad("Institution name is required.");
      }
      boolean exists = testInstitutionRepository
-             .existsByInstitutionNameFull(name.trim());
+             .existsByInstitutionNameFullIgnoreCase(name.trim());
      if (exists) {
          return ResponseEntity.ok(
                  new RestWithStatusList("EXISTS",
@@ -641,5 +658,4 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         if (val.contains(",")) return "\"" + val + "\"";
         return val;
     }
-
 }

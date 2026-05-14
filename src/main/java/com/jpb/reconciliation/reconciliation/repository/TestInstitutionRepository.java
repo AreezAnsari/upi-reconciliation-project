@@ -16,7 +16,7 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     Optional<TestInstitution> findByInstitutionCode(String institutionCode);
 
     // Check if same full name already exists
-    Boolean existsByInstitutionNameFull(String institutionNameFull);
+    Boolean existsByInstitutionNameFullIgnoreCase(String institutionNameFull);
 
     // Filter by status: ACTIVE / INACTIVE / PENDING / BLOCKED
     List<TestInstitution> findByStatus(String status);
