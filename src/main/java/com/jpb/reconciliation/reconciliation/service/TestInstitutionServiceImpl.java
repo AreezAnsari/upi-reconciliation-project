@@ -64,7 +64,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> createInstitution(TestInstitutionDTO dto) {
+    public ResponseEntity<RestWithStatusList> createInstitution(TestInstitutionDTO dto, String createdBy) {
 
         if (dto.getInstitutionNameFull() == null || dto.getInstitutionNameFull().trim().isEmpty()) {
             return bad("Institution full name is required.");
@@ -83,11 +83,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         }
         if (dto.getPrimaryMobile() == null || dto.getPrimaryMobile().trim().isEmpty()) {
             return bad("Primary contact mobile is required.");
-        }
-
-        if (testInstitutionRepository.existsByInstitutionNameFullIgnoreCase(dto.getInstitutionNameFull().trim())) {
-            logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
-            return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
         
         if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
@@ -119,6 +114,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         institution.setInstitutionCode(institutionCode);
         institution.setStatus("REQUEST");  // Sir's rule: REQUEST when onboarded by Kal Admin
         institution.setCreatedAt(LocalDateTime.now());
+        institution.setCreatedBy(createdBy);  // logged-in admin username from JWT
 
         // Save Super User credentials in institution record
         institution.setSuperUserId(superUserId);
@@ -315,6 +311,24 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
 
         logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, status.toUpperCase());
 
+        // ── Send status change notification email to Super User ──
+        try {
+            if (institution.getPrimaryEmail() != null && !institution.getPrimaryEmail().isEmpty()) {
+                emailService.sendStatusChangeNotification(
+                    institution.getPrimaryEmail(),
+                    institution.getPrimaryFullName() != null ? institution.getPrimaryFullName() : "Super User",
+                    institution.getInstitutionNameFull(),
+                    institution.getInstitutionCode(),
+                    currentStatus,
+                    status.toUpperCase()
+                );
+            }
+        } catch (Exception e) {
+            // Email failure should NOT block the status update — just log
+            logger.warn("Status updated but notification email failed for institution {}: {}",
+                        institution.getInstitutionCode(), e.getMessage());
+        }
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Institution status updated to '" + status.toUpperCase() + "'.", new ArrayList<>()));
     }
@@ -487,14 +501,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
      if (name == null || name.trim().isEmpty()) {
          return bad("Institution name is required.");
      }
-     boolean exists = testInstitutionRepository
-             .existsByInstitutionNameFullIgnoreCase(name.trim());
-     if (exists) {
-         return ResponseEntity.ok(
-                 new RestWithStatusList("EXISTS",
-                         "Institution '" + name.trim() + "' is already registered.",
-                         new ArrayList<>()));
-     }
      return ResponseEntity.ok(
              new RestWithStatusList("AVAILABLE",
                      "Institution name is available.",
@@ -657,5 +663,16 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         if (val == null) return "";
         if (val.contains(",")) return "\"" + val + "\"";
         return val;
+    }
+    
+    @Override
+    public ResponseEntity<RestWithStatusList> getInstitutionsByCreatedBy(String username) {
+        List<TestInstitution> list = testInstitutionRepository.findByCreatedBy(username);
+        List<TestInstitutionDTO> dtos = list.stream()
+            .map(inst -> TestInstitutionMapper.mapToDTO(inst))
+            .collect(Collectors.toList());
+        return new ResponseEntity<>(
+            new RestWithStatusList("SUCCESS", "Institutions fetched.", new ArrayList<>(dtos)),
+            HttpStatus.OK);
     }
 }

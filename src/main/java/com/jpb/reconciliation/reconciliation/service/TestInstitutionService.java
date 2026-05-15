@@ -9,7 +9,7 @@ import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
 public interface TestInstitutionService {
 
     // Create new institution
-    ResponseEntity<RestWithStatusList> createInstitution(TestInstitutionDTO dto);
+    ResponseEntity<RestWithStatusList> createInstitution(TestInstitutionDTO dto, String createdBy);
 
     // Get all institutions
     ResponseEntity<RestWithStatusList> getAllInstitutions();
@@ -44,4 +44,7 @@ public interface TestInstitutionService {
     ResponseEntity<byte[]> exportToCsv();
     
     ResponseEntity<RestWithStatusList> checkEmailExists(String email);
+    
+    ResponseEntity<RestWithStatusList> getInstitutionsByCreatedBy(String username);
+
 }

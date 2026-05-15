@@ -22,4 +22,13 @@ public interface EmailService {
                               String institutionName, String institutionCode,
                               String superUserId, String defaultPassword,
                               String verifyLink);
+
+    /**
+     * Send status change notification email to Institution's Super User
+     * whenever KalInfotech Admin changes the institution status.
+     * e.g. ACTIVE → INACTIVE, BLOCKED, RETIRED, etc.
+     */
+    void sendStatusChangeNotification(String toEmail, String superUserName,
+                                      String institutionName, String institutionCode,
+                                      String oldStatus, String newStatus);
 }

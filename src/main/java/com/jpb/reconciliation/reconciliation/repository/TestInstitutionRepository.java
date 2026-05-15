@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,9 +15,6 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     Optional<TestInstitution> findByInstitutionId(Long institutionId);
 
     Optional<TestInstitution> findByInstitutionCode(String institutionCode);
-
-    // Check if same full name already exists
-    Boolean existsByInstitutionNameFullIgnoreCase(String institutionNameFull);
 
     // Filter by status: ACTIVE / INACTIVE / PENDING / BLOCKED
     List<TestInstitution> findByStatus(String status);
@@ -34,4 +32,9 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     );
     
     boolean existsByPrimaryEmail(String primaryEmail);
+    
+    // For auto-retire scheduler — finds all RETIRE_PENDING whose 24hr window passed
+    List<TestInstitution> findByStatusAndRetireScheduledAtBefore(String status, LocalDateTime cutoff);
+    
+    List<TestInstitution> findByCreatedBy(String createdBy);
 }

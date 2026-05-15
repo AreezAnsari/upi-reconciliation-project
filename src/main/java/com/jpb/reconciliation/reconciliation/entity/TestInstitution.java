@@ -200,4 +200,16 @@ public class TestInstitution {
     @LastModifiedBy
     @Column(insertable = false, name = "updated_by")
     private String updatedBy;
+    
+    // Retire schedule — set when admin schedules retire
+    @Column(name = "retire_scheduled_at")
+    private LocalDateTime retireScheduledAt;
+ 
+    // Who scheduled the retire
+    @Column(name = "retire_scheduled_by", length = 100)
+    private String retireScheduledBy;
+ 
+    // Status before retire was scheduled (for undo)
+    @Column(name = "pre_retire_status", length = 20)
+    private String preRetireStatus;
 }

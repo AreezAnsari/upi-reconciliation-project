@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
+import com.jpb.reconciliation.reconciliation.service.RetireScheduleService;
 import com.jpb.reconciliation.reconciliation.service.TestInstitutionService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,6 +38,9 @@ public class TestInstitutionController {
 
     @Autowired
     TestInstitutionService testInstitutionService;
+    
+    @Autowired 
+    RetireScheduleService retireScheduleService;
 
     // ─────────────────────────────────────────────
     // CREATE
@@ -45,9 +49,11 @@ public class TestInstitutionController {
     @Operation(summary = "Onboard a new institution")
     @PostMapping(value = "/create", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> createInstitution(
-            @RequestBody TestInstitutionDTO dto) {
+            @RequestBody TestInstitutionDTO dto,
+            @AuthenticationPrincipal UserDetails userDetails) {
         logger.info("Create institution request received: {}", dto.getInstitutionNameFull());
-        return testInstitutionService.createInstitution(dto);
+        String createdBy = (userDetails != null) ? userDetails.getUsername() : "UNKNOWN";
+        return testInstitutionService.createInstitution(dto, createdBy);
     }
 
     // ─────────────────────────────────────────────
@@ -188,6 +194,38 @@ public class TestInstitutionController {
     public ResponseEntity<byte[]> exportCsv() {
         logger.info("Export institutions as CSV request received");
         return testInstitutionService.exportToCsv();
+    }
+    
+ // ─────────────────────────────────────────────
+    // SCHEDULE RETIRE
+    // POST /test/api/v1/institution/schedule-retire/{institutionId}
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Schedule institution retire — auto-retires after 24 hrs")
+    @PostMapping(value = "/schedule-retire/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> scheduleRetire(
+            @PathVariable Long institutionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        logger.info("Schedule retire request for institution ID: {}", institutionId);
+        return retireScheduleService.scheduleRetire(institutionId, userDetails.getUsername());
+    }
+ 
+    // ─────────────────────────────────────────────
+    // UNDO RETIRE
+    // POST /test/api/v1/institution/undo-retire/{institutionId}
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Undo scheduled retire — only within 24 hrs")
+    @PostMapping(value = "/undo-retire/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> undoRetire(
+            @PathVariable Long institutionId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        logger.info("Undo retire request for institution ID: {}", institutionId);
+        return retireScheduleService.undoRetire(institutionId, userDetails.getUsername());
+    }
+    
+    @GetMapping(value = "/get-my-institutions", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getMyInstitutions(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return testInstitutionService.getInstitutionsByCreatedBy(userDetails.getUsername());
     }
 
 }

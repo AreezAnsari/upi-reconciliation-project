@@ -195,6 +195,132 @@ public class EmailServiceImpl implements EmailService {
             + "</table></td></tr></table></body></html>";
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND STATUS CHANGE NOTIFICATION EMAIL
+    // Sent when Admin changes institution status: INACTIVE / BLOCKED / RETIRED / ACTIVE
+    // @Async — fire and forget, won't block API response
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendStatusChangeNotification(String toEmail, String superUserName,
+                                              String institutionName, String institutionCode,
+                                              String oldStatus, String newStatus) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Institution Status Update: " + institutionName);
+            helper.setText(buildStatusChangeHtml(superUserName, institutionName, institutionCode, oldStatus, newStatus), true);
+            mailSender.send(message);
+            logger.info("Status change email sent to: {} | institution: {} | {} → {}", toEmail, institutionCode, oldStatus, newStatus);
+        } catch (Exception e) {
+            logger.error("Failed to send status change email to {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Status Change Notification Email
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildStatusChangeHtml(String name, String institutionName,
+                                          String institutionCode,
+                                          String oldStatus, String newStatus) {
+
+        // Color + icon per status
+        String statusColor, statusBg, statusIcon, statusMessage;
+        switch (newStatus.toUpperCase()) {
+            case "INACTIVE":
+                statusColor  = "#6366f1";
+                statusBg     = "rgba(99,102,241,0.1)";
+                statusIcon   = "⏸";
+                statusMessage = "Your institution account has been marked <strong>Inactive</strong>. "
+                    + "You will not be able to access the platform until it is reactivated. "
+                    + "Please contact KalInfotech Admin for assistance.";
+                break;
+            case "BLOCKED":
+                statusColor  = "#ef4444";
+                statusBg     = "rgba(239,68,68,0.1)";
+                statusIcon   = "🚫";
+                statusMessage = "Your institution account has been <strong>Blocked</strong> by KalInfotech Admin. "
+                    + "Access to the ReconXpert.Ai platform has been restricted. "
+                    + "Please contact KalInfotech Admin immediately for clarification.";
+                break;
+            case "RETIRED":
+                statusColor  = "#a855f7";
+                statusBg     = "rgba(168,85,247,0.1)";
+                statusIcon   = "🔒";
+                statusMessage = "Your institution account has been <strong>Retired</strong>. "
+                    + "This is a permanent action. Access to ReconXpert.Ai has been permanently closed. "
+                    + "Please contact KalInfotech Admin if you believe this is an error.";
+                break;
+            case "ACTIVE":
+                statusColor  = "#22c55e";
+                statusBg     = "rgba(34,197,94,0.1)";
+                statusIcon   = "✅";
+                statusMessage = "Your institution account has been <strong>Activated</strong>. "
+                    + "You can now access the ReconXpert.Ai platform using your credentials.";
+                break;
+            default:
+                statusColor  = "#d4a843";
+                statusBg     = "rgba(212,168,67,0.1)";
+                statusIcon   = "ℹ";
+                statusMessage = "Your institution status has been updated to <strong>" + sanitize(newStatus) + "</strong>.";
+        }
+
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Status banner
+            + "<tr><td style='background:" + statusBg + ";border-bottom:3px solid " + statusColor + ";padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:32px;'>" + statusIcon + "</p>"
+            + "<p style='margin:8px 0 0;font-size:18px;font-weight:700;color:" + statusColor + ";'>Status Changed: " + sanitize(oldStatus) + " → " + sanitize(newStatus) + "</p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.7;'>" + statusMessage + "</p>"
+
+            // Institution details box
+            + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid " + statusColor + ";border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+            + "<p style='margin:0 0 12px;font-size:13px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:1px;'>Institution Details</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:160px;'>Institution Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(institutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Institution Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:600;padding:4px 0;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Previous Status</td>"
+            + "<td style='font-size:13px;color:#64748b;padding:4px 0;'>" + sanitize(oldStatus) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>New Status</td>"
+            + "<td style='font-size:13px;font-weight:700;padding:4px 0;color:" + statusColor + ";'>" + sanitize(newStatus) + "</td></tr>"
+            + "</table></div>"
+
+            // Contact note
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'>"
+            + "<strong>Note:</strong> This is an automated notification from KalInfotech Admin. "
+            + "If you have any questions, please contact us at <a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "</p></div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
     // Prevent XSS — sanitize user input before putting in HTML
     private String sanitize(String input) {
         if (input == null) return "";
