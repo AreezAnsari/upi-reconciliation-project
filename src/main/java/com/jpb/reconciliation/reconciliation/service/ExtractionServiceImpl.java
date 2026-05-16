@@ -174,11 +174,18 @@ public class ExtractionServiceImpl implements ExtractionService {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, PARALLEL=TRUE) \n");
 		} else if (fileName.equalsIgnoreCase("DEBITCARD_SWITCH")) {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=2, PARALLEL=TRUE) \n");
+		} else if (fileName.equalsIgnoreCase("NEFT-ISOInwardTransactionReport")) {
+			// NEFT: PARALLEL=TRUE hatao — direct path parallel load ke baad ORA-12838 aata hai
+			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=1) \n");
 		} else {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=1, PARALLEL=TRUE) \n");
 		}
 
-		controlFileContent.append("UNRECOVERABLE \n");
+		// NEFT: UNRECOVERABLE mat lagao — direct path ke baad ORA-12838 aata hai
+		if (!fileName.equalsIgnoreCase("NEFT-ISOInwardTransactionReport")) {
+			controlFileContent.append("UNRECOVERABLE \n");
+		}
+
 		controlFileContent.append("LOAD DATA \n");
 		controlFileContent.append("INFILE '").append(fileLocation).append("'\n");
 		controlFileContent.append("INTO TABLE ").append(targetTableName).append("\n");

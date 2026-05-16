@@ -78,8 +78,12 @@ public class SqlLoaderServiceImpl implements SqlLoaderService {
 			ReconFileDetailsMaster reconFileDetails, ReconBatchProcessEntity reconProcessManager, ReconUser userDetails,
 			File file) throws JRException, IOException {
 
+		// NEFT: direct=true hatao — direct path + UNRECOVERABLE ke baad ORA-12838 aata hai
+		String directFlag = reconFileDetails.getReconFileName().equalsIgnoreCase("NEFT-ISOInwardTransactionReport")
+				? "" : " direct=true";
 		String cmd = "sqlldr " + userName + "/" + password + url + " control=" + controlFile + " log=" + logFile
-				+ " bad=" + badFile + " direct=true";
+				+ " bad=" + badFile + directFlag;
+
 		logger.info("SQL LOADER COMMAND :::::::::: " + cmd);
 
 		StringBuilder output = new StringBuilder();
