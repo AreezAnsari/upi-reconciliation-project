@@ -111,7 +111,7 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
     // AUTO-RETIRE — Runs every 5 seconds (DEMO MODE)
     // Retires institutions whose 30s window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 60000)
     @Transactional
     public void autoRetireScheduledInstitutions() {
         LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);
