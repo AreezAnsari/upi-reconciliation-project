@@ -43,7 +43,6 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.SubInstitution;
 import com.jpb.reconciliation.reconciliation.mapper.SubInstitutionMapper;
 import com.jpb.reconciliation.reconciliation.repository.SubInstitutionRepository;
-import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
 
 @Service
 public class SubInstitionServiceImpl implements SubInstitutionService {
@@ -71,7 +70,7 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> createInstitution(SubInstitutionDTO dto) {
+    public ResponseEntity<RestWithStatusList> createInstitution(SubInstitutionDTO dto , String createdBy) {
 
         if (dto.getInstitutionNameFull() == null || dto.getInstitutionNameFull().trim().isEmpty()) {
             return bad("Institution full name is required.");
@@ -118,7 +117,7 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
         // Save Super User credentials in institution record
         institution.setSuperUserId(superUserId);
         institution.setDefaultPassword(defaultPassword);
-        institution.setCreatedBy(superUserId);
+        institution.setCreatedBy(createdBy);
 
         // Generate verification token — valid for 48 hours
         String token = UUID.randomUUID().toString();
@@ -164,6 +163,7 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
+    
     public ResponseEntity<RestWithStatusList> getAllInstitutions() {
         List<SubInstitution> list = subinstitutionRepository.findAll();
 
@@ -180,6 +180,7 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
                 list.size() + " institution(s) fetched successfully.", data));
     }
 
+    
     // ─────────────────────────────────────────────────────────────────────────
     // GET BY ID
     // ─────────────────────────────────────────────────────────────────────────
@@ -352,7 +353,14 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
             institution.setLogoPath(filePath.toString());
             institution.setUpdatedAt(LocalDateTime.now());
             institution.setUpdatedBy(logoUploader);
+            
+            System.out.println("Original File Name: " + originalFilename);
+            System.out.println("Saved File Name: " + savedFilename);
+            System.out.println("File Path: " + filePath.toString());
+            
             subinstitutionRepository.save(institution);
+            
+            System.out.println("DB Logo Path: " + institution.getLogoPath());
 
             logger.info("Logo uploaded for institution {}: {}", institutionId, filePath);
 

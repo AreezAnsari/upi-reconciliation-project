@@ -7,7 +7,7 @@ public class SubInstitutionDTO {
 
     // ─── System Generated ────────────────────────────────────────────────────
     private Long institutionId;
-    private String institutionCode; // 8 chars: first 4 letters + 4 digits (e.g. STAT4821)
+    private String institutionCode; // 8 chars: first 4 letters + 4 digits 
     private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED
     private LocalDateTime createdAt;
 

@@ -13,6 +13,7 @@ import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.dto.SubInstitutionDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.service.SubInstitutionService;
+import org.springframework.security.core.Authentication;
  
 import io.swagger.v3.oas.annotations.Operation;
  
@@ -32,12 +33,21 @@ public class SubInstitutionController {
     @Operation(summary = "Onboard a new sub-institution")
     @PostMapping(value = "/create", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> createInstitution(
-            @RequestBody SubInstitutionDTO dto) {
+            @RequestBody SubInstitutionDTO dto,
+            Authentication authentication) {
+
         logger.info("Create sub-institution request: {}", dto.getInstitutionNameFull());
-        return institutionService.createInstitution(dto);
-    }
- 
-    // GET /test/api/v1/subinstitution/get-all
+
+        String createdBy = "UNKNOWN";
+
+        if (authentication != null && authentication.isAuthenticated()) {
+            createdBy = authentication.getName();
+        }
+
+        logger.info("Created By Username: {}", createdBy);
+
+        return institutionService.createInstitution(dto, createdBy);
+    }    // GET /test/api/v1/subinstitution/get-all
     @Operation(summary = "Get all sub-institutions")
     @GetMapping(value = "/get-all", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getAllInstitutions() {
