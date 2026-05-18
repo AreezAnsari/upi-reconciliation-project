@@ -116,6 +116,30 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     ResponseBuilder.error("Failed to save template: " + e.getMessage()),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
+        
+        
+      String spResult;
+      try {
+          spResult = self.callStageTableProcedure(savedTemplate);
+          logger.info("SP result for [{}]: {}", savedTemplate.getTemplateCode(), spResult);
+      } catch (Exception e) {
+          logger.error("SP exception for [{}]. Rolling back.", savedTemplate.getTemplateCode(), e);
+          self.rollbackTemplateAndFields(savedTemplate.getTemplateId());
+          return new ResponseEntity<>(
+                  ResponseBuilder.error(
+                          "Stage table creation failed. Template rolled back. " + e.getMessage()),
+                  HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      if (spResult == null || !spResult.equalsIgnoreCase("OK")) {
+          logger.warn("SP returned [{}] for [{}]. Rolling back.",
+                  spResult, savedTemplate.getTemplateCode());
+          self.rollbackTemplateAndFields(savedTemplate.getTemplateId());
+          return new ResponseEntity<>(
+                  ResponseBuilder.error(
+                          "Stage table creation failed. Template rolled back. Reason: " + spResult),
+                  HttpStatus.INTERNAL_SERVER_ERROR);
+      }
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("templateId",   savedTemplate.getTemplateId());
