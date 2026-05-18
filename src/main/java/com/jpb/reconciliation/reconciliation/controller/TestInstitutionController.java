@@ -228,4 +228,10 @@ public class TestInstitutionController {
         return testInstitutionService.getInstitutionsByCreatedBy(userDetails.getUsername());
     }
 
+    @GetMapping(value = "/{institutionId}/sub-institutes", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getSubInstitutes(@PathVariable Long institutionId) {
+        logger.info("Fetching sub-institutes for parent institution ID: {}", institutionId);
+        return testInstitutionService.getSubInstitutes(institutionId);
+    }
+
 }

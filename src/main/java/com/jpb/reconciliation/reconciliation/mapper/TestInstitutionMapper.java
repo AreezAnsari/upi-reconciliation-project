@@ -96,6 +96,7 @@ public class TestInstitutionMapper {
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setLogoPath(entity.getLogoPath());
+        dto.setParentInstitutionId(entity.getParentInstitutionId());
 
         dto.setInstitutionNameFull(entity.getInstitutionNameFull());
         dto.setInstitutionNameShort(entity.getInstitutionNameShort());

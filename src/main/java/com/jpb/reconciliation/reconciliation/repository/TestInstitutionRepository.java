@@ -37,4 +37,6 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     List<TestInstitution> findByStatusAndRetireScheduledAtBefore(String status, LocalDateTime cutoff);
     
     List<TestInstitution> findByCreatedBy(String createdBy);
+
+    List<TestInstitution> findByParentInstitutionId(Long parentInstitutionId);
 }

@@ -1,7 +1,9 @@
 package com.jpb.reconciliation.reconciliation.dto;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class TestInstitutionDTO {
 
@@ -11,6 +13,7 @@ public class TestInstitutionDTO {
     private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED
     private LocalDateTime createdAt;
     private String createdBy;
+    private Long parentInstitutionId; // null = parent institution; non-null = sub-institute
 
     // ─── Step 1: Institution Details ────────────────────────────────────────
     private String institutionNameFull;   // required
@@ -58,8 +61,18 @@ public class TestInstitutionDTO {
     private String secondaryAltMobile;
 
     // ─── Step 4: Products ────────────────────────────────────────────────────
-    // ["UPI","NEFT","RTGS","Credit Cards"]
     private List<String> selectedProducts;
+    // { "UPI": { "validFrom": "2024-01-01", "validTo": "2024-12-31" }, ... }
+    private Map<String, ProductDateEntry> productDates;
+
+    public static class ProductDateEntry {
+        private LocalDate validFrom;
+        private LocalDate validTo;
+        public LocalDate getValidFrom() { return validFrom; }
+        public void setValidFrom(LocalDate validFrom) { this.validFrom = validFrom; }
+        public LocalDate getValidTo() { return validTo; }
+        public void setValidTo(LocalDate validTo) { this.validTo = validTo; }
+    }
 
     // ─── Step 5: Security ────────────────────────────────────────────────────
     private Boolean enableMfa;
@@ -70,6 +83,9 @@ public class TestInstitutionDTO {
 
     public Long getInstitutionId() { return institutionId; }
     public void setInstitutionId(Long institutionId) { this.institutionId = institutionId; }
+
+    public Long getParentInstitutionId() { return parentInstitutionId; }
+    public void setParentInstitutionId(Long parentInstitutionId) { this.parentInstitutionId = parentInstitutionId; }
 
     public String getInstitutionCode() { return institutionCode; }
     public void setInstitutionCode(String institutionCode) { this.institutionCode = institutionCode; }
@@ -187,6 +203,9 @@ public class TestInstitutionDTO {
 
     public List<String> getSelectedProducts() { return selectedProducts; }
     public void setSelectedProducts(List<String> selectedProducts) { this.selectedProducts = selectedProducts; }
+
+    public Map<String, ProductDateEntry> getProductDates() { return productDates; }
+    public void setProductDates(Map<String, ProductDateEntry> productDates) { this.productDates = productDates; }
 
     public Boolean getEnableMfa() { return enableMfa; }
     public void setEnableMfa(Boolean enableMfa) { this.enableMfa = enableMfa; }

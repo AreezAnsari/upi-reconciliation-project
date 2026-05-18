@@ -47,4 +47,6 @@ public interface TestInstitutionService {
     
     ResponseEntity<RestWithStatusList> getInstitutionsByCreatedBy(String username);
 
+    ResponseEntity<RestWithStatusList> getSubInstitutes(Long parentInstitutionId);
+
 }

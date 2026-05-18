@@ -34,8 +34,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
+import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO.ProductDateEntry;
+import com.jpb.reconciliation.reconciliation.entity.SubTestInstitution;
 import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
+import com.jpb.reconciliation.reconciliation.entity.TestInstitutionProduct;
 import com.jpb.reconciliation.reconciliation.mapper.TestInstitutionMapper;
+import com.jpb.reconciliation.reconciliation.repository.SubTestInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
@@ -52,6 +57,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
 
     @Autowired
     private TestInstitutionRepository testInstitutionRepository;
+
+    @Autowired
+    private SubTestInstitutionRepository subTestInstitutionRepository;
+
+    @Autowired
+    private TestInstitutionProductRepository testInstitutionProductRepository;
 
     @Autowired
     private EmailService emailService;
@@ -149,6 +160,8 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
                         dto.getPrimaryEmail(), e.getMessage());
         }
 
+        saveProductDates(institution.getInstitutionId(), dto, createdBy);
+
         List<Object> data = new ArrayList<>();
         data.add(TestInstitutionMapper.mapToDTO(institution));
 
@@ -191,8 +204,23 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Institution not found with ID: " + institutionId);
         }
 
+        TestInstitutionDTO dto = TestInstitutionMapper.mapToDTO(optional.get());
+
+        // Populate productDates from TEST_INST_PRODUCT table
+        List<TestInstitutionProduct> products = testInstitutionProductRepository.findByInstitutionId(institutionId);
+        if (!products.isEmpty()) {
+            Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
+            for (TestInstitutionProduct p : products) {
+                ProductDateEntry entry = new ProductDateEntry();
+                entry.setValidFrom(p.getValidFrom());
+                entry.setValidTo(p.getValidTo());
+                productDates.put(p.getProductName(), entry);
+            }
+            dto.setProductDates(productDates);
+        }
+
         List<Object> data = new ArrayList<>();
-        data.add(TestInstitutionMapper.mapToDTO(optional.get()));
+        data.add(dto);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Institution fetched successfully.", data));
     }
@@ -250,6 +278,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         institution.setUpdatedAt(LocalDateTime.now());
 
         testInstitutionRepository.save(institution);
+        saveProductDates(institutionId, dto, institution.getCreatedBy());
         logger.info("Institution updated: {}", institutionId);
 
         List<Object> data = new ArrayList<>();
@@ -673,6 +702,48 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             .collect(Collectors.toList());
         return new ResponseEntity<>(
             new RestWithStatusList("SUCCESS", "Institutions fetched.", new ArrayList<>(dtos)),
+            HttpStatus.OK);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SAVE PRODUCT DATES — delete-and-reinsert per institution
+    // ─────────────────────────────────────────────────────────────────────────
+    private void saveProductDates(Long institutionId, TestInstitutionDTO dto, String createdBy) {
+        testInstitutionProductRepository.deleteByInstitutionId(institutionId);
+        if (dto.getProductDates() == null || dto.getProductDates().isEmpty()) return;
+        List<TestInstitutionProduct> products = new ArrayList<>();
+        dto.getProductDates().forEach((productName, entry) -> {
+            TestInstitutionProduct p = new TestInstitutionProduct();
+            p.setInstitutionId(institutionId);
+            p.setProductName(productName);
+            p.setValidFrom(entry.getValidFrom());
+            p.setValidTo(entry.getValidTo());
+            p.setCreatedBy(createdBy);
+            p.setCreatedAt(LocalDateTime.now());
+            products.add(p);
+        });
+        testInstitutionProductRepository.saveAll(products);
+        logger.info("Saved {} product date(s) for institution {}", products.size(), institutionId);
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getSubInstitutes(Long parentInstitutionId) {
+        List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(parentInstitutionId);
+        List<TestInstitutionDTO> dtos = subs.stream().map(sub -> {
+            TestInstitutionDTO dto = new TestInstitutionDTO();
+            dto.setInstitutionId(sub.getSubInstitutionId());
+            dto.setInstitutionCode(sub.getInstitutionCode());
+            dto.setInstitutionNameFull(sub.getInstitutionNameFull());
+            dto.setRegCity(sub.getRegCity());
+            dto.setRegState(sub.getRegState());
+            dto.setRegCountry(sub.getRegCountry());
+            dto.setPrimaryFullName(sub.getPrimaryFullName());
+            dto.setPrimaryEmail(sub.getPrimaryEmail());
+            dto.setStatus(sub.getStatus());
+            return dto;
+        }).collect(Collectors.toList());
+        return new ResponseEntity<>(
+            new RestWithStatusList("SUCCESS", dtos.size() + " sub-institute(s) found.", new ArrayList<>(dtos)),
             HttpStatus.OK);
     }
 }
