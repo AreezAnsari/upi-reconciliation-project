@@ -15,11 +15,9 @@ jasypt:
       url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb
       driver-class-name: oracle.jdbc.OracleDriver
 #      username: recon_sit
-#      username: kal_recon
       username: jpb_recon
 #      password: recon_sit
       password: Jpbrecon2026
-#      password: Finrecon1234567
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000
