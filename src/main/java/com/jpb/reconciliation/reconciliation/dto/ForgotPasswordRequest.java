@@ -21,7 +21,7 @@ import lombok.Data;
 public class ForgotPasswordRequest {
  
     // User email se dhundh sakta hai
-    private String emailId;
+    private String email;
  
     // Ya username + institutionCode se dhundh sakta hai
     private String username;

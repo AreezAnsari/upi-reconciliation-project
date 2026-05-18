@@ -3,7 +3,7 @@ package com.jpb.reconciliation.reconciliation.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public class InstitutionDTO {
+public class SubInstitutionDTO {
 
     // ─── System Generated ────────────────────────────────────────────────────
     private Long institutionId;

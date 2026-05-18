@@ -67,7 +67,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/test/api/v1/subinstitution/verify-credentials")
                 || path.startsWith("/test/api/v1/subinstitution/set-password")
                 || path.startsWith("/test/api/v1/subinstitution/login")
-
+                
+                || path.startsWith("/test/api/v1/institution/verify-email")
+                || path.startsWith("/test/api/v1/institution/check-user-status")
+                || path.startsWith("/test/api/v1/institution/forgot-password")
+                || path.startsWith("/test/api/v1/institution/reset-password")
+                || path.startsWith("/test/api/v1/institution/check-email")
+                || path.startsWith("/test/api/v1/institution/check-name")
                 // OTP APIs
                 || path.startsWith("/api/otp/verify");
     }

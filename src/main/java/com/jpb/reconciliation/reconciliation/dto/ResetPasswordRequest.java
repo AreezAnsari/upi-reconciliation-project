@@ -10,7 +10,7 @@ public class ResetPasswordRequest {
     private String username;
 
     // ✅ Also support email-based reset (for forgot password via email input)
-    private String emailId;
+    private String email;
 
     private String otp;
 

@@ -4,23 +4,25 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import com.jpb.reconciliation.reconciliation.entity.KalSuperUser;
+
+import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
 
 @Repository
-public interface KalSuperUserRepository extends JpaRepository<KalSuperUser, Long> {
+public interface KalSuperUserRepository
+        extends JpaRepository<SubSuperUser, Long> {
 
-    // Login aur setup ke liye — main lookup
-    Optional<KalSuperUser> findByInstitutionCodeAndSuperUserId(
+    // Main lookup
+    Optional<SubSuperUser> findByInstitutionCodeAndUsername(
             String institutionCode,
-            String superUserId
+            String username
     );
 
-    // ✅ Forgot password — email se dhundho (findFirst = multiple records ho to pehla lo)
-    Optional<KalSuperUser> findFirstByEmail(String email);
+    // Forgot password
+    Optional<SubSuperUser> findFirstByEmail(String email);
 
-    // superUserId se dhundho (backward compat)
-    Optional<KalSuperUser> findBySuperUserId(String superUserId);
-    // Used by OtpController to activate institution after first login
-    Optional<KalSuperUser>
-    findByEmail(String email);    
+    // Username lookup
+    Optional<SubSuperUser> findByUsername(String username);
+
+    // Email lookup
+    Optional<SubSuperUser> findByEmail(String email);
 }

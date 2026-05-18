@@ -10,10 +10,6 @@ import javax.persistence.Id;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 
-import org.springframework.data.annotation.CreatedBy;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedBy;
-import org.springframework.data.annotation.LastModifiedDate;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,7 +20,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class Institution {
+public class SubInstitution {
 
     // ─── Primary Key ──────────────────────────────────────────────────────────
     @Id
@@ -185,19 +181,15 @@ public class Institution {
     private String defaultPassword;
 
     // ─── Audit Columns (same pattern as all entities in this project) ─────────
-    @CreatedDate
-    @Column(updatable = false, name = "crated_at")
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @CreatedBy
-    @Column(updatable = false, name = "created_by")
+    @Column(name = "created_by", updatable = false)
     private String createdBy;
 
-    @LastModifiedDate
-    @Column(insertable = false, name = "updated_at")
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @LastModifiedBy
-    @Column(insertable = false, name = "updated_by")
+    @Column(name = "updated_by")
     private String updatedBy;
 }

@@ -2,13 +2,13 @@ package com.jpb.reconciliation.reconciliation.mapper;
 
 import java.util.Arrays;
 
-import com.jpb.reconciliation.reconciliation.dto.InstitutionDTO;
-import com.jpb.reconciliation.reconciliation.entity.Institution;
+import com.jpb.reconciliation.reconciliation.dto.SubInstitutionDTO;
+import com.jpb.reconciliation.reconciliation.entity.SubInstitution;
 
-public class InstitutionMapper {
+public class SubInstitutionMapper {
 
     // DTO → Entity (for create)
-    public static Institution mapToEntity(InstitutionDTO dto, Institution entity) {
+    public static SubInstitution mapToEntity(SubInstitutionDTO dto, SubInstitution entity) {
 
         entity.setInstitutionNameFull(dto.getInstitutionNameFull() != null
                 ? dto.getInstitutionNameFull().trim() : null);
@@ -88,8 +88,8 @@ public class InstitutionMapper {
     }
 
     // Entity → DTO (for API responses)
-    public static InstitutionDTO mapToDTO(Institution entity) {
-        InstitutionDTO dto = new InstitutionDTO();
+    public static SubInstitutionDTO mapToDTO(SubInstitution entity) {
+        SubInstitutionDTO dto = new SubInstitutionDTO();
 
         dto.setInstitutionId(entity.getInstitutionId());
         dto.setInstitutionCode(entity.getInstitutionCode());

@@ -13,7 +13,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     @Override
     public ResponseEntity<ForgotPasswordResponseDto> forgotPassword(ForgotPasswordRequest request) {
 
-        String email = request.getEmailId();
+        String email = request.getEmail();
 
         // TODO: generate OTP + send email
 

@@ -52,4 +52,23 @@ public class KalSuperUserController {
             @RequestBody ResetPasswordRequest request) {
         return kalSuperService.resetPassword(request);
     }
+    
+    
+    @PostMapping("/check-user-status")
+    public ResponseEntity<RestWithStatusList> checkUserStatus(
+            @RequestBody KalSuperUserVerifyDto dto) {
+
+        return kalSuperService.checkUserStatus(dto);
+    }
+    
+    @GetMapping("/verify-email")
+    public ResponseEntity<RestWithStatusList> verifyEmail(
+
+            @RequestParam String institutionCode,
+            @RequestParam String username) {
+
+        return kalSuperService.verifyEmail(
+                institutionCode,
+                username);
+    }
 }

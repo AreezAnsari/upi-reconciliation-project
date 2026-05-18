@@ -3,13 +3,13 @@ package com.jpb.reconciliation.reconciliation.service;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.jpb.reconciliation.reconciliation.dto.InstitutionDTO;
+import com.jpb.reconciliation.reconciliation.dto.SubInstitutionDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 
-public interface InstitutionService {
+public interface SubInstitutionService {
 
     // Create new institution
-    ResponseEntity<RestWithStatusList> createInstitution(InstitutionDTO dto);
+    ResponseEntity<RestWithStatusList> createInstitution(SubInstitutionDTO dto);
 
     // Get all institutions
     ResponseEntity<RestWithStatusList> getAllInstitutions();
@@ -21,7 +21,7 @@ public interface InstitutionService {
     ResponseEntity<RestWithStatusList> getInstitutionsByStatus(String status);
 
     // Full update (edit form submit)
-    ResponseEntity<RestWithStatusList> updateInstitution(Long institutionId, InstitutionDTO dto);
+    ResponseEntity<RestWithStatusList> updateInstitution(Long institutionId, SubInstitutionDTO dto);
 
     // Status-only update (toggle ACTIVE/INACTIVE/BLOCKED)
     ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status);
@@ -33,4 +33,9 @@ public interface InstitutionService {
     ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader);
 
     ResponseEntity<RestWithStatusList> verifyEmail(String token);
+    ResponseEntity<RestWithStatusList> checkEmailExists(String email);
+    ResponseEntity<byte[]> exportToExcel() throws java.io.IOException;
+
+    // Export institutions as CSV
+    ResponseEntity<byte[]> exportToCsv();
 }

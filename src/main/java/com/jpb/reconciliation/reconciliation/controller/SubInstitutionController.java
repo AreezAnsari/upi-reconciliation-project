@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
  
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
-import com.jpb.reconciliation.reconciliation.dto.InstitutionDTO;
+import com.jpb.reconciliation.reconciliation.dto.SubInstitutionDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.service.InstitutionService;
+import com.jpb.reconciliation.reconciliation.service.SubInstitutionService;
  
 import io.swagger.v3.oas.annotations.Operation;
  
@@ -26,13 +26,13 @@ public class SubInstitutionController {
     Logger logger = LoggerFactory.getLogger(SubInstitutionController.class);
  
     @Autowired
-    InstitutionService institutionService;
+    SubInstitutionService institutionService;
  
     // POST /test/api/v1/subinstitution/create
     @Operation(summary = "Onboard a new sub-institution")
     @PostMapping(value = "/create", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> createInstitution(
-            @RequestBody InstitutionDTO dto) {
+            @RequestBody SubInstitutionDTO dto) {
         logger.info("Create sub-institution request: {}", dto.getInstitutionNameFull());
         return institutionService.createInstitution(dto);
     }
@@ -68,7 +68,7 @@ public class SubInstitutionController {
     @PutMapping(value = "/update/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> updateInstitution(
             @PathVariable Long institutionId,
-            @RequestBody InstitutionDTO dto) {
+            @RequestBody SubInstitutionDTO dto) {
         logger.info("Update sub-institution ID: {}", institutionId);
         return institutionService.updateInstitution(institutionId, dto);
     }
@@ -108,5 +108,15 @@ public class SubInstitutionController {
     @GetMapping(value = "/verify-email", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> verifyEmail(@RequestParam String token) {
         return institutionService.verifyEmail(token);
+    }
+ // GET /test/api/v1/subinstitution/check-email?email=abc@gmail.com
+    @Operation(summary = "Check sub institution email already exists")
+    @GetMapping(value = "/check-email", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> checkEmailExists(
+            @RequestParam String email) {
+
+        logger.info("Check sub institution email request: {}", email);
+
+        return institutionService.checkEmailExists(email);
     }
 }
