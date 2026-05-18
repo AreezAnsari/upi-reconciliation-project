@@ -149,7 +149,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 		// Return a new CompletableFuture that completes with the message
 		// ONLY after all underlying tasks are done.
 		return allOfFuture.thenApply(v -> {
-			fileOpearationService.moveExtractedFiles(reconFileDetails);
+//			fileOpearationService.moveExtractedFiles(reconFileDetails);
 			if (reconFileDetails.getReconTemplateDetails().getSettlementFlag().equalsIgnoreCase("Y")) {
 				Boolean ntslSettleFlag = ntslSettlementService.ntslSettlementProcess(reconFileDetails);
 				logger.info("ntslSettleFlag" + ntslSettleFlag);
@@ -292,7 +292,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 
 		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
 				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
+				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")
+				|| fileName.equalsIgnoreCase("NEFT CBS")) {
 			controlFileContent.append("DR_CR_FLAG").append(" \"CASE ")
 					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN 'D' ")
 					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN 'C' ").append("ELSE NULL END\" ")
@@ -301,7 +302,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 
 		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
 				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
+				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")
+				|| fileName.equalsIgnoreCase("NEFT CBS")) {
 			controlFileContent.append("TRAN_AMOUNT").append(" \"CASE ")
 					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN TO_NUMBER(:DEBIT_AMT) ")
 					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN TO_NUMBER(:CREDIT_AMT) ")

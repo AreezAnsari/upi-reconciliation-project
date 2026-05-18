@@ -18,7 +18,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "RECON_SFTP_SERVER_MAST", schema = "JPB_RECON")
+@Table(name = "RECON_SFTP_SERVER_MAST")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

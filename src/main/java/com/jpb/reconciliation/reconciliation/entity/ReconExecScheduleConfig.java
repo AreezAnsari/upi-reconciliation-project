@@ -47,7 +47,7 @@ import lombok.NoArgsConstructor;
  * CHK_RSCHED_ACTIVE→ is_active IN ('Y','N')
  */
 @Entity
-@Table(name = "RECON_EXEC_SCHEDULE_CONFIG", schema = "JPB_RECON", uniqueConstraints = @UniqueConstraint(name = "UQ_RSCHED_TMPLT", columnNames = "TEMPLATE_ID"))
+@Table(name = "RECON_EXEC_SCHEDULE_CONFIG", uniqueConstraints = @UniqueConstraint(name = "UQ_RSCHED_TMPLT", columnNames = "TEMPLATE_ID"))
 @EntityListeners(AuditingEntityListener.class)
 @Data
 @Builder

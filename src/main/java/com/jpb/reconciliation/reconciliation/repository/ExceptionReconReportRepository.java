@@ -25,4 +25,6 @@ public interface ExceptionReconReportRepository extends JpaRepository<ExceptionR
 	List<ExceptionReconReportEntity> searchByNameAndProcess(@Param("reportName") String reportName,
 			@Param("processId") String processId);
 
+	List<ExceptionReconReportEntity> findByTemplateId(Long templateId);
+
 }

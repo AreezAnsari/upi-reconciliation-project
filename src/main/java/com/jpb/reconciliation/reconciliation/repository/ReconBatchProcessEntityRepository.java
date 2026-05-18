@@ -50,4 +50,6 @@ public interface ReconBatchProcessEntityRepository extends JpaRepository<ReconBa
            nativeQuery = true)
     int countForceMatchEligible();
 
+	List<ReconBatchProcessEntity> findByTemplateIdAndStatus(Long templateId, String string);
+
 }
