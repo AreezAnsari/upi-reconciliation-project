@@ -174,18 +174,17 @@ public class ExtractionServiceImpl implements ExtractionService {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, PARALLEL=TRUE) \n");
 		} else if (fileName.equalsIgnoreCase("DEBITCARD_SWITCH")) {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=2, PARALLEL=TRUE) \n");
-		} else if (fileName.equalsIgnoreCase("NEFT-ISOInwardTransactionReport")) {
-			// NEFT: PARALLEL=TRUE hatao — direct path parallel load ke baad ORA-12838 aata hai
-			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=1) \n");
 		} else {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=1, PARALLEL=TRUE) \n");
 		}
 
-		// NEFT: UNRECOVERABLE mat lagao — direct path ke baad ORA-12838 aata hai
+		// PEHLE: UNRECOVERABLE har file ke liye add hota tha
+		// AB: sirf direct path wali files ke liye add karo
+		//     NEFT-ISOInwardTransactionReport conventional path use karta hai (direct=true nahi)
+		//     → UNRECOVERABLE conventional path mein invalid hai → SQL*Loader-268 error
 		if (!fileName.equalsIgnoreCase("NEFT-ISOInwardTransactionReport")) {
 			controlFileContent.append("UNRECOVERABLE \n");
 		}
-
 		controlFileContent.append("LOAD DATA \n");
 		controlFileContent.append("INFILE '").append(fileLocation).append("'\n");
 		controlFileContent.append("INTO TABLE ").append(targetTableName).append("\n");
@@ -269,9 +268,17 @@ public class ExtractionServiceImpl implements ExtractionService {
 					controlFileContent.append(" ").append(filed.getRfmShortName()).append(" POSITION(")
 							.append(filed.getReconFromPosn()).append(":").append(filed.getReconToPosn()).append(")")
 							.append(",\n");
-				}
-
-				else {
+				} else if (fileName.equalsIgnoreCase("NEFT-ISOInwardTransactionReport")
+						&& filed.getRfmShortName().equalsIgnoreCase("TRAN_SEQ_NUM")) {
+					// PEHLE: TRAN_SEQ_NUM as-is copy hota tha
+					//        "/XUTR/RBLB600929 926913" stage table mein store hota tha
+					// REASON: Excel END_TO_END_ID mein "/XUTR/" prefix aur space hoti hai
+					//         sir ki requirement: sirf "RBLB600929926913" chahiye
+					// AB: loading ke waqt hi .ctl mein prefix aur spaces remove karo
+					controlFileContent.append(" ").append(filed.getRfmShortName())
+							.append(" \"REGEXP_REPLACE(REPLACE(:TRAN_SEQ_NUM, ' ', ''), '^/[^/]+/', '')\"")
+							.append(",\n");
+				} else {
 					controlFileContent.append(" ").append(filed.getRfmShortName()).append(",\n");
 				}
 			}
@@ -308,7 +315,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 
 		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
 				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
+				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")
+				|| fileName.equalsIgnoreCase("CBS_NEFT")) {
 			controlFileContent.append("TRAN_AMOUNT").append(" \"CASE ")
 					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN TO_NUMBER(:DEBIT_AMT) ")
 					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN TO_NUMBER(:CREDIT_AMT) ")

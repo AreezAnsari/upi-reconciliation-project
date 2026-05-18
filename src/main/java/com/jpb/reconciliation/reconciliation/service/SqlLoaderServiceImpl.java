@@ -206,13 +206,25 @@ public class SqlLoaderServiceImpl implements SqlLoaderService {
 	private void updateBatchProcessStatus(ReconBatchProcessEntity reconProcessManager,
 			ReconFileDetailsMaster reconFileDetails, ReconUser userDetails, int exitCode, String processOutput,
 			String errorOutput, String dataCount) {
-		if (exitCode != 0) {
+		// PEHLE: exitCode != 0 matlab Error → exitCode=2 (partial success) bhi Error ban jata tha → segregation skip
+		// AB:    exitCode=0 ya exitCode=2 (kuch rows loaded) → Completed treat karo
+		//        exitCode=1 (fatal/no rows) ya zyada → Error
+		if (exitCode != 0 && exitCode != 2) {
 			reconProcessManager.setExtractionStatus("Error");
 			reconProcessManager.setStatus("Error");
 			reconProcessManager.setSegretionStatus("Error");
 			reconProcessManager.setReportStatus("Error");
-			String combinedError = "SQL*Loader Exit Code: " + exitCode + "\n" + "Standard Output:\n" + processOutput
-					+ "\n" + "Error Output:\n" + errorOutput;
+			// PEHLE: full processOutput + errorOutput store hoti thi → 5000+ chars → ORA-12899 (RBP_ERROR_DESC VARCHAR2(1000))
+			// AB: sirf exit code + errorOutput ka meaningful part store karo, 999 chars mein trim
+			String shortError = "SQL*Loader Exit Code: " + exitCode;
+			if (errorOutput != null && !errorOutput.trim().isEmpty()) {
+				String trimmedError = errorOutput.length() > 800 ? errorOutput.substring(0, 800) + "..." : errorOutput;
+				shortError += " | Error: " + trimmedError;
+			} else if (processOutput != null && !processOutput.trim().isEmpty()) {
+				String trimmedOutput = processOutput.length() > 800 ? processOutput.substring(0, 800) + "..." : processOutput;
+				shortError += " | Output: " + trimmedOutput;
+			}
+			String combinedError = shortError.length() > 999 ? shortError.substring(0, 999) : shortError;
 			reconProcessManager.setErrorDescription(combinedError);
 		} else {
 			reconProcessManager.setExtractionStatus("Completed");
