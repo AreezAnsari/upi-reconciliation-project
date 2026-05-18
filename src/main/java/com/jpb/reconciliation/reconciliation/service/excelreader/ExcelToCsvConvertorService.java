@@ -4,11 +4,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
 import java.util.Iterator;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -35,23 +33,14 @@ public class ExcelToCsvConvertorService {
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
 
-                // Find the actual header row by matching known first-column names.
-                // Pehle metadata rows (report title, date range, bank name etc.) skip hoti hain.
-                // Jab pehla cell ek known column header name se match kare tab hi processing start hoti hai.
+                // Find the header row "Description" to start processing
                 if (!startProcessing) {
                     Cell firstCell = row.getCell(0);
+//                    && "Description".equalsIgnoreCase(getCellValueAsString(firstCell).trim())
                     if (firstCell != null) {
-                        String cellVal = getCellValueAsString(firstCell).trim();
-                        // PEHLE: condition commented out thi → pehli non-empty row header ban jaati thi
-                        //        (metadata row 1 header, rows 2-11 metadata data ban jaata tha → SQL*Loader fail)
-                        // AB:    sirf matching column-name wali row header manate hain → metadata rows skip
-                        if (cellVal.equalsIgnoreCase("S.NO")
-                                || cellVal.equalsIgnoreCase("SNO")
-                                || cellVal.equalsIgnoreCase("SR_NO")
-                                || cellVal.equalsIgnoreCase("Description")) {
-                            startProcessing = true;
-                            writeRowToCsv(row, writer);
-                        }
+                        startProcessing = true;
+                        // Also write the header row to the CSV
+                        writeRowToCsv(row, writer);
                     }
                     continue;
                 }
@@ -121,23 +110,8 @@ public class ExcelToCsvConvertorService {
 
         switch (cell.getCellType()) {
             case STRING:
-                // PEHLE: embedded newlines (\n) as-is return hote the
-                //        → header cells jaise "Settlement Date\n(YYYY/MM/DD)" CSV mein 2 rows ban jaati thi
-                //        → data cells jaise "Mr. Panna\nTiwari" bhi split hoti thi
-                //        → SQL*Loader misaligned rows → ORA-01722 on SEQUENCE_NO / SNO
-                // AB:    newlines replace karke single-line string return karo
-                return cell.getStringCellValue()
-                        .replace("\r\n", " ")
-                        .replace("\n", " ")
-                        .replace("\r", " ")
-                        .trim();
+                return cell.getStringCellValue();
             case NUMERIC:
-                // PEHLE: date cells bhi numeric treat hoti thi → serial number (46376) return hota tha
-                //        SQL*Loader DATE "YYYY/MM/DD" parse nahi kar pata tha → row reject
-                // AB:    date-formatted cells ko "yyyy/MM/dd" string mein convert karo
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return new SimpleDateFormat("yyyy/MM/dd").format(cell.getDateCellValue());
-                }
                 double value = cell.getNumericCellValue();
                 if (value == Math.floor(value)) {
                     return String.valueOf((long) value);
