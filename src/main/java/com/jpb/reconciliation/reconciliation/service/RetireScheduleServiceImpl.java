@@ -93,8 +93,8 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
         }
 
         if (inst.getRetireScheduledAt() != null &&
-                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusHours(24))) {
-            return bad("Undo period has expired (24 hours). Institution has been retired.");
+                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusSeconds(30))) {
+            return bad("Undo period has expired (30 sec). Institution has been retired.");
         }
 
         String restoredStatus = inst.getPreRetireStatus() != null ? inst.getPreRetireStatus() : "ACTIVE";
@@ -114,12 +114,12 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
 
     // ─────────────────────────────────────────────
     // AUTO-RETIRE — Runs every 24 hours
-    // Retires institutions whose 24hr window has passed
+    // Retires institutions whose 24hr window has passed (86400000)
     // ─────────────────────────────────────────────
     @Scheduled(fixedRate = 86400000)
     @Transactional
     public void autoRetireScheduledInstitutions() {
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);
 
         List<TestInstitution> pendingList = testInstitutionRepository
                 .findByStatusAndRetireScheduledAtBefore("RETIRE_PENDING", cutoff);

@@ -147,11 +147,6 @@ public class TestInstitutionController {
         return testInstitutionService.uploadLogo(institutionId, file, userDetails.getUsername());
     }
     
-    @GetMapping(value = "/verify-email", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> verifyEmail(@RequestParam String token) {
-        return testInstitutionService.verifyEmail(token);
-    }
-
     // ─────────────────────────────────────────────
     // CHECK NAME EXISTS
     // GET /test/api/v1/institution/check-name?name=State Bank of India
