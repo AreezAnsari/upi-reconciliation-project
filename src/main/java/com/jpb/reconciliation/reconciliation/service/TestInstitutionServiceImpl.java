@@ -110,12 +110,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Primary contact mobile is required.");
         }
 
-        // Institution Name Check
-        if (testInstitutionRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
-            logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
-            return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
-        }
-
         // Email Check
         if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
 
