@@ -1,18 +1,15 @@
 package com.jpb.reconciliation.reconciliation.dto;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
-public class TestInstitutionDTO {
+public class SubInstitutionDTO {
 
     // ─── System Generated ────────────────────────────────────────────────────
     private Long institutionId;
     private String institutionCode; // 8 chars: first 4 letters + 4 digits (e.g. STAT4821)
     private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED
     private LocalDateTime createdAt;
-    private String createdBy;
 
     // ─── Step 1: Institution Details ────────────────────────────────────────
     private String institutionNameFull;   // required
@@ -60,18 +57,8 @@ public class TestInstitutionDTO {
     private String secondaryAltMobile;
 
     // ─── Step 4: Products ────────────────────────────────────────────────────
+    // ["UPI","NEFT","RTGS","Credit Cards"]
     private List<String> selectedProducts;
-    // { "UPI": { "validFrom": "2024-01-01", "validTo": "2024-12-31" }, ... }
-    private Map<String, ProductDateEntry> productDates;
-
-    public static class ProductDateEntry {
-        private LocalDate validFrom;
-        private LocalDate validTo;
-        public LocalDate getValidFrom() { return validFrom; }
-        public void setValidFrom(LocalDate validFrom) { this.validFrom = validFrom; }
-        public LocalDate getValidTo() { return validTo; }
-        public void setValidTo(LocalDate validTo) { this.validTo = validTo; }
-    }
 
     // ─── Step 5: Security ────────────────────────────────────────────────────
     private Boolean enableMfa;
@@ -199,9 +186,6 @@ public class TestInstitutionDTO {
 
     public List<String> getSelectedProducts() { return selectedProducts; }
     public void setSelectedProducts(List<String> selectedProducts) { this.selectedProducts = selectedProducts; }
-
-    public Map<String, ProductDateEntry> getProductDates() { return productDates; }
-    public void setProductDates(Map<String, ProductDateEntry> productDates) { this.productDates = productDates; }
 
     public Boolean getEnableMfa() { return enableMfa; }
     public void setEnableMfa(Boolean enableMfa) { this.enableMfa = enableMfa; }

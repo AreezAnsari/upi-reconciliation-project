@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,6 +43,8 @@ import com.jpb.reconciliation.reconciliation.mapper.TestInstitutionMapper;
 import com.jpb.reconciliation.reconciliation.repository.SubTestInstitutionRepository;
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
+import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
 
 @Service
 public class TestInstitutionServiceImpl implements TestInstitutionService {
@@ -67,6 +70,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private KalSuperUserRepository kalSuperUserRepository;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
@@ -80,97 +89,177 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         if (dto.getInstitutionNameFull() == null || dto.getInstitutionNameFull().trim().isEmpty()) {
             return bad("Institution full name is required.");
         }
+
         if (dto.getRegAddressLine1() == null || dto.getRegAddressLine1().trim().isEmpty()) {
             return bad("Registered address line 1 is required.");
         }
+
         if (dto.getRegCity() == null || dto.getRegCity().trim().isEmpty()) {
             return bad("Registered city is required.");
         }
+
         if (dto.getPrimaryFullName() == null || dto.getPrimaryFullName().trim().isEmpty()) {
             return bad("Primary contact full name is required.");
         }
+
         if (dto.getPrimaryEmail() == null || dto.getPrimaryEmail().trim().isEmpty()) {
             return bad("Primary contact email is required.");
         }
+
         if (dto.getPrimaryMobile() == null || dto.getPrimaryMobile().trim().isEmpty()) {
             return bad("Primary contact mobile is required.");
         }
-        
-        if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
-            return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
+
+        // Institution Name Check
+        if (testInstitutionRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
+            logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
+            return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
 
-        // ── Institution code: accept from frontend — validate uniqueness only ──
-        // Frontend generates pure 8-digit code and sends in payload
-        // Backend: validate format + uniqueness → save as-is
+        // Email Check
+        if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
+
+            return bad("An institution with email '" +
+                    dto.getPrimaryEmail() +
+                    "' is already registered.");
+        }
+
+        // Institution Code Validation
         String institutionCode = dto.getInstitutionCode();
+
         if (institutionCode == null || !institutionCode.matches("\\d{8}")) {
+
             return bad("Institution code must be exactly 8 digits.");
         }
+
         if (testInstitutionRepository.findByInstitutionCode(institutionCode).isPresent()) {
+
             return bad("Institution code already exists. Please regenerate and try again.");
         }
+
         logger.info("Institution code accepted from frontend: {}", institutionCode);
 
-        // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
-        // e.g. "Rajesh Kumar" → "rajesh.kumar"
+        // Generate Super User ID
         String superUserId = generateSuperUserId(dto.getPrimaryFullName());
 
-        // ── Generate default password — rule: min 8 chars, 1 upper, 1 special, 1 number ──
-        // e.g. "Recon@1234" pattern with random suffix
+        // Generate Default Password
         String defaultPassword = generateDefaultPassword();
 
-        // Map DTO → Entity
-        TestInstitution institution = TestInstitutionMapper.mapToEntity(dto, new TestInstitution());
+        // DTO → Entity
+        TestInstitution institution =
+                TestInstitutionMapper.mapToEntity(dto, new TestInstitution());
+
         institution.setInstitutionCode(institutionCode);
-        institution.setStatus("REQUEST");  // Sir's rule: REQUEST when onboarded by Kal Admin
+        institution.setStatus("REQUEST");
         institution.setCreatedAt(LocalDateTime.now());
         institution.setCreatedBy(createdBy);  // logged-in admin username from JWT
 
-        // Save Super User credentials in institution record
+        // Super User Credentials
         institution.setSuperUserId(superUserId);
         institution.setDefaultPassword(defaultPassword);
 
-        // Generate verification token — valid for 48 hours
+        // Verification Token
         String token = UUID.randomUUID().toString();
+
         institution.setVerificationToken(token);
         institution.setTokenExpiry(LocalDateTime.now().plusHours(48));
 
+        // Save Institution
         testInstitutionRepository.save(institution);
-        logger.info("Institution created: {} | Code: {} | SuperUserId: {}",
-                    dto.getInstitutionNameFull(), institutionCode, superUserId);
 
-        // ── Send welcome email with Institution Code, User ID, Default Password ──
-        String verifyLink = frontendUrl + "/verify-email?token=" + token;
+        // =========================================================
+        // SAVE SUPER USER
+        // =========================================================
+
+        SubSuperUser superUser = new SubSuperUser();
+
+        superUser.setInstitutionCode(institutionCode);
+
+        superUser.setUsername(superUserId);
+
+        superUser.setEmail(dto.getPrimaryEmail());
+
+        superUser.setPassword(passwordEncoder.encode(defaultPassword));
+
+        superUser.setPasswordSet(0);
+        superUser.setStatus("REQUEST");
+
+        superUser.setCreatedAt(LocalDateTime.now());
+
+        superUser.setUpdatedAt(LocalDateTime.now());
+        
+        superUser.setCreatedBy(dto.getPrimaryFullName());
+        superUser.setUpdatedBy(dto.getPrimaryFullName());
+        System.out.println(dto.getPrimaryFullName());
+
+        kalSuperUserRepository.save(superUser);
+
+        logger.info("Super user created in KAL_SUPER_USER: {}", superUserId);
+
+        // =========================================================
+        // SEND WELCOME EMAIL
+        // =========================================================
+
+        String verifyLink =
+                frontendUrl
+                + "/verify-email?institutionCode="
+                + institutionCode
+                + "&username="
+                + superUserId;
+
         try {
+
             emailService.sendSuperUserWelcome(
-                dto.getPrimaryEmail(),
-                dto.getPrimaryFullName(),
-                dto.getInstitutionNameFull(),
-                institutionCode,
-                superUserId,
-                defaultPassword,
-                verifyLink
+                    dto.getPrimaryEmail(),
+                    dto.getPrimaryFullName(),
+                    dto.getInstitutionNameFull(),
+                    institutionCode,
+                    superUserId,
+                    defaultPassword,
+                    verifyLink
             );
-            logger.info("Welcome email dispatched to: {} | userId: {} | institution: {}",
-                        dto.getPrimaryEmail(), superUserId, dto.getInstitutionNameFull());
+
+            logger.info(
+                    "Welcome email dispatched to: {} | userId: {} | institution: {}",
+                    dto.getPrimaryEmail(),
+                    superUserId,
+                    dto.getInstitutionNameFull()
+            );
+
         } catch (Exception e) {
-            // Email failure should NOT rollback the onboarding — just log the warning
-            logger.warn("Institution saved but welcome email failed for {}: {}",
-                        dto.getPrimaryEmail(), e.getMessage());
+
+            logger.warn(
+                    "Institution saved but welcome email failed for {}: {}",
+                    dto.getPrimaryEmail(),
+                    e.getMessage()
+            );
         }
 
         saveProductDates(institution.getInstitutionId(), dto, createdBy);
 
+        logger.info(
+                "Institution created: {} | Code: {} | SuperUserId: {}",
+                dto.getInstitutionNameFull(),
+                institutionCode,
+                superUserId
+        );
+
         List<Object> data = new ArrayList<>();
+
         data.add(TestInstitutionMapper.mapToDTO(institution));
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new RestWithStatusList("SUCCESS",
-                        "Institution '" + dto.getInstitutionNameFull() + "' onboarded successfully.", data));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(
+                        new RestWithStatusList(
+                                "SUCCESS",
+                                "Institution '" +
+                                        dto.getInstitutionNameFull() +
+                                        "' onboarded successfully.",
+                                data
+                        )
+                );
+    }    // ─────────────────────────────────────────────────────────────────────────
     // GET ALL
     // ─────────────────────────────────────────────────────────────────────────
     @Override
@@ -279,6 +368,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
 
         testInstitutionRepository.save(institution);
         saveProductDates(institutionId, dto, institution.getCreatedBy());
+
         logger.info("Institution updated: {}", institutionId);
 
         List<Object> data = new ArrayList<>();

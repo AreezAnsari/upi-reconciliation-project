@@ -59,6 +59,7 @@ public class JwtHelper {
 	private String doGenerateToken(Map<String, Object> claims, String subject, long validity) {
 		return Jwts.builder().setClaims(claims).setSubject(subject)
 				.setId(UUID.randomUUID().toString()) // <--- NEW: Set a unique JWT ID
+				
 				.setIssuedAt(new Date(System.currentTimeMillis()))
 				.setExpiration(new Date(System.currentTimeMillis() + validity))
 				.signWith(SignatureAlgorithm.HS512, secret).compact();
