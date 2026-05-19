@@ -12,13 +12,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = "passwordHash")
+@ToString
 public class AddUser {
  
-    // ---- Inner enums — no separate files needed ----
+    // ---- Inner enums ----
  
     public enum Role {
-        MAKER, CHECKER
+        MAKER, CHECKER, WORKER, AUDITOR, IT_OPS, SUPERVISOR, RCC_CXO
     }
  
     public enum UserType {
@@ -26,7 +26,7 @@ public class AddUser {
     }
  
     public enum UserStatus {
-        ACTIVE, INACTIVE
+        REQUEST, ACTIVE, INACTIVE , BLOCK , RETIRED
     }
  
     // ---- Fields ----
@@ -35,6 +35,10 @@ public class AddUser {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_seq")
     @SequenceGenerator(name = "user_seq", sequenceName = "APP_USER_SEQ", allocationSize = 1)
     private Long id;
+    
+    // NEW: full name stored as typed (e.g. "Karan Joshi")
+    @Column(name = "FULL_NAME", nullable = false, length = 200)
+    private String fullName;
  
     @Column(name = "USERNAME", unique = true, nullable = false, length = 100)
     private String username;
@@ -62,11 +66,23 @@ public class AddUser {
     @Enumerated(EnumType.STRING)
     @Column(name = "STATUS", nullable = false, length = 20)
     @Builder.Default
-    private UserStatus status = UserStatus.ACTIVE;
+    private UserStatus status = UserStatus.REQUEST;
+
+    
+    // ── NEW: external organisation fields (only when userType = EXTERNAL) ────
+    @Column(name = "EXTERNAL_DEPARTMENT_NAME", length = 200)
+    private String externalDepartmentName;
  
-    @Column(name = "PASSWORD_HASH", nullable = false)
-    private String passwordHash;
+    @Column(name = "EXTERNAL_SUPERVISOR_NAME", length = 100)
+    private String externalSupervisorName;
  
+    @Column(name = "EXTERNAL_SUPERVISOR_EMAIL", length = 150)
+    private String externalSupervisorEmail;
+ 
+    @Column(name = "EXTERNAL_SUPERVISOR_PHONE", length = 20)
+    private String externalSupervisorPhone;
+    
+ // ── Audit ─────────────────────────────────────────────────────────────────
     @Column(name = "INSTITUTION_CODE", length = 50)
     private String institutionCode;
  

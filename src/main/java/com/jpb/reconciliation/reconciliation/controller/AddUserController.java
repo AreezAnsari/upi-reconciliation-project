@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
 
 @RestController
-@RequestMapping("api/users")
+@RequestMapping("api/v1/user")
 @RequiredArgsConstructor
 public class AddUserController {
 
     private final AddUserService userService;
 
-    // ✅ Create User
+    // Create User
     @PostMapping("/create")
     public RestWithStatusList createUser(@Valid @RequestBody AddUserRequest request, Authentication authentication) {
         return userService.createUser(request,
@@ -27,7 +27,7 @@ public class AddUserController {
         );
     }
 
-    // ✅ Get User By ID
+    // Get User By ID
     @GetMapping("/{id}")
     public RestWithStatusList getUser(@PathVariable Long id) {
         return userService.getUserById(id);
@@ -38,7 +38,9 @@ public class AddUserController {
         return userService.getUsersByInstitution(
                 extractInstitutionCode(authentication)
         );
-    }    
+    }   
+    
+    // Update User By ID
     @PutMapping("/{id}")
     public RestWithStatusList updateUser(
             @PathVariable Long id,
@@ -51,6 +53,7 @@ public class AddUserController {
     public RestWithStatusList deactivateUser(@PathVariable Long id) {
         return userService.deactivateUser(id);
     }
+    
     
     @GetMapping("/search")
     public RestWithStatusList search(

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import com.jpb.reconciliation.reconciliation.dto.*;
 import com.jpb.reconciliation.reconciliation.service.RecRoleService;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -30,11 +31,21 @@ public class RecRoleController {
     // CREATE Role
     @PostMapping("/create")
     public ResponseEntity<RestWithStatusList> createRole(@RequestBody RecCreateRoleRequestDTO req) {
-        log.info("Creating role: {} with status: {}", req.getRoleName(), req.getStatus());
+        log.info("Creating role: {} with status: {}", req.getRoleNames(), req.getStatus());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(roleService.createRole(req));
     }
+    
+ // GET ALL ROLES
+    @GetMapping
+    public ResponseEntity<RestWithStatusList> getAllRoles() {
+
+        log.info("Fetching all roles");
+
+        return ResponseEntity.ok(roleService.getAllRoles());
+    }
+
 
     // GET Role
     @GetMapping("/{id}")
@@ -49,5 +60,32 @@ public class RecRoleController {
             @RequestBody List<RecPermissionRowDTO> dtos) {
 
         return ResponseEntity.ok(roleService.updatePermissions(id, dtos));
+    }
+    
+ // ── Global handler: IllegalArgumentException → 400 with clear message ──────
+    // Catches validation failures from RoleCompatibilityValidator and parseRoleType etc.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<RestWithStatusList> handleBadRequest(IllegalArgumentException ex) {
+        log.warn("Bad request: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(RestWithStatusList.builder()
+                        .status("FAILURE")
+                        .statusMsg(ex.getMessage())
+                        .data(Collections.emptyList())
+                        .build());
+    }
+ 
+    // ── Global handler: RuntimeException → 500 ────────────────────────────────
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<RestWithStatusList> handleServerError(RuntimeException ex) {
+        log.error("Server error: {}", ex.getMessage(), ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(RestWithStatusList.builder()
+                        .status("FAILURE")
+                        .statusMsg("Unexpected error: " + ex.getMessage())
+                        .data(Collections.emptyList())
+                        .build());
     }
 }

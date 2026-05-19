@@ -12,11 +12,14 @@ public class AddUserMapper {
      * Convert CreateUserRequest → User Entity
      */
     public static AddUser toEntity(AddUserRequest req,
-                                PasswordEncoder passwordEncoder,
                                 String createdBy,
                                 String institutionCode) {
+    	
+        boolean isExternal = "EXTERNAL".equalsIgnoreCase(req.getUserType());
+
 
         return AddUser.builder()
+        		.fullName(req.getFullName())
                 .username(req.getUsername())
                 .email(req.getEmail())
                 .department(req.getDepartment())
@@ -25,9 +28,13 @@ public class AddUserMapper {
                 .userType(AddUser.UserType.valueOf(req.getUserType().toUpperCase()))
                 .role(AddUser.Role.valueOf(req.getRole().toUpperCase()))
                 .status(AddUser.UserStatus.ACTIVE) // default
-                .passwordHash(passwordEncoder.encode(req.getPassword()))
                 .createdBy(createdBy)
                 .institutionCode(institutionCode)
+             // External fields — null when INTERNAL
+                .externalDepartmentName(isExternal ? req.getExternalDepartmentName() : null)
+                .externalSupervisorName(isExternal ? req.getExternalSupervisorName() : null)
+                .externalSupervisorEmail(isExternal ? req.getExternalSupervisorEmail() : null)
+                .externalSupervisorPhone(isExternal ? req.getExternalSupervisorPhone() : null)
                 .build();
     }
 
@@ -38,6 +45,7 @@ public class AddUserMapper {
 
         return AddUserResponse.builder()
                 .id(user.getId())
+                .fullName(user.getFullName())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .department(user.getDepartment())
@@ -46,6 +54,10 @@ public class AddUserMapper {
                 .userType(user.getUserType() != null ? user.getUserType().name() : null)
                 .role(user.getRole() != null ? user.getRole().name() : null)
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
+                .externalDepartmentName(user.getExternalDepartmentName())
+                .externalSupervisorName(user.getExternalSupervisorName())
+                .externalSupervisorEmail(user.getExternalSupervisorEmail())
+                .externalSupervisorPhone(user.getExternalSupervisorPhone())
                 .institutionCode(user.getInstitutionCode())
                 .createdBy(user.getCreatedBy())
                 .createdAt(user.getCreatedAt())

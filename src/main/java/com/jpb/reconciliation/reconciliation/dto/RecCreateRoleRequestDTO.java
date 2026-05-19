@@ -10,9 +10,16 @@ import java.util.List;
 @Builder
 public class RecCreateRoleRequestDTO {
 
-    private String    roleName;       // mandatory
+    private List<String>   roleNames;       // mandatory
     private String    roleType;       // INTERNAL / EXTERNAL (mandatory)
     private String    status;         // DRAFT / PENDING
+    private String    externalDepartmentName;
+    private String    externalSupervisorName;
+    private String    externalSupervisorEmail;
+    private String    externalSupervisorPhone;
+    private Long   assignedUserId;
+    private String assignedUserName;
+    private String assignedUserEmail;
     private String    description;    // optional
     private LocalDate validFrom;      // optional
     private LocalDate validTo;        // optional

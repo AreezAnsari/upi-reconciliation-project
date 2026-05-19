@@ -45,7 +45,6 @@ public class ReconUserController {
 //		}
 
 	}
-
 	@GetMapping(value = "/getuserby-userid/{userId}", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> getUser(@PathVariable Long userId) {
 		return reconUserService.getUserByUserId(userId);
@@ -86,6 +85,4 @@ public class ReconUserController {
 	public ResponseEntity<RestWithStatusList> getAllUserDetails() {
 		return reconUserService.getAllUsers();
 	}
-	
-
 }

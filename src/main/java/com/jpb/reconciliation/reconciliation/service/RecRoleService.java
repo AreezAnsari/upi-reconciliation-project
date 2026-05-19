@@ -13,4 +13,6 @@ public interface RecRoleService {
     RestWithStatusList updatePermissions(Long roleId, List<RecPermissionRowDTO> dtos);
 
     RestWithStatusList getAllModules();
+    
+    RestWithStatusList getAllRoles();
 }

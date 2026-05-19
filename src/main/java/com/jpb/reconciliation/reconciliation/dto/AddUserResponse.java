@@ -16,6 +16,7 @@ import lombok.Setter;
 public class AddUserResponse{
  
     private Long   id;
+    private String fullName;
     private String username;
     private String email;
     private String department;
@@ -24,6 +25,13 @@ public class AddUserResponse{
     private String userType;        // "INTERNAL" | "EXTERNAL"
     private String role;            // "MAKER" | "CHECKER"
     private String status;          // "ACTIVE" | "INACTIVE"
+    
+ // External org fields — null when INTERNAL
+    private String externalDepartmentName;
+    private String externalSupervisorName;
+    private String externalSupervisorEmail;
+    private String externalSupervisorPhone;
+    
     private String institutionCode;
     private String createdBy;
     private LocalDateTime createdAt;
