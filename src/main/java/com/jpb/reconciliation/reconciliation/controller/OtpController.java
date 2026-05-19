@@ -1,10 +1,13 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
+import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.KalSuperService;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.User;
@@ -19,6 +22,8 @@ import java.util.Map;
 @RequestMapping("/api/otp")
 @CrossOrigin(origins = "*")
 public class OtpController {
+
+    private static final Logger logger = LoggerFactory.getLogger(OtpController.class);
 
     @Autowired
     private OtpService otpService;
@@ -45,16 +50,26 @@ public class OtpController {
 
         try {
             otpService.generateAndSendOtp(email);
+            logger.info("[OTP-SEND] OTP sent successfully to: {}", maskEmail(email));
 
             Map<String, Object> res = new HashMap<>();
             res.put("success", true);
             res.put("message", "OTP sent to " + maskEmail(email));
             return ResponseEntity.ok(res);
 
-        } catch (Exception e) {
+        } catch (EmailDeliveryException e) {
+            // OTP was already rolled back inside OtpService — safe to return error
+            logger.error("[OTP-SEND-FAIL] Email delivery failed for: {} | reason: {}", maskEmail(email), e.getMessage());
             return ResponseEntity
                     .status(500)
-                    .body(errorResponse("Failed to send OTP. Please try again."));
+                    .body(errorResponse("We could not deliver the OTP to your email address. " +
+                            "Please check the address and try again. " +
+                            "If the problem persists, contact support@kalinfotech.com"));
+        } catch (Exception e) {
+            logger.error("[OTP-SEND-FAIL] Unexpected error for: {} | reason: {}", maskEmail(email), e.getMessage());
+            return ResponseEntity
+                    .status(500)
+                    .body(errorResponse("An unexpected error occurred. Please try again."));
         }
     }
 
@@ -154,16 +169,25 @@ public class OtpController {
 
         try {
             otpService.resendOtp(email);
+            logger.info("[OTP-RESEND] OTP resent successfully to: {}", maskEmail(email));
 
             Map<String, Object> res = new HashMap<>();
             res.put("success", true);
             res.put("message", "New OTP sent to " + maskEmail(email));
             return ResponseEntity.ok(res);
 
-        } catch (Exception e) {
+        } catch (EmailDeliveryException e) {
+            // OTP rollback already handled inside OtpService
+            logger.error("[OTP-RESEND-FAIL] Email delivery failed for: {} | reason: {}", maskEmail(email), e.getMessage());
             return ResponseEntity
                     .status(500)
-                    .body(errorResponse("Failed to resend OTP."));
+                    .body(errorResponse("We could not deliver the OTP to your email address. " +
+                            "Please check the address and try again."));
+        } catch (Exception e) {
+            logger.error("[OTP-RESEND-FAIL] Unexpected error for: {} | reason: {}", maskEmail(email), e.getMessage());
+            return ResponseEntity
+                    .status(500)
+                    .body(errorResponse("An unexpected error occurred while resending OTP. Please try again."));
         }
     }
 

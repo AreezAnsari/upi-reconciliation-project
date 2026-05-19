@@ -334,11 +334,13 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         // RETIRED can only be set if current status is not already RETIRED
         // (admin can set any → RETIRED but not out of RETIRED)
 
-        institution.setStatus(status.toUpperCase());
+        String upperStatus = status.toUpperCase();
+
+        institution.setStatus(upperStatus);
         institution.setUpdatedAt(LocalDateTime.now());
         testInstitutionRepository.save(institution);
 
-        logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, status.toUpperCase());
+        logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, upperStatus);
 
         // ── Send status change notification email to Super User ──
         try {
@@ -349,17 +351,101 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
                     institution.getInstitutionNameFull(),
                     institution.getInstitutionCode(),
                     currentStatus,
-                    status.toUpperCase()
+                    upperStatus
                 );
             }
         } catch (Exception e) {
-            // Email failure should NOT block the status update — just log
             logger.warn("Status updated but notification email failed for institution {}: {}",
                         institution.getInstitutionCode(), e.getMessage());
         }
 
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Institution status updated to '" + status.toUpperCase() + "'.", new ArrayList<>()));
+        // ── Cascade status to sub-institutes based on business rules ─────────
+        // BLOCKED  → all non-RETIRED sub-institutes get BLOCKED
+        // RETIRED  → all non-RETIRED sub-institutes get RETIRED (permanent)
+        // ACTIVE   → only currently-BLOCKED sub-institutes restored to ACTIVE
+        //            (INACTIVE ones stay INACTIVE — they were inactive independently)
+        //            (RETIRED ones stay RETIRED — permanent, never touched)
+        int cascadeCount = 0;
+        boolean shouldCascade = "BLOCKED".equals(upperStatus)
+                             || "RETIRED".equals(upperStatus)
+                             || "ACTIVE".equals(upperStatus);
+
+        if (shouldCascade) {
+            logger.info("[CASCADE] Triggered for institution {} ({}) → status: {}",
+                    institutionId, institution.getInstitutionCode(), upperStatus);
+
+            List<com.jpb.reconciliation.reconciliation.entity.SubTestInstitution> subInstitutes =
+                subTestInstitutionRepository.findByParentInstitutionId(institutionId);
+
+            logger.info("[CASCADE] Found {} sub-institute(s) under institution {}",
+                    subInstitutes.size(), institutionId);
+
+            for (com.jpb.reconciliation.reconciliation.entity.SubTestInstitution sub : subInstitutes) {
+                String subCurrentStatus = sub.getStatus();
+
+                // RETIRED sub-institutes are permanent — never touch them
+                if ("RETIRED".equals(subCurrentStatus)) {
+                    logger.info("[CASCADE] Skipping RETIRED sub-institute: {} ({})",
+                            sub.getSubInstitutionId(), sub.getInstitutionCode());
+                    continue;
+                }
+
+                if ("BLOCKED".equals(upperStatus)) {
+                    // Save current status before blocking so we can restore it later
+                    sub.setPreBlockStatus(subCurrentStatus);
+                    sub.setStatus("BLOCKED");
+                    subTestInstitutionRepository.save(sub);
+                    cascadeCount++;
+                    logger.info("[CASCADE] Sub-institute {} ({}) {} → BLOCKED (preBlockStatus saved: {})",
+                            sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus, subCurrentStatus);
+                    // Send email to sub-institute primary contact
+                    sendSubCascadeEmail(sub, subCurrentStatus, "BLOCKED", institution);
+                    continue;
+                }
+
+                if ("ACTIVE".equals(upperStatus)) {
+                    // Restore to last state before block — only if it was blocked via cascade
+                    if (!"BLOCKED".equals(subCurrentStatus)) {
+                        logger.info("[CASCADE] Skipping sub-institute {} ({}) — status is {}, not BLOCKED",
+                                sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus);
+                        continue;
+                    }
+                    // Restore from preBlockStatus — if not saved, default to ACTIVE
+                    String restoreStatus = (sub.getPreBlockStatus() != null && !sub.getPreBlockStatus().isEmpty())
+                            ? sub.getPreBlockStatus()
+                            : "ACTIVE";
+                    sub.setStatus(restoreStatus);
+                    sub.setPreBlockStatus(null); // clear after restore
+                    subTestInstitutionRepository.save(sub);
+                    cascadeCount++;
+                    logger.info("[CASCADE] Sub-institute {} ({}) BLOCKED → {} (restored from preBlockStatus)",
+                            sub.getSubInstitutionId(), sub.getInstitutionCode(), restoreStatus);
+                    // Send email to sub-institute primary contact
+                    sendSubCascadeEmail(sub, subCurrentStatus, restoreStatus, institution);
+                    continue;
+                }
+
+                // RETIRED — permanent, cascade to all non-RETIRED
+                sub.setPreBlockStatus(null); // clear any saved state — RETIRED is final
+                sub.setStatus(upperStatus);
+                subTestInstitutionRepository.save(sub);
+                cascadeCount++;
+                logger.info("[CASCADE] Sub-institute {} ({}) {} → {}",
+                        sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus, upperStatus);
+                // Send email to sub-institute primary contact
+                sendSubCascadeEmail(sub, subCurrentStatus, upperStatus, institution);
+            }
+
+            logger.info("[CASCADE] Done — {} sub-institute(s) updated for institution {}",
+                    cascadeCount, institutionId);
+        }
+
+        String message = "Institution status updated to '" + upperStatus + "'.";
+        if (cascadeCount > 0) {
+            message += " " + cascadeCount + " sub-institute(s) also updated.";
+        }
+
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", message, new ArrayList<>()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -514,6 +600,37 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     private String generateDefaultPassword() {
         int digits = 1000 + new Random().nextInt(9000);
         return "Recon@" + digits;
+    }
+
+    /**
+     * Fire-and-forget email to sub-institute primary contact after cascade status change.
+     * Uses @Async in EmailServiceImpl — never blocks the transaction.
+     */
+    private void sendSubCascadeEmail(
+            com.jpb.reconciliation.reconciliation.entity.SubTestInstitution sub,
+            String oldStatus, String newStatus,
+            TestInstitution parent) {
+        try {
+            if (sub.getPrimaryEmail() == null || sub.getPrimaryEmail().isEmpty()) {
+                logger.warn("[CASCADE-EMAIL] No email for sub-institute: {} ({})",
+                        sub.getSubInstitutionId(), sub.getInstitutionCode());
+                return;
+            }
+            emailService.sendSubInstituteStatusNotification(
+                    sub.getPrimaryEmail(),
+                    sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Contact",
+                    sub.getInstitutionNameFull() != null ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
+                    sub.getInstitutionCode(),
+                    oldStatus,
+                    newStatus,
+                    parent.getInstitutionNameFull(),
+                    parent.getInstitutionCode()
+            );
+        } catch (Exception e) {
+            // Email failure must never break the cascade transaction
+            logger.warn("[CASCADE-EMAIL] Failed for sub-institute {} ({}): {}",
+                    sub.getSubInstitutionId(), sub.getInstitutionCode(), e.getMessage());
+        }
     }
 
     /** Convenience — 400 Bad Request */
@@ -739,6 +856,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             dto.setRegCountry(sub.getRegCountry());
             dto.setPrimaryFullName(sub.getPrimaryFullName());
             dto.setPrimaryEmail(sub.getPrimaryEmail());
+            dto.setPrimaryMobile(sub.getPrimaryPhone());
             dto.setStatus(sub.getStatus());
             return dto;
         }).collect(Collectors.toList());

@@ -31,4 +31,14 @@ public interface EmailService {
     void sendStatusChangeNotification(String toEmail, String superUserName,
                                       String institutionName, String institutionCode,
                                       String oldStatus, String newStatus);
+
+    /**
+     * Send cascade status change notification to a Sub-Institute's primary contact.
+     * Triggered when parent institution is BLOCKED / ACTIVE / RETIRED.
+     * Email includes a note referencing the parent institution that caused the cascade.
+     */
+    void sendSubInstituteStatusNotification(String toEmail, String contactName,
+                                            String subInstitutionName, String subInstitutionCode,
+                                            String oldStatus, String newStatus,
+                                            String parentInstitutionName, String parentInstitutionCode);
 }

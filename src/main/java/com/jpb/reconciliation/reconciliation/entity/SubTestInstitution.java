@@ -63,6 +63,10 @@ public class SubTestInstitution {
     @Column(name = "status", length = 20)
     private String status;
 
+    // Stores the status before a parent-cascade BLOCK — used to restore on ACTIVE
+    @Column(name = "pre_block_status", length = 20)
+    private String preBlockStatus;
+
     @Column(name = "created_by", length = 100)
     private String createdBy;
 

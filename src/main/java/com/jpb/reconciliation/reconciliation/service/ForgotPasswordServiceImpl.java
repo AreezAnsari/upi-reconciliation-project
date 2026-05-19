@@ -44,23 +44,40 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
 
         Optional<ReconUser> userOpt = reconUserRepository.findByEmailId(email);
         if (!userOpt.isPresent()) {
-            // Don't reveal whether the email is registered (security practice)
-            logger.warn("Forgot password requested for unknown email: {}", email);
+            logger.warn("Forgot password requested for unregistered email: {}", email);
             return ResponseEntity.ok(
-                new ForgotPasswordResponseDto("200", "If this email is registered, an OTP has been sent.")
+                new ForgotPasswordResponseDto("404",
+                    "This email address is not registered in our system. " +
+                    "Please check and try again, or contact your administrator.")
             );
         }
 
         ReconUser user = userOpt.get();
 
+        String otpCode = null;
         try {
-            String otpCode = otpService.generateOtpForEmail(email);
+            // Generate and store OTP FIRST — we'll roll it back if delivery fails
+            otpCode = otpService.generateOtpForEmail(email);
+
+            // Attempt email delivery — throws RuntimeException on failure
             emailService.sendForgotPasswordOtp(email, user.getUserName(), otpCode, otpService.getOtpExpiryMinutes());
-            logger.info("OTP sent successfully to: {}", email);
+
+            logger.info("OTP generated and delivered successfully to: {}", email);
+
         } catch (Exception e) {
+            // ── Roll back: remove the undelivered OTP from memory ─────────────
+            // Without this, a user could guess/brute-force an OTP that was
+            // never actually delivered to their inbox.
+            if (otpCode != null) {
+                otpService.invalidateOtp(email);
+                logger.warn("OTP invalidated for {} after failed email delivery.", email);
+            }
             logger.error("Failed to send OTP to {}: {}", email, e.getMessage());
             return ResponseEntity.ok(
-                new ForgotPasswordResponseDto("500", "Failed to send OTP. Please try again.")
+                new ForgotPasswordResponseDto("500",
+                    "We were unable to deliver the OTP to your email address. " +
+                    "Please check that your email is correct and try again. " +
+                    "If the issue persists, contact support@kalinfotech.com")
             );
         }
 

@@ -1,9 +1,13 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
 
 import javax.mail.internet.MimeMessage;
 import java.security.SecureRandom;
@@ -14,23 +18,41 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class OtpService {
 
+    private static final Logger logger = LoggerFactory.getLogger(OtpService.class);
+
     @Autowired
     private JavaMailSender mailSender;
 
     // Temporary in-memory store — no DB table needed
-    // Key = email, Value = OtpEntry
+    // Key = email (lowercase), Value = OtpEntry
     private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
 
     private static final int OTP_EXPIRY_MINUTES = 5;
     private static final int MAX_ATTEMPTS = 3;
 
-    // ─── Generate & Send OTP ─────────────────────────────────────────────────
-
+    // ─── Generate & Send OTP — ATOMIC ────────────────────────────────────────
+    // OTP is stored first, then email is attempted.
+    // If email delivery fails, the OTP is removed (rollback) so an
+    // undelivered OTP can never be brute-forced or accidentally used.
     public void generateAndSendOtp(String email) {
+        String key = email.toLowerCase();
         String otp = generateOtp();
         LocalDateTime expiry = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
-        otpStore.put(email.toLowerCase(), new OtpEntry(otp, expiry, 0));
-        sendOtpEmail(email, otp);
+
+        // Store OTP tentatively
+        otpStore.put(key, new OtpEntry(otp, expiry, 0));
+
+        try {
+            sendOtpEmail(email, otp);
+            logger.info("[OTP-OK] OTP generated and delivered to: {}", key);
+        } catch (Exception e) {
+            // ── Rollback: remove undelivered OTP from memory ──────────────────
+            otpStore.remove(key);
+            logger.error("[OTP-ROLLBACK] OTP removed for {} after email delivery failure: {}", key, e.getMessage());
+            throw new EmailDeliveryException(
+                "OTP could not be delivered to " + email + ". Please verify the email address and try again.",
+                email, e);
+        }
     }
 
     // Generates + stores OTP but returns the code so caller can send via EmailService
@@ -77,6 +99,12 @@ public class OtpService {
         generateAndSendOtp(email); // resets expiry and attempts
     }
 
+    // ─── Invalidate OTP (call when email delivery fails) ─────────────────────
+    // Removes the OTP from memory so an undelivered OTP cannot be used later.
+    public void invalidateOtp(String email) {
+        otpStore.remove(email.toLowerCase());
+    }
+
     // ─── Private Helpers ─────────────────────────────────────────────────────
 
     private String generateOtp() {
@@ -97,7 +125,8 @@ public class OtpService {
 
             mailSender.send(message);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to send OTP email to: " + toEmail, e);
+            logger.error("[EMAIL-DELIVERY-FAIL] OTP login email — recipient: {} | reason: {}", toEmail, e.getMessage());
+            throw new EmailDeliveryException("Failed to deliver OTP email to: " + toEmail, toEmail, e);
         }
     }
 

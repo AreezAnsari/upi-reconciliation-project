@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.entity.SubTestInstitution;
 import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
+import com.jpb.reconciliation.reconciliation.repository.SubTestInstitutionRepository;
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
@@ -25,6 +27,9 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
 
     @Autowired
     private TestInstitutionRepository testInstitutionRepository;
+
+    @Autowired
+    private SubTestInstitutionRepository subTestInstitutionRepository;
 
     @Autowired
     private EmailService emailService;
@@ -64,7 +69,7 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                 institutionId, scheduledBy, inst.getRetireScheduledAt());
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Retire scheduled. Institution will be permanently retired in 30 seconds. You can undo this within 30 seconds.",
+                "Retire scheduled. Institution will be permanently retired in 24 hours. You can undo this within 24 hours.",
                 new ArrayList<>()));
     }
 
@@ -88,8 +93,8 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
         }
 
         if (inst.getRetireScheduledAt() != null &&
-                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusSeconds(30))) {
-            return bad("Undo period has expired (30 seconds). Institution has been retired.");
+                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusHours(24))) {
+            return bad("Undo period has expired (24 hours). Institution has been retired.");
         }
 
         String restoredStatus = inst.getPreRetireStatus() != null ? inst.getPreRetireStatus() : "ACTIVE";
@@ -108,13 +113,13 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
     }
 
     // ─────────────────────────────────────────────
-    // AUTO-RETIRE — Runs every 5 seconds (DEMO MODE)
-    // Retires institutions whose 30s window has passed
+    // AUTO-RETIRE — Runs every 24 hours
+    // Retires institutions whose 24hr window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 86400000)
     @Transactional
     public void autoRetireScheduledInstitutions() {
-        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
 
         List<TestInstitution> pendingList = testInstitutionRepository
                 .findByStatusAndRetireScheduledAtBefore("RETIRE_PENDING", cutoff);
@@ -145,6 +150,42 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-retire email failed for institution {}: {}",
                             inst.getInstitutionCode(), e.getMessage());
+            }
+
+            // ── Cascade RETIRED to all sub-institutes ──
+            List<SubTestInstitution> subs =
+                    subTestInstitutionRepository.findByParentInstitutionId(inst.getInstitutionId());
+            logger.info("[CASCADE] Auto-retire: {} sub-institute(s) found under institution {} ({})",
+                    subs.size(), inst.getInstitutionNameFull(), inst.getInstitutionCode());
+
+            for (SubTestInstitution sub : subs) {
+                if ("RETIRED".equals(sub.getStatus())) continue;   // already retired — skip
+
+                String subOldStatus = sub.getStatus();
+                sub.setPreBlockStatus(null);   // RETIRED is permanent — clear any saved state
+                sub.setStatus("RETIRED");
+                subTestInstitutionRepository.save(sub);
+                logger.info("[CASCADE] Auto-retire: sub-institute {} ({}) → RETIRED (was: {})",
+                        sub.getInstitutionCode(), sub.getSubInstitutionId(), subOldStatus);
+
+                // Send email to sub-institute Super User
+                try {
+                    if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
+                        emailService.sendSubInstituteStatusNotification(
+                            sub.getPrimaryEmail(),
+                            sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Super User",
+                            sub.getInstitutionNameFull() != null
+                                    ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
+                            sub.getInstitutionCode(),
+                            subOldStatus, "RETIRED",
+                            inst.getInstitutionNameFull(),
+                            inst.getInstitutionCode()
+                        );
+                    }
+                } catch (Exception e) {
+                    logger.warn("[CASCADE-EMAIL] Auto-retire email failed for sub-institute {} ({}): {}",
+                            sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
+                }
             }
         }
     }

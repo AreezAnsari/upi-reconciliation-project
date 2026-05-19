@@ -201,10 +201,6 @@ public class TestInstitution {
     @Column(insertable = false, name = "updated_by")
     private String updatedBy;
     
-    // Sub-institute link — null means this IS a parent institution
-    @Column(name = "parent_institution_id")
-    private Long parentInstitutionId;
-
     // Retire schedule — set when admin schedules retire
     @Column(name = "retire_scheduled_at")
     private LocalDateTime retireScheduledAt;

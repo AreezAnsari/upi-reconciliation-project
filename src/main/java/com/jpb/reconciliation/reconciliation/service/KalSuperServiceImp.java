@@ -17,6 +17,7 @@ import com.jpb.reconciliation.reconciliation.dto.KalSuperUserVerifyDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.KalSuperUser;
 import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
+import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
 import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
@@ -278,21 +279,26 @@ public class KalSuperServiceImp implements KalSuperService {
         try {
 
             otpService.generateAndSendOtp(email);
+            // OTP is atomic — if this line is reached, email was delivered successfully
+            logger.info("[OTP-OK] OTP sent successfully to: {}", email);
 
-            logger.info(
-                    "OTP sent successfully to: {}",
-                    email);
-
-        } catch (Exception e) {
-
-            logger.error(
-                    "OTP send failed: {}",
-                    e.getMessage());
-
+        } catch (EmailDeliveryException e) {
+            // OTP already rolled back inside OtpService.generateAndSendOtp()
+            logger.error("[OTP-FAIL] Email delivery failed for: {} | reason: {}", email, e.getMessage());
             return new ResponseEntity<>(
                     new RestWithStatusList(
                             "FAILURE",
-                            "Failed to send OTP.",
+                            "We could not deliver the OTP to " + email + ". " +
+                            "Please verify the email address is correct and try again.",
+                            null),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+
+        } catch (Exception e) {
+            logger.error("[OTP-FAIL] Unexpected error while sending OTP to: {} | reason: {}", email, e.getMessage());
+            return new ResponseEntity<>(
+                    new RestWithStatusList(
+                            "FAILURE",
+                            "An unexpected error occurred while sending OTP. Please try again.",
                             null),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
