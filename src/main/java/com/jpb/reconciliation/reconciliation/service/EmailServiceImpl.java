@@ -495,6 +495,210 @@ public class EmailServiceImpl implements EmailService {
             + "</table></td></tr></table></body></html>";
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // RETIRE WARNING — Institution Super User
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendRetireWarning(String toEmail, String superUserName,
+                                  String institutionName, String institutionCode,
+                                  String retireAt) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("⚠️ ReconXpert.Ai — Retirement Notice: " + institutionName);
+            helper.setText(buildRetireWarningHtml(superUserName, institutionName, institutionCode, retireAt), true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Retire warning — recipient: {} | institution: {} | retireAt: {}",
+                    toEmail, institutionCode, retireAt);
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Retire warning — recipient: {} | institution: {} | reason: {}",
+                    toEmail, institutionCode, e.getMessage());
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Retire warning — unexpected — recipient: {} | reason: {}",
+                    toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // RETIRE WARNING — Sub-Institute Primary Contact
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendSubInstituteRetireWarning(String toEmail, String contactName,
+                                              String subInstitutionName, String subInstitutionCode,
+                                              String parentInstitutionName, String parentInstitutionCode,
+                                              String retireAt) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("⚠️ ReconXpert.Ai — Retirement Notice: " + subInstitutionName);
+            helper.setText(buildSubRetireWarningHtml(contactName, subInstitutionName, subInstitutionCode,
+                    parentInstitutionName, parentInstitutionCode, retireAt), true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Sub retire warning — recipient: {} | sub: {} | parent: {} | retireAt: {}",
+                    toEmail, subInstitutionCode, parentInstitutionCode, retireAt);
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub retire warning — recipient: {} | sub: {} | reason: {}",
+                    toEmail, subInstitutionCode, e.getMessage());
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub retire warning — unexpected — recipient: {} | reason: {}",
+                    toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Institution Retire Warning
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildRetireWarningHtml(String name, String institutionName,
+                                          String institutionCode, String retireAt) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Warning banner
+            + "<tr><td style='background:rgba(245,158,11,0.1);border-bottom:3px solid #f59e0b;padding:24px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:40px;'>⚠️</p>"
+            + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#b45309;'>Account Retirement Scheduled</p>"
+            + "<p style='margin:0;font-size:13px;color:#92400e;'>Your account will be permanently retired on <strong>" + sanitize(retireAt) + "</strong></p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
+            + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
+            + "This is an urgent notice that your institution's account on <strong>ReconXpert.Ai</strong> has been "
+            + "<strong>scheduled for permanent retirement</strong> by KalInfotech Administration. "
+            + "Once retired, all platform access and reconciliation services will be <strong>permanently closed</strong> "
+            + "and cannot be reversed."
+            + "</p>"
+
+            // Details box
+            + "<div style='background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+            + "<p style='margin:0 0 14px;font-size:11px;color:#92400e;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Retirement Details</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;width:170px;'>Institution Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(institutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Institution Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Scheduled By</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>KalInfotech Administration</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Retirement Time</td>"
+            + "<td style='font-size:13px;font-weight:700;color:#b45309;padding:5px 0;'>" + sanitize(retireAt) + "</td></tr>"
+            + "</table></div>"
+
+            // Urgent action
+            + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;padding:16px 18px;margin-bottom:24px;'>"
+            + "<p style='margin:0 0 6px;font-size:13px;color:#991b1b;font-weight:700;'>⚡ Immediate Action Required</p>"
+            + "<p style='margin:0;font-size:13px;color:#991b1b;line-height:1.7;'>"
+            + "If you believe this is an error or wish to cancel the retirement, please contact KalInfotech Administration "
+            + "<strong>immediately</strong> at "
+            + "<a href='mailto:support@kalinfotech.com' style='color:#dc2626;font-weight:600;'>support@kalinfotech.com</a>. "
+            + "This action can only be cancelled before the scheduled retirement time."
+            + "</p></div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Sub-Institute Retire Warning
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildSubRetireWarningHtml(String contactName,
+                                              String subInstitutionName, String subInstitutionCode,
+                                              String parentInstitutionName, String parentInstitutionCode,
+                                              String retireAt) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Warning banner
+            + "<tr><td style='background:rgba(245,158,11,0.1);border-bottom:3px solid #f59e0b;padding:24px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:40px;'>⚠️</p>"
+            + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#b45309;'>Account Retirement Scheduled</p>"
+            + "<p style='margin:0;font-size:13px;color:#92400e;'>Your account will be permanently retired on <strong>" + sanitize(retireAt) + "</strong></p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(contactName) + "</strong>,"
+            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(subInstitutionName) + "</span></p>"
+            + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
+            + "This is an urgent notice that your institution's account on <strong>ReconXpert.Ai</strong> has been "
+            + "<strong>scheduled for permanent retirement</strong>. This action has been triggered by the retirement "
+            + "of your parent institution, <strong>" + sanitize(parentInstitutionName) + "</strong>, by KalInfotech Administration."
+            + "</p>"
+
+            // Details box
+            + "<div style='background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:8px;padding:20px 24px;margin-bottom:16px;'>"
+            + "<p style='margin:0 0 14px;font-size:11px;color:#92400e;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Retirement Details</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;width:170px;'>Your Institution</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(subInstitutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Your Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(subInstitutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Retirement Time</td>"
+            + "<td style='font-size:13px;font-weight:700;color:#b45309;padding:5px 0;'>" + sanitize(retireAt) + "</td></tr>"
+            + "</table></div>"
+
+            // Issued by
+            + "<div style='background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;padding:16px 20px;margin-bottom:20px;'>"
+            + "<p style='margin:0 0 10px;font-size:11px;color:#4338ca;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Issued By</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:170px;'>Issuing Authority</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>KalInfotech Administration</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Network Institution</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(parentInstitutionName)
+            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentInstitutionCode) + ")</span></td></tr>"
+            + "</table></div>"
+
+            // Urgent action
+            + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;padding:16px 18px;'>"
+            + "<p style='margin:0 0 6px;font-size:13px;color:#991b1b;font-weight:700;'>⚡ Immediate Action Required</p>"
+            + "<p style='margin:0;font-size:13px;color:#991b1b;line-height:1.7;'>"
+            + "If you wish to raise an objection or seek clarification, please contact KalInfotech Administration "
+            + "<strong>before</strong> the scheduled retirement time at "
+            + "<a href='mailto:support@kalinfotech.com' style='color:#dc2626;font-weight:600;'>support@kalinfotech.com</a>."
+            + "</p></div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;'>"
+            + "<table width='100%'><tr>"
+            + "<td style='font-size:12px;color:#94a3b8;'>ReconXpert.Ai &nbsp;|&nbsp; KalInfotech</td>"
+            + "<td style='font-size:12px;color:#94a3b8;text-align:right;'>This is a system-generated notification. Do not reply.</td>"
+            + "</tr></table>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
     // Prevent XSS — sanitize user input before putting in HTML
     private String sanitize(String input) {
         if (input == null) return "";

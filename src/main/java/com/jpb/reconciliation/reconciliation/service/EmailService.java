@@ -41,4 +41,21 @@ public interface EmailService {
                                             String subInstitutionName, String subInstitutionCode,
                                             String oldStatus, String newStatus,
                                             String parentInstitutionName, String parentInstitutionCode);
+
+    /**
+     * Send retirement warning email to Institution's Super User when admin schedules retire.
+     * Tells them: account will be retired in 24 hours, contact admin to cancel.
+     */
+    void sendRetireWarning(String toEmail, String superUserName,
+                           String institutionName, String institutionCode,
+                           String retireAt);
+
+    /**
+     * Send retirement warning email to a Sub-Institute's primary contact.
+     * Triggered at same time as parent institution retire warning.
+     */
+    void sendSubInstituteRetireWarning(String toEmail, String contactName,
+                                       String subInstitutionName, String subInstitutionCode,
+                                       String parentInstitutionName, String parentInstitutionCode,
+                                       String retireAt);
 }

@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -68,6 +69,54 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
         logger.info("Retire scheduled for institution {} by {} at {}",
                 institutionId, scheduledBy, inst.getRetireScheduledAt());
 
+        // ── Formatted retire time for emails ──
+        String retireAtFormatted = inst.getRetireScheduledAt()
+                .plusHours(24)
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+
+        // ── Send warning email to Institution Super User ──
+        try {
+            if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
+                emailService.sendRetireWarning(
+                        inst.getPrimaryEmail(),
+                        inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
+                        inst.getInstitutionNameFull(),
+                        inst.getInstitutionCode(),
+                        retireAtFormatted
+                );
+                logger.info("[RETIRE-WARN] Warning email sent to institution super user: {}", inst.getPrimaryEmail());
+            }
+        } catch (Exception e) {
+            logger.warn("[RETIRE-WARN] Warning email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
+        }
+
+        // ── Send warning email to all Sub-Institutes ──
+        List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(institutionId);
+        logger.info("[RETIRE-WARN] Sending retirement warning to {} sub-institute(s) under institution {}",
+                subs.size(), inst.getInstitutionCode());
+
+        for (SubTestInstitution sub : subs) {
+            if ("RETIRED".equals(sub.getStatus())) continue;
+            try {
+                if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
+                    emailService.sendSubInstituteRetireWarning(
+                            sub.getPrimaryEmail(),
+                            sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Super User",
+                            sub.getInstitutionNameFull() != null ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
+                            sub.getInstitutionCode(),
+                            inst.getInstitutionNameFull(),
+                            inst.getInstitutionCode(),
+                            retireAtFormatted
+                    );
+                    logger.info("[RETIRE-WARN] Warning email sent to sub-institute: {} ({})",
+                            sub.getInstitutionCode(), sub.getPrimaryEmail());
+                }
+            } catch (Exception e) {
+                logger.warn("[RETIRE-WARN] Warning email failed for sub-institute {} ({}): {}",
+                        sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
+            }
+        }
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Retire scheduled. Institution will be permanently retired in 24 hours. You can undo this within 24 hours.",
                 new ArrayList<>()));
@@ -93,7 +142,7 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
         }
 
         if (inst.getRetireScheduledAt() != null &&
-                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusSeconds(30))) {
+                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusHours(24))) {
             return bad("Undo period has expired (24 hours). Institution has been retired.");
         }
 
@@ -116,10 +165,10 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
     // AUTO-RETIRE — Runs every 24 hours
     // Retires institutions whose 24hr window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 86400000)   // runs every 24 hours
     @Transactional
     public void autoRetireScheduledInstitutions() {
-        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
 
         List<TestInstitution> pendingList = testInstitutionRepository
                 .findByStatusAndRetireScheduledAtBefore("RETIRE_PENDING", cutoff);
