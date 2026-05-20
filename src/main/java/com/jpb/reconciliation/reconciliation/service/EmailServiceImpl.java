@@ -552,6 +552,193 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // RETIRE CANCELLED — Institution Super User
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendRetireCancelled(String toEmail, String superUserName,
+                                    String institutionName, String institutionCode,
+                                    String restoredStatus) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("✅ ReconXpert.Ai — Retirement Cancelled: " + institutionName);
+            helper.setText(buildRetireCancelledHtml(superUserName, institutionName, institutionCode, restoredStatus), true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Retire cancelled — recipient: {} | institution: {}", toEmail, institutionCode);
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Retire cancelled — recipient: {} | institution: {} | reason: {}",
+                    toEmail, institutionCode, e.getMessage());
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Retire cancelled — unexpected — recipient: {} | reason: {}",
+                    toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // RETIRE CANCELLED — Sub-Institute Primary Contact
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendSubInstituteRetireCancelled(String toEmail, String contactName,
+                                                 String subInstitutionName, String subInstitutionCode,
+                                                 String parentInstitutionName, String parentInstitutionCode) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("✅ ReconXpert.Ai — Retirement Cancelled: " + subInstitutionName);
+            helper.setText(buildSubRetireCancelledHtml(contactName, subInstitutionName, subInstitutionCode,
+                    parentInstitutionName, parentInstitutionCode), true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Sub retire cancelled — recipient: {} | sub: {} | parent: {}",
+                    toEmail, subInstitutionCode, parentInstitutionCode);
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub retire cancelled — recipient: {} | sub: {} | reason: {}",
+                    toEmail, subInstitutionCode, e.getMessage());
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub retire cancelled — unexpected — recipient: {} | reason: {}",
+                    toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Retire Cancelled (Institution)
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildRetireCancelledHtml(String name, String institutionName,
+                                             String institutionCode, String restoredStatus) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Success banner
+            + "<tr><td style='background:rgba(34,197,94,0.1);border-bottom:3px solid #22c55e;padding:24px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:40px;'>✅</p>"
+            + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#15803d;'>Retirement Successfully Cancelled</p>"
+            + "<p style='margin:0;font-size:13px;color:#166534;'>Your account has been restored to <strong>" + sanitize(restoredStatus) + "</strong> status</p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
+            + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
+            + "We are pleased to inform you that the scheduled retirement of your institution's account on "
+            + "<strong>ReconXpert.Ai</strong> has been <strong>successfully cancelled</strong> by KalInfotech Administration. "
+            + "Your account is now fully restored and you may continue using the platform as normal."
+            + "</p>"
+
+            // Details box
+            + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+            + "<p style='margin:0 0 14px;font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Account Restoration Details</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#4ade80;padding:5px 0;width:170px;color:#166534;'>Institution Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(institutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Institution Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Restored Status</td>"
+            + "<td style='font-size:13px;font-weight:700;color:#15803d;padding:5px 0;'>" + sanitize(restoredStatus) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Action By</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>KalInfotech Administration</td></tr>"
+            + "</table></div>"
+
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'>"
+            + "<strong>Note:</strong> No further action is required from your side. "
+            + "If you have any questions, please contact us at "
+            + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "</p></div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Retire Cancelled (Sub-Institute)
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildSubRetireCancelledHtml(String contactName,
+                                                String subInstitutionName, String subInstitutionCode,
+                                                String parentInstitutionName, String parentInstitutionCode) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Success banner
+            + "<tr><td style='background:rgba(34,197,94,0.1);border-bottom:3px solid #22c55e;padding:24px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:40px;'>✅</p>"
+            + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#15803d;'>Retirement Successfully Cancelled</p>"
+            + "<p style='margin:0;font-size:13px;color:#166534;'>Your account retirement has been called off — no action required</p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(contactName) + "</strong>,"
+            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(subInstitutionName) + "</span></p>"
+            + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
+            + "We are pleased to inform you that the scheduled retirement of your institution on "
+            + "<strong>ReconXpert.Ai</strong> has been <strong>successfully cancelled</strong>. "
+            + "This follows the cancellation of the retirement of your parent institution, "
+            + "<strong>" + sanitize(parentInstitutionName) + "</strong>, by KalInfotech Administration. "
+            + "Your platform access and all reconciliation services remain fully active."
+            + "</p>"
+
+            // Details box
+            + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin-bottom:16px;'>"
+            + "<p style='margin:0 0 14px;font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Your Institution Details</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;width:170px;'>Your Institution</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(subInstitutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Your Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(subInstitutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Network Institution</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(parentInstitutionName)
+            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentInstitutionCode) + ")</span></td></tr>"
+            + "</table></div>"
+
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'>"
+            + "<strong>No action required.</strong> You may continue using the platform normally. "
+            + "For any queries, contact us at "
+            + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "</p></div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 40px;'>"
+            + "<table width='100%'><tr>"
+            + "<td style='font-size:12px;color:#94a3b8;'>ReconXpert.Ai &nbsp;|&nbsp; KalInfotech</td>"
+            + "<td style='font-size:12px;color:#94a3b8;text-align:right;'>This is a system-generated notification. Do not reply.</td>"
+            + "</tr></table>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // HTML TEMPLATE — Institution Retire Warning
     // ─────────────────────────────────────────────────────────────────────
     private String buildRetireWarningHtml(String name, String institutionName,

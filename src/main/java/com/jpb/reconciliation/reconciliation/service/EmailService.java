@@ -51,6 +51,20 @@ public interface EmailService {
                            String retireAt);
 
     /**
+     * Send retirement cancelled email to Institution's Super User when admin undoes retire.
+     */
+    void sendRetireCancelled(String toEmail, String superUserName,
+                             String institutionName, String institutionCode,
+                             String restoredStatus);
+
+    /**
+     * Send retirement cancelled email to a Sub-Institute when parent's retire is undone.
+     */
+    void sendSubInstituteRetireCancelled(String toEmail, String contactName,
+                                         String subInstitutionName, String subInstitutionCode,
+                                         String parentInstitutionName, String parentInstitutionCode);
+
+    /**
      * Send retirement warning email to a Sub-Institute's primary contact.
      * Triggered at same time as parent institution retire warning.
      */

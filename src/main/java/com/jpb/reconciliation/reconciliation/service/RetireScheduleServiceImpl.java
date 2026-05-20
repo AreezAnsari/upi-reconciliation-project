@@ -142,8 +142,8 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
         }
 
         if (inst.getRetireScheduledAt() != null &&
-                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusHours(24))) {
-            return bad("Undo period has expired (24 hours). Institution has been retired.");
+                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusSeconds(30))) {  // DEMO: 30s — change to plusHours(24) for production
+            return bad("Undo period has expired (30 seconds). Institution has been retired.");
         }
 
         String restoredStatus = inst.getPreRetireStatus() != null ? inst.getPreRetireStatus() : "ACTIVE";
@@ -156,6 +156,45 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
         testInstitutionRepository.save(inst);
         logger.info("Retire undone for institution {} by {}. Restored to {}", institutionId, undoneBy, restoredStatus);
 
+        // ── Send cancellation email to Institution Super User ──
+        try {
+            if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
+                emailService.sendRetireCancelled(
+                        inst.getPrimaryEmail(),
+                        inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
+                        inst.getInstitutionNameFull(),
+                        inst.getInstitutionCode(),
+                        restoredStatus
+                );
+                logger.info("[UNDO-RETIRE] Cancellation email sent to super user: {}", inst.getPrimaryEmail());
+            }
+        } catch (Exception e) {
+            logger.warn("[UNDO-RETIRE] Cancellation email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
+        }
+
+        // ── Send cancellation email to all non-RETIRED Sub-Institutes ──
+        List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(institutionId);
+        for (SubTestInstitution sub : subs) {
+            if ("RETIRED".equals(sub.getStatus())) continue;
+            try {
+                if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
+                    emailService.sendSubInstituteRetireCancelled(
+                            sub.getPrimaryEmail(),
+                            sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Super User",
+                            sub.getInstitutionNameFull() != null ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
+                            sub.getInstitutionCode(),
+                            inst.getInstitutionNameFull(),
+                            inst.getInstitutionCode()
+                    );
+                    logger.info("[UNDO-RETIRE] Cancellation email sent to sub-institute: {} ({})",
+                            sub.getInstitutionCode(), sub.getPrimaryEmail());
+                }
+            } catch (Exception e) {
+                logger.warn("[UNDO-RETIRE] Cancellation email failed for sub-institute {} ({}): {}",
+                        sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
+            }
+        }
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Retire has been cancelled. Institution status restored to '" + restoredStatus + "'.",
                 new ArrayList<>()));
@@ -165,10 +204,10 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
     // AUTO-RETIRE — Runs every 24 hours
     // Retires institutions whose 24hr window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 86400000)   // runs every 24 hours
+    @Scheduled(fixedRate = 5000)   // DEMO: 5s — change to 86400000 for production (24 hrs)
     @Transactional
     public void autoRetireScheduledInstitutions() {
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);  // DEMO: 30s — change to minusHours(24) for production
 
         List<TestInstitution> pendingList = testInstitutionRepository
                 .findByStatusAndRetireScheduledAtBefore("RETIRE_PENDING", cutoff);
