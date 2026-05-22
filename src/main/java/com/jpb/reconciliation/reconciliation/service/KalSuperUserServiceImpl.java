@@ -21,7 +21,9 @@ import com.jpb.reconciliation.reconciliation.dto.KalVerifyEmailResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
+import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
 import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
 public class KalSuperUserServiceImpl implements KalSuperService {
@@ -34,6 +36,9 @@ public class KalSuperUserServiceImpl implements KalSuperService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private TestInstitutionRepository testInstitutionRepository;
 
     @Autowired
     private OtpService otpService;
@@ -540,6 +545,28 @@ public class KalSuperUserServiceImpl implements KalSuperService {
                 new RestWithStatusList("SUCCESS",
                         "Password reset successfully. Please login.", new ArrayList<>()),
                 HttpStatus.OK);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACTIVATE INSTITUTION — OTP verify ke baad status → ACTIVE
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public void activateInstitution(String email) {
+        if (email == null || email.trim().isEmpty()) return;
+        Optional<TestInstitution> opt = testInstitutionRepository.findByPrimaryEmail(email.trim());
+        if (!opt.isPresent()) {
+            logger.warn("[ACTIVATE] Institution not found for email: {}", email);
+            return;
+        }
+        TestInstitution inst = opt.get();
+        if ("ACTIVE".equals(inst.getStatus())) {
+            logger.info("[ACTIVATE] Institution already ACTIVE: {}", inst.getInstitutionCode());
+            return;
+        }
+        inst.setStatus("ACTIVE");
+        inst.setUpdatedAt(java.time.LocalDateTime.now());
+        testInstitutionRepository.save(inst);
+        logger.info("[ACTIVATE] Institution status set to ACTIVE: {}", inst.getInstitutionCode());
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────

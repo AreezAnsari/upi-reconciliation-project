@@ -111,15 +111,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         }
 
 
-        // Institution Name Check
-        if (testInstitutionRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
-
-            logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
-
-            return bad("Institution with name '" +
-                    dto.getInstitutionNameFull() +
-                    "' already exists.");
-        }
         if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
             return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
         }

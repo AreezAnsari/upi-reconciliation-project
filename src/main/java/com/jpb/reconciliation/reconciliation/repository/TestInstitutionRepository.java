@@ -33,7 +33,7 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     
     boolean existsByPrimaryEmail(String primaryEmail);
 
-    boolean existsByInstitutionNameFull(String institutionNameFull);
+    Optional<TestInstitution> findByPrimaryEmail(String primaryEmail);
     
     // For auto-retire scheduler — finds all RETIRE_PENDING whose 24hr window passed
     List<TestInstitution> findByStatusAndRetireScheduledAtBefore(String status, LocalDateTime cutoff);
