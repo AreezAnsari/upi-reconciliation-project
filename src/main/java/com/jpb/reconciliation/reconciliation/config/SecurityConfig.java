@@ -69,6 +69,9 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/set-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/login")).permitAll()
 
+                // Institution logo images — public (brand logos, no sensitive data)
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/logo/**")).permitAll()
+
                 // ✅ IMPORTANT FIX FOR OTP VERIFY
                 .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()
 

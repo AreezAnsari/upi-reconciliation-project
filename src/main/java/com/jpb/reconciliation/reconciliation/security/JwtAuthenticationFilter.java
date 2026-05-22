@@ -61,7 +61,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             || path.startsWith("/api/v1/user/create-user")
             || path.startsWith("/test/api/v1/institution/verify-credentials")
             || path.startsWith("/test/api/v1/institution/set-password")
-            || path.startsWith("/test/api/v1/institution/login");
+            || path.startsWith("/test/api/v1/institution/login")
+            || path.startsWith("/test/api/v1/institution/logo/");   // ← Logo images are public (brand logos, no sensitive data)
         
     }
 

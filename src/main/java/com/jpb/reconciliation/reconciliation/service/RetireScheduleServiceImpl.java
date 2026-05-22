@@ -204,7 +204,7 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
     // AUTO-RETIRE — Runs every 24 hours
     // Retires institutions whose 24hr window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 5000)   // DEMO: 5s — change to 86400000 for production (24 hrs)
+    @Scheduled(fixedRate = 86400000)   // DEMO: 5s — change to 86400000 for production (24 hrs)
     @Transactional
     public void autoRetireScheduledInstitutions() {
         LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);  // DEMO: 30s — change to minusHours(24) for production

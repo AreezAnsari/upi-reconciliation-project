@@ -153,6 +153,17 @@ public class TestInstitutionController {
     }
 
     // ─────────────────────────────────────────────
+    // GENERATE INSTITUTION CODE
+    // GET /test/api/v1/institution/generate-code
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Generate a unique 8-digit institution code")
+    @GetMapping(value = "/generate-code", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> generateCode() {
+        logger.info("Generate institution code request received");
+        return testInstitutionService.generateCode();
+    }
+
+    // ─────────────────────────────────────────────
     // CHECK NAME EXISTS
     // GET /test/api/v1/institution/check-name?name=State Bank of India
     // ─────────────────────────────────────────────
@@ -222,6 +233,17 @@ public class TestInstitutionController {
         return retireScheduleService.undoRetire(institutionId, userDetails.getUsername());
     }
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // SERVE LOGO IMAGE
+    // GET /test/api/v1/institution/logo/{institutionCode}
+    // ─────────────────────────────────────────────────────────────────────────
+    @Operation(summary = "Serve institution logo image by institution code")
+    @GetMapping(value = "/logo/{institutionCode}")
+    public ResponseEntity<byte[]> getLogoImage(@PathVariable String institutionCode) {
+        logger.info("Logo image request for institution code: {}", institutionCode);
+        return testInstitutionService.getLogoImage(institutionCode);
+    }
+
     @GetMapping(value = "/get-my-institutions", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getMyInstitutions(
             @AuthenticationPrincipal UserDetails userDetails) {
