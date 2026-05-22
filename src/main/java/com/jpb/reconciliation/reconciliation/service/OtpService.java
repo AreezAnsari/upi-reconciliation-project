@@ -33,6 +33,18 @@ public class OtpService {
         sendOtpEmail(email, otp);
     }
 
+    // Generates + stores OTP but returns the code so caller can send via EmailService
+    public String generateOtpForEmail(String email) {
+        String otp = generateOtp();
+        LocalDateTime expiry = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
+        otpStore.put(email.toLowerCase(), new OtpEntry(otp, expiry, 0));
+        return otp;
+    }
+
+    public int getOtpExpiryMinutes() {
+        return OTP_EXPIRY_MINUTES;
+    }
+
     // ─── Verify OTP ──────────────────────────────────────────────────────────
 
     public OtpVerifyResult verifyOtp(String email, String submittedOtp) {

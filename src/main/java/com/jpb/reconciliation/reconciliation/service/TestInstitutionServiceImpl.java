@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -33,8 +35,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
+import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO.ProductDateEntry;
+import com.jpb.reconciliation.reconciliation.entity.SubTestInstitution;
 import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
+import com.jpb.reconciliation.reconciliation.entity.TestInstitutionProduct;
 import com.jpb.reconciliation.reconciliation.mapper.TestInstitutionMapper;
+import com.jpb.reconciliation.reconciliation.repository.SubTestInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
 import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
@@ -55,6 +62,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     private TestInstitutionRepository testInstitutionRepository;
 
     @Autowired
+    private SubTestInstitutionRepository subTestInstitutionRepository;
+
+    @Autowired
+    private TestInstitutionProductRepository testInstitutionProductRepository;
+
+    @Autowired
     private EmailService emailService;
 
     @Autowired
@@ -71,7 +84,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> createInstitution(TestInstitutionDTO dto) {
+    public ResponseEntity<RestWithStatusList> createInstitution(TestInstitutionDTO dto, String createdBy) {
 
         if (dto.getInstitutionNameFull() == null || dto.getInstitutionNameFull().trim().isEmpty()) {
             return bad("Institution full name is required.");
@@ -97,6 +110,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Primary contact mobile is required.");
         }
 
+
         // Institution Name Check
         if (testInstitutionRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
 
@@ -105,6 +119,9 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Institution with name '" +
                     dto.getInstitutionNameFull() +
                     "' already exists.");
+        }
+        if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
+            return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
         }
 
         // Email Check
@@ -143,6 +160,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         institution.setInstitutionCode(institutionCode);
         institution.setStatus("REQUEST");
         institution.setCreatedAt(LocalDateTime.now());
+        institution.setCreatedBy(createdBy);  // logged-in admin username from JWT
 
         // Super User Credentials
         institution.setSuperUserId(superUserId);
@@ -231,6 +249,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
                 institutionCode,
                 superUserId
         );
+        saveProductDates(institution.getInstitutionId(), dto, createdBy);
 
         List<Object> data = new ArrayList<>();
 
@@ -281,8 +300,23 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             return bad("Institution not found with ID: " + institutionId);
         }
 
+        TestInstitutionDTO dto = TestInstitutionMapper.mapToDTO(optional.get());
+
+        // Populate productDates from TEST_INST_PRODUCT table
+        List<TestInstitutionProduct> products = testInstitutionProductRepository.findByInstitutionId(institutionId);
+        if (!products.isEmpty()) {
+            Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
+            for (TestInstitutionProduct p : products) {
+                ProductDateEntry entry = new ProductDateEntry();
+                entry.setValidFrom(p.getValidFrom());
+                entry.setValidTo(p.getValidTo());
+                productDates.put(p.getProductName(), entry);
+            }
+            dto.setProductDates(productDates);
+        }
+
         List<Object> data = new ArrayList<>();
-        data.add(TestInstitutionMapper.mapToDTO(optional.get()));
+        data.add(dto);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Institution fetched successfully.", data));
     }
@@ -340,7 +374,8 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         institution.setUpdatedAt(LocalDateTime.now());
 
         testInstitutionRepository.save(institution);
-        
+
+        saveProductDates(institutionId, dto, institution.getCreatedBy());
         logger.info("Institution updated: {}", institutionId);
 
         List<Object> data = new ArrayList<>();
@@ -376,6 +411,21 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         if ("RETIRED".equals(currentStatus)) {
             return bad("This institution is RETIRED. Its status cannot be changed by anyone.");
         }
+        
+     // ── Transition validation ──
+        Map<String, List<String>> allowedTransitions = new HashMap<>();
+        allowedTransitions.put("ACTIVE",   Arrays.asList("INACTIVE", "BLOCKED", "RETIRED"));
+        allowedTransitions.put("INACTIVE", Arrays.asList("ACTIVE", "BLOCKED", "RETIRED"));  // ← ACTIVE add
+        allowedTransitions.put("BLOCKED",  Arrays.asList("ACTIVE", "RETIRED"));              // ← ACTIVE add
+        allowedTransitions.put("PENDING",  Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
+        allowedTransitions.put("VERIFIED", Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
+
+        List<String> allowed = allowedTransitions.getOrDefault(currentStatus, new ArrayList<>());
+        if (!allowed.contains(status.toUpperCase())) {
+            return bad("Cannot change status from '" + currentStatus 
+                + "' to '" + status.toUpperCase() + "'. "
+                + "Allowed transitions: " + allowed);
+        }
 
         // ── Cannot set back to RETIRED from code (only forward transition allowed) ──
         // RETIRED can only be set if current status is not already RETIRED
@@ -386,6 +436,24 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         testInstitutionRepository.save(institution);
 
         logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, status.toUpperCase());
+
+        // ── Send status change notification email to Super User ──
+        try {
+            if (institution.getPrimaryEmail() != null && !institution.getPrimaryEmail().isEmpty()) {
+                emailService.sendStatusChangeNotification(
+                    institution.getPrimaryEmail(),
+                    institution.getPrimaryFullName() != null ? institution.getPrimaryFullName() : "Super User",
+                    institution.getInstitutionNameFull(),
+                    institution.getInstitutionCode(),
+                    currentStatus,
+                    status.toUpperCase()
+                );
+            }
+        } catch (Exception e) {
+            // Email failure should NOT block the status update — just log
+            logger.warn("Status updated but notification email failed for institution {}: {}",
+                        institution.getInstitutionCode(), e.getMessage());
+        }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Institution status updated to '" + status.toUpperCase() + "'.", new ArrayList<>()));
@@ -559,14 +627,6 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
      if (name == null || name.trim().isEmpty()) {
          return bad("Institution name is required.");
      }
-     boolean exists = testInstitutionRepository
-             .existsByInstitutionNameFull(name.trim());
-     if (exists) {
-         return ResponseEntity.ok(
-                 new RestWithStatusList("EXISTS",
-                         "Institution '" + name.trim() + "' is already registered.",
-                         new ArrayList<>()));
-     }
      return ResponseEntity.ok(
              new RestWithStatusList("AVAILABLE",
                      "Institution name is available.",
@@ -730,5 +790,57 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         if (val.contains(",")) return "\"" + val + "\"";
         return val;
     }
+    
+    @Override
+    public ResponseEntity<RestWithStatusList> getInstitutionsByCreatedBy(String username) {
+        List<TestInstitution> list = testInstitutionRepository.findByCreatedBy(username);
+        List<TestInstitutionDTO> dtos = list.stream()
+            .map(inst -> TestInstitutionMapper.mapToDTO(inst))
+            .collect(Collectors.toList());
+        return new ResponseEntity<>(
+            new RestWithStatusList("SUCCESS", "Institutions fetched.", new ArrayList<>(dtos)),
+            HttpStatus.OK);
+    }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // SAVE PRODUCT DATES — delete-and-reinsert per institution
+    // ─────────────────────────────────────────────────────────────────────────
+    private void saveProductDates(Long institutionId, TestInstitutionDTO dto, String createdBy) {
+        testInstitutionProductRepository.deleteByInstitutionId(institutionId);
+        if (dto.getProductDates() == null || dto.getProductDates().isEmpty()) return;
+        List<TestInstitutionProduct> products = new ArrayList<>();
+        dto.getProductDates().forEach((productName, entry) -> {
+            TestInstitutionProduct p = new TestInstitutionProduct();
+            p.setInstitutionId(institutionId);
+            p.setProductName(productName);
+            p.setValidFrom(entry.getValidFrom());
+            p.setValidTo(entry.getValidTo());
+            p.setCreatedBy(createdBy);
+            p.setCreatedAt(LocalDateTime.now());
+            products.add(p);
+        });
+        testInstitutionProductRepository.saveAll(products);
+        logger.info("Saved {} product date(s) for institution {}", products.size(), institutionId);
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getSubInstitutes(Long parentInstitutionId) {
+        List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(parentInstitutionId);
+        List<TestInstitutionDTO> dtos = subs.stream().map(sub -> {
+            TestInstitutionDTO dto = new TestInstitutionDTO();
+            dto.setInstitutionId(sub.getSubInstitutionId());
+            dto.setInstitutionCode(sub.getInstitutionCode());
+            dto.setInstitutionNameFull(sub.getInstitutionNameFull());
+            dto.setRegCity(sub.getRegCity());
+            dto.setRegState(sub.getRegState());
+            dto.setRegCountry(sub.getRegCountry());
+            dto.setPrimaryFullName(sub.getPrimaryFullName());
+            dto.setPrimaryEmail(sub.getPrimaryEmail());
+            dto.setStatus(sub.getStatus());
+            return dto;
+        }).collect(Collectors.toList());
+        return new ResponseEntity<>(
+            new RestWithStatusList("SUCCESS", dtos.size() + " sub-institute(s) found.", new ArrayList<>(dtos)),
+            HttpStatus.OK);
+    }
 }

@@ -52,28 +52,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/auth/admin-login")
                 || path.startsWith("/auth/google")
                 || path.startsWith("/auth/refresh-token")
+                || path.startsWith("/auth/forgot-password")
+                || path.startsWith("/auth/reset-password")
                 || path.startsWith("/authentication/app")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v3/api-docs")
                 || path.startsWith("/webjars")
                 || path.startsWith("/h2-console")
 
+                // User APIs
+                || path.startsWith("/api/v1/user/create-user")
+
                 // Institution APIs
                 || path.startsWith("/test/api/v1/institution/verify-credentials")
                 || path.startsWith("/test/api/v1/institution/set-password")
                 || path.startsWith("/test/api/v1/institution/login")
-
-                // SubInstitution APIs
-                || path.startsWith("/test/api/v1/subinstitution/verify-credentials")
-                || path.startsWith("/test/api/v1/subinstitution/set-password")
-                || path.startsWith("/test/api/v1/subinstitution/login")
-                
                 || path.startsWith("/test/api/v1/institution/verify-email")
                 || path.startsWith("/test/api/v1/institution/check-user-status")
                 || path.startsWith("/test/api/v1/institution/forgot-password")
                 || path.startsWith("/test/api/v1/institution/reset-password")
                 || path.startsWith("/test/api/v1/institution/check-email")
                 || path.startsWith("/test/api/v1/institution/check-name")
+
+                // SubInstitution APIs
+                || path.startsWith("/test/api/v1/subinstitution/verify-credentials")
+                || path.startsWith("/test/api/v1/subinstitution/set-password")
+                || path.startsWith("/test/api/v1/subinstitution/login")
+
                 // OTP APIs
                 || path.startsWith("/api/otp/verify");
     }
