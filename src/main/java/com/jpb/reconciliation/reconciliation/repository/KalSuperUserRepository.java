@@ -1,26 +1,28 @@
 package com.jpb.reconciliation.reconciliation.repository;
 
-import java.util.Optional; 
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.jpb.reconciliation.reconciliation.entity.KalSuperUser;
+import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
 
 @Repository
 public interface KalSuperUserRepository
-        extends JpaRepository<KalSuperUser, Long> {
+        extends JpaRepository<SubSuperUser, Long> {
 
-    Optional<KalSuperUser>
-    findBySuperUserId(String superUserId);
-
-    Optional<KalSuperUser>
-    findByInstitutionCodeAndSuperUserId(
+    // Main lookup
+    Optional<SubSuperUser> findByInstitutionCodeAndUsername(
             String institutionCode,
-            String superUserId
+            String username
     );
 
-    // Used by OtpController to activate institution after first login
-    Optional<KalSuperUser>
-    findByEmail(String email);    
+    // Forgot password
+    Optional<SubSuperUser> findFirstByEmail(String email);
+
+    // Username lookup
+    Optional<SubSuperUser> findByUsername(String username);
+
+    // Email lookup
+    Optional<SubSuperUser> findByEmail(String email);
 }

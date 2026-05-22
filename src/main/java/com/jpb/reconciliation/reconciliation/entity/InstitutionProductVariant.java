@@ -33,5 +33,5 @@ public class InstitutionProductVariant {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "institution_id")
-    private Institution institution;
+    private SubInstitution institution;
 }

@@ -20,11 +20,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.SignatureException;
+import io.jsonwebtoken.UnsupportedJwtException;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private Logger logger = LoggerFactory.getLogger(OncePerRequestFilter.class);
+    private static final Logger logger =
+            LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     @Autowired
     private JwtHelper jwtHelper;
@@ -36,82 +39,133 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private TokenBlacklistService tokenBlacklistService;
 
     /**
-     * Skip this JWT filter for all public endpoints.
+     * Skip JWT filter for public endpoints.
      *
      * WHY THIS IS NEEDED:
      * SecurityConfig.permitAll() only skips the authorization check.
      * It does NOT skip custom filters like this one.
-     * JwtAuthenticationEntryPoint returns 401 "unathorized !!" when no valid
-     * token is found — even on public routes — unless we explicitly skip here.
+     * JwtAuthenticationEntryPoint returns 401 when no valid token is found
+     * — even on public routes — unless we explicitly skip here.
      */
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+    protected boolean shouldNotFilter(HttpServletRequest request)
+            throws ServletException {
+
         String path = request.getServletPath();
-        return path.startsWith("/api/kalinfotech/")   // ← KalInfotech register + login (PUBLIC)
-            || path.startsWith("/auth/login")
-            || path.startsWith("/auth/google")
-            || path.startsWith("/auth/refresh-token")
-            || path.startsWith("/auth/forgot-password")
-            || path.startsWith("/auth/reset-password")
-            || path.startsWith("/authentication/app")
-            || path.startsWith("/swagger-ui")
-            || path.startsWith("/v3/api-docs")
-            || path.startsWith("/webjars")
-            || path.startsWith("/h2-console")
-            || path.startsWith("/api/v1/user/create-user")
-            || path.startsWith("/test/api/v1/institution/verify-credentials")
-            || path.startsWith("/test/api/v1/institution/set-password")
-            || path.startsWith("/test/api/v1/institution/login")
-            || path.startsWith("/test/api/v1/institution/logo/");   // ← Logo images are public (brand logos, no sensitive data)
-        
+
+        return path.startsWith("/api/kalinfotech/")
+                || path.startsWith("/auth/login")
+                || path.startsWith("/auth/admin-login")
+                || path.startsWith("/auth/google")
+                || path.startsWith("/auth/refresh-token")
+                || path.startsWith("/auth/forgot-password")
+                || path.startsWith("/auth/reset-password")
+                || path.startsWith("/authentication/app")
+                || path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/webjars")
+                || path.startsWith("/h2-console")
+
+                // User APIs
+                || path.startsWith("/api/v1/user/create-user")
+
+                // Institution APIs
+                || path.startsWith("/test/api/v1/institution/verify-credentials")
+                || path.startsWith("/test/api/v1/institution/set-password")
+                || path.startsWith("/test/api/v1/institution/login")
+                || path.startsWith("/test/api/v1/institution/verify-email")
+                || path.startsWith("/test/api/v1/institution/check-user-status")
+                || path.startsWith("/test/api/v1/institution/forgot-password")
+                || path.startsWith("/test/api/v1/institution/reset-password")
+                || path.startsWith("/test/api/v1/institution/check-email")
+                || path.startsWith("/test/api/v1/institution/check-name")
+
+                // Logo images — public (brand logos, no sensitive data)
+                || path.startsWith("/test/api/v1/institution/logo/")
+
+                // SubInstitution APIs
+                || path.startsWith("/test/api/v1/subinstitution/verify-credentials")
+                || path.startsWith("/test/api/v1/subinstitution/set-password")
+                || path.startsWith("/test/api/v1/subinstitution/login")
+
+                // OTP APIs
+                || path.startsWith("/api/otp/verify");
     }
 
     @Override
     protected void doFilterInternal(
-    		
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-    	System.out.println("FILTER RUNNING FOR: " + request.getServletPath());
+
+        String requestURI = request.getRequestURI();
+
+        logger.debug("FILTER RUNNING FOR: {}", requestURI);
+
         String requestHeader = request.getHeader("Authorization");
+
         String username = null;
         String token    = null;
         String jti      = null;
 
-        if (requestHeader != null && requestHeader.startsWith("Bearer")) {
+        if (requestHeader != null && requestHeader.startsWith("Bearer ")) {
+
             token = requestHeader.substring(7);
+
             try {
-                username = this.jwtHelper.getUsernameFromToken(token);
-                jti      = this.jwtHelper.getJtiFromToken(token);
-            } catch (IllegalArgumentException e) {
-                logger.info("Illegal Argument while fetching the username or JTI !!", e);
+
+                username = jwtHelper.getUsernameFromToken(token);
+                jti      = jwtHelper.getJtiFromToken(token);
+
             } catch (ExpiredJwtException e) {
-                logger.info("Given jwt token is expired !!", e);
+                logger.warn("JWT expired for request [{}]: {}", requestURI, e.getMessage());
             } catch (MalformedJwtException e) {
-                logger.info("Some change has been done in token !! Invalid Token", e);
+                logger.warn("Malformed JWT for request [{}]: {}", requestURI, e.getMessage());
+            } catch (SignatureException e) {
+                logger.warn("Invalid JWT signature for request [{}]: {}", requestURI, e.getMessage());
+            } catch (UnsupportedJwtException e) {
+                logger.warn("Unsupported JWT for request [{}]: {}", requestURI, e.getMessage());
+            } catch (IllegalArgumentException e) {
+                logger.warn("JWT claims empty for request [{}]: {}", requestURI, e.getMessage());
             } catch (Exception e) {
-                logger.error("An unexpected error occurred during token processing", e);
+                logger.warn("JWT parse error for request [{}]: {}", requestURI, e.getMessage());
             }
+
         } else {
-            logger.info("Invalid Header Value !! Token either missing or not starting with Bearer.");
+            logger.debug("No Bearer token found in request [{}]", requestURI);
         }
 
-        if (username != null && jti != null
+        if (username != null
+                && jti != null
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            UserDetails userDetails       = this.userDetailsService.loadUserByUsername(username);
-            boolean isTokenBlacklisted    = tokenBlacklistService.isTokenBlacklisted(jti);
-            Boolean validateToken         = this.jwtHelper.validateToken(token, username, isTokenBlacklisted);
+            try {
 
-            if (validateToken) {
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            } else {
-                logger.info("Validation fails !! Token might be invalid, expired, or blacklisted.");
+                UserDetails userDetails         = userDetailsService.loadUserByUsername(username);
+                boolean     isTokenBlacklisted  = tokenBlacklistService.isTokenBlacklisted(jti);
+                boolean     validateToken       = jwtHelper.validateToken(token, username, isTokenBlacklisted);
+
+                if (validateToken) {
+
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails, null, userDetails.getAuthorities());
+
+                    authentication.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                    logger.debug("JWT authenticated user [{}] for request [{}]", username, requestURI);
+
+                } else {
+                    logger.warn("JWT validation failed for user [{}]", username);
+                }
+
+            } catch (Exception e) {
+                logger.warn("Could not authenticate user [{}] for request [{}]: {}",
+                        username, requestURI, e.getMessage());
             }
         }
 

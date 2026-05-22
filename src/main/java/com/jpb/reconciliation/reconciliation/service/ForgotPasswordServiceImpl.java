@@ -40,7 +40,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<ForgotPasswordResponseDto> forgotPassword(ForgotPasswordRequest request) {
-        String email = request.getEmailId().trim().toLowerCase();
+        String email = request.getEmail().trim().toLowerCase();
 
         Optional<ReconUser> userOpt = reconUserRepository.findByEmailId(email);
         if (!userOpt.isPresent()) {
@@ -91,8 +91,8 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<ForgotPasswordResponseDto> resetPassword(ResetPasswordRequest request) {
-        String email      = request.getEmailId().trim().toLowerCase();
-        String otp        = request.getOtpCode().trim();
+        String email      = request.getEmail().trim().toLowerCase();
+        String otp        = request.getOtp().trim();
         String newPwd     = request.getNewPassword();
         String confirmPwd = request.getConfirmNewPassword();
 
