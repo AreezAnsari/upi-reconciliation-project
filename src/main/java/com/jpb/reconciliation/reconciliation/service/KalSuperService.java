@@ -36,6 +36,6 @@ public interface KalSuperService {
     ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username);
 
     // OTP verify ke baad institution status → ACTIVE karo
-    void activateInstitution(String email);
+    ResponseEntity<RestWithStatusList> activateInstitution(String email);
 
 }

@@ -195,4 +195,14 @@ public class SubInstitutionDTO {
 
     public Boolean getEnableOtp() { return enableOtp; }
     public void setEnableOtp(Boolean enableOtp) { this.enableOtp = enableOtp; }
+
+    // ─── Super-User Credentials (returned on create, shown on success page) ──
+    private String superUserId;
+    private String defaultPassword;
+
+    public String getSuperUserId() { return superUserId; }
+    public void setSuperUserId(String superUserId) { this.superUserId = superUserId; }
+
+    public String getDefaultPassword() { return defaultPassword; }
+    public void setDefaultPassword(String defaultPassword) { this.defaultPassword = defaultPassword; }
 }

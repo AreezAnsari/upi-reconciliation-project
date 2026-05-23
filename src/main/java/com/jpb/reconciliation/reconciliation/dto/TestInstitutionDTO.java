@@ -79,6 +79,10 @@ public class TestInstitutionDTO {
     private Boolean enableHrms;
     private Boolean enableOtp;
 
+    // ─── Super-User Credentials (returned on create, shown on success page) ──
+    private String superUserId;
+    private String defaultPassword;
+
     // ─── Getters & Setters ───────────────────────────────────────────────────
 
     public Long getInstitutionId() { return institutionId; }
@@ -215,4 +219,10 @@ public class TestInstitutionDTO {
 
     public Boolean getEnableOtp() { return enableOtp; }
     public void setEnableOtp(Boolean enableOtp) { this.enableOtp = enableOtp; }
+
+    public String getSuperUserId() { return superUserId; }
+    public void setSuperUserId(String superUserId) { this.superUserId = superUserId; }
+
+    public String getDefaultPassword() { return defaultPassword; }
+    public void setDefaultPassword(String defaultPassword) { this.defaultPassword = defaultPassword; }
 }

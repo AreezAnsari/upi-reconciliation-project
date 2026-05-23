@@ -68,9 +68,23 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-credentials")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/set-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/forgot-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/reset-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-user-status")).permitAll()
 
                 // Institution logo images — public (brand logos, no sensitive data)
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/logo/**")).permitAll()
+
+                // Institution uniqueness check APIs — non-critical, fail-open on frontend
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-name")).permitAll()
+
+                // SubInstitution — public onboarding + uniqueness check APIs
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/verify-credentials")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/set-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/check-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/check-name")).permitAll()
 
                 // ✅ IMPORTANT FIX FOR OTP VERIFY
                 .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()

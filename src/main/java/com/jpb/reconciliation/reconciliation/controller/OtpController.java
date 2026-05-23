@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.KalSuperService;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
@@ -33,6 +34,9 @@ public class OtpController {
 
     @Autowired
     private KalSuperService kalSuperService;
+
+    @Autowired
+    private TestInstitutionRepository testInstitutionRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -112,12 +116,19 @@ public class OtpController {
                 e.printStackTrace(); // ← ye add karo taaki full stack trace dikhe
             }
 
+            // ── Fetch institution code by primary email so frontend can store it ──
+            String institutionCode = testInstitutionRepository
+                    .findByPrimaryEmail(email)
+                    .map(inst -> inst.getInstitutionCode())
+                    .orElse(null);
+
             Map<String, Object> res = new HashMap<>();
-            res.put("success",      true);
-            res.put("message",      "OTP verified successfully.");
-            res.put("accessToken",  accessToken);
-            res.put("refreshToken", refreshToken);
-            res.put("email",        email);
+            res.put("success",         true);
+            res.put("message",         "OTP verified successfully.");
+            res.put("accessToken",     accessToken);
+            res.put("refreshToken",    refreshToken);
+            res.put("email",           email);
+            res.put("institutionCode", institutionCode); // ← "47050033" → frontend stores first 4 as prefix
 
             return ResponseEntity.ok(res);
 

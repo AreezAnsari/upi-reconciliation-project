@@ -154,6 +154,10 @@ public class TestInstitutionMapper {
         dto.setEnableHrms("Y".equals(entity.getEnableHrms()));
         dto.setEnableOtp("Y".equals(entity.getEnableOtp()));
 
+        // Super-user credentials — returned on create so success page can display them
+        dto.setSuperUserId(entity.getSuperUserId());
+        dto.setDefaultPassword(entity.getDefaultPassword());
+
         return dto;
     }
 }

@@ -30,6 +30,8 @@ public interface SubInstitutionService {
 
     ResponseEntity<RestWithStatusList> checkEmailExists(String email);
 
+    ResponseEntity<RestWithStatusList> checkNameExists(String name);
+
     ResponseEntity<byte[]> exportToExcel() throws java.io.IOException;
 
     ResponseEntity<byte[]> exportToCsv();

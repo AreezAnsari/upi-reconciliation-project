@@ -41,8 +41,12 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jpb.reconciliation.reconciliation.dto.SubInstitutionDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.SubInstitution;
+import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
+import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
 import com.jpb.reconciliation.reconciliation.mapper.SubInstitutionMapper;
+import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.SubInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
 public class SubInstitutionServiceImpl implements SubInstitutionService {
@@ -58,6 +62,12 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
 
     @Autowired
     private SubInstitutionRepository subinstitutionRepository;
+
+    @Autowired
+    private KalSuperUserRepository kalSuperUserRepository;
+
+    @Autowired
+    private TestInstitutionRepository testInstitutionRepository;
 
     @Autowired
     private EmailService emailService;
@@ -96,9 +106,87 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
             return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
 
-        // Generate unique institution code
-        String institutionCode = dto.getInstitutionCode();
-        logger.info("Generated institution code: {}", institutionCode);
+        // ── Generate Sub-Institution Code ──────────────────────────────────────
+        // Rule: first 4 digits of parent institution code + last 4 digits of epoch ms
+        // e.g. parent = "47050033" → prefix = "4705"
+        //      epoch  = 1716123456789  → suffix = "6789"
+        //      result = "47056789"
+        //
+        // Lookup path:
+        //   createdBy (JWT email)
+        //     → KAL_SUPER_USER.email  →  KAL_SUPER_USER.institutionCode
+        //     → first 4 digits = parentPrefix
+        //
+        // This is more reliable than TestInstitution.primaryEmail because
+        // KAL_SUPER_USER.email = exact email used to generate the JWT token.
+        // ── Resolve parent institution prefix (3-strategy fallback chain) ────
+        // Strategy 1: KAL_SUPER_USER by email → institutionCode (set on newer records)
+        // Strategy 2: KAL_SUPER_USER.username (superUserId) → TestInstitution.superUserId
+        //             (covers old records where institution_code column was NULL)
+        // Strategy 3: TestInstitution by primaryEmail (last resort)
+        String parentPrefix = "0000";
+
+        logger.info("[SubInstCode] Starting prefix lookup — createdBy (JWT email) = '{}'", createdBy);
+
+        Optional<SubSuperUser> superUserOpt = kalSuperUserRepository.findFirstByEmail(createdBy);
+
+        if (superUserOpt.isPresent()) {
+            SubSuperUser su = superUserOpt.get();
+            logger.info("[SubInstCode] KAL_SUPER_USER found — username='{}' institutionCode='{}'",
+                    su.getUsername(), su.getInstitutionCode());
+
+            // Strategy 1 — institutionCode directly on KAL_SUPER_USER row
+            if (su.getInstitutionCode() != null && su.getInstitutionCode().length() >= 4) {
+                parentPrefix = su.getInstitutionCode().substring(0, 4);
+                logger.info("[SubInstCode] Strategy 1 HIT — instCode='{}' prefix='{}'",
+                        su.getInstitutionCode(), parentPrefix);
+            } else {
+                logger.warn("[SubInstCode] Strategy 1 MISS — institutionCode is null/short on KAL_SUPER_USER row, trying Strategy 2...");
+                // Strategy 2 — find TestInstitution by superUserId (username in KAL_SUPER_USER)
+                Optional<TestInstitution> parentInst =
+                        testInstitutionRepository.findFirstBySuperUserId(su.getUsername());
+                if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
+                        && parentInst.get().getInstitutionCode().length() >= 4) {
+                    parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                    logger.info("[SubInstCode] Strategy 2 HIT — superUserId='{}' instCode='{}' prefix='{}'",
+                            su.getUsername(), parentInst.get().getInstitutionCode(), parentPrefix);
+                } else {
+                    logger.warn("[SubInstCode] Strategy 2 MISS — superUserId='{}' not found in TestInstitution (parentInst present={})",
+                            su.getUsername(), parentInst.isPresent());
+                }
+            }
+        } else {
+            logger.warn("[SubInstCode] KAL_SUPER_USER NOT FOUND for email='{}' — trying Strategy 3 (primaryEmail on TestInstitution)...", createdBy);
+            // Strategy 3 — TestInstitution by primaryEmail
+            Optional<TestInstitution> parentInst =
+                    testInstitutionRepository.findByPrimaryEmail(createdBy);
+            if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
+                    && parentInst.get().getInstitutionCode().length() >= 4) {
+                parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                logger.info("[SubInstCode] Strategy 3 HIT — email='{}' instCode='{}' prefix='{}'",
+                        createdBy, parentInst.get().getInstitutionCode(), parentPrefix);
+            } else {
+                logger.error("[SubInstCode] ALL STRATEGIES FAILED for createdBy='{}' — defaulting to '0000'. Check DB data!",
+                        createdBy);
+            }
+        }
+
+        // Collision-safe: retry up to 10 times with shifted epoch
+        String institutionCode = null;
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
+            String suffix   = epochStr.substring(epochStr.length() - 4);
+            String candidate = parentPrefix + suffix;
+            if (!subinstitutionRepository.existsByInstitutionCode(candidate)) {
+                institutionCode = candidate;
+                break;
+            }
+            logger.warn("Sub-institution code collision on attempt {}: {}", attempt + 1, candidate);
+        }
+        if (institutionCode == null) {
+            return bad("Failed to generate a unique institution code. Please try again.");
+        }
+        logger.info("Generated sub-institution code: {} (parent prefix: {})", institutionCode, parentPrefix);
 
         // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
         // e.g. "Rajesh Kumar" → "rajesh.kumar"
@@ -428,6 +516,15 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
 
 
+    // Sub-Institution Code: first 4 digits of parent code + last 4 digits of epoch ms
+    // e.g. parent="43460231", epoch=1716123456789 → "43466789"
+    // (collision retry is handled in createInstitution — this method is a pure helper)
+    private String buildSubCode(String parentPrefix, int attempt) {
+        String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
+        String suffix   = epochStr.substring(epochStr.length() - 4);
+        return parentPrefix + suffix;
+    }
+
     // Super User ID: firstname.lastname all lowercase
     // e.g. "Rajesh Kumar Sharma" → "rajesh.kumar"  (first 2 words only)
     // e.g. "Rajesh Kumar"        → "rajesh.kumar"
@@ -457,7 +554,7 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
         if (email == null || email.trim().isEmpty()) {
             return bad("Email is required.");
         }
-        boolean exists = subinstitutionRepository.existsByPrimaryEmail(email.trim());        
+        boolean exists = subinstitutionRepository.existsByPrimaryEmail(email.trim());
         if (exists) {
             return ResponseEntity.ok(
                     new RestWithStatusList("EXISTS",
@@ -467,6 +564,24 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
         return ResponseEntity.ok(
                 new RestWithStatusList("AVAILABLE",
                         "Email is available.",
+                        new ArrayList<>()));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return bad("Name is required.");
+        }
+        boolean exists = subinstitutionRepository.existsByInstitutionNameFull(name.trim());
+        if (exists) {
+            return ResponseEntity.ok(
+                    new RestWithStatusList("EXISTS",
+                            "Name '" + name.trim() + "' is already registered.",
+                            new ArrayList<>()));
+        }
+        return ResponseEntity.ok(
+                new RestWithStatusList("AVAILABLE",
+                        "Name is available.",
                         new ArrayList<>()));
     }
 

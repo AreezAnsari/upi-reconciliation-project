@@ -33,10 +33,16 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
     
     boolean existsByPrimaryEmail(String primaryEmail);
 
+    // Uniqueness check for institution name (case-sensitive exact match)
+    boolean existsByInstitutionNameFull(String institutionNameFull);
+
     Optional<TestInstitution> findByPrimaryEmail(String primaryEmail);
     
     // For auto-retire scheduler — finds all RETIRE_PENDING whose 24hr window passed
     List<TestInstitution> findByStatusAndRetireScheduledAtBefore(String status, LocalDateTime cutoff);
     
     List<TestInstitution> findByCreatedBy(String createdBy);
+
+    // Sub-institution code generation — find parent institution by superUserId
+    Optional<TestInstitution> findFirstBySuperUserId(String superUserId);
 }

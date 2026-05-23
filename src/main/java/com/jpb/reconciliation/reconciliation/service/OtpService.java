@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,10 @@ public class OtpService {
 
     @Autowired
     private JavaMailSender mailSender;
+
+    // Use the configured from address — must match SMTP authenticated account
+    @Value("${app.mail.from}")
+    private String fromAddress;
 
     // Temporary in-memory store — no DB table needed
     // Key = email (lowercase), Value = OtpEntry

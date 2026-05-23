@@ -40,6 +40,12 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<ForgotPasswordResponseDto> forgotPassword(ForgotPasswordRequest request) {
+        // Null check — agar frontend ne galat field name bheja to NPE ki jagah clear error
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            logger.warn("Forgot password called with null/empty email");
+            return ResponseEntity.badRequest()
+                .body(new ForgotPasswordResponseDto("400", "Email is required."));
+        }
         String email = request.getEmail().trim().toLowerCase();
 
         Optional<ReconUser> userOpt = reconUserRepository.findByEmailId(email);
@@ -91,6 +97,23 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<ForgotPasswordResponseDto> resetPassword(ResetPasswordRequest request) {
+        // Null-check all required fields — frontend field name mismatch would otherwise cause NPE
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            logger.warn("Reset password called with null/empty email");
+            return ResponseEntity.badRequest()
+                .body(new ForgotPasswordResponseDto("400", "Email is required."));
+        }
+        if (request.getOtp() == null || request.getOtp().trim().isEmpty()) {
+            logger.warn("Reset password called with null/empty OTP");
+            return ResponseEntity.badRequest()
+                .body(new ForgotPasswordResponseDto("400", "OTP is required."));
+        }
+        if (request.getNewPassword() == null || request.getConfirmNewPassword() == null) {
+            logger.warn("Reset password called with null password field(s)");
+            return ResponseEntity.badRequest()
+                .body(new ForgotPasswordResponseDto("400", "Password fields are required."));
+        }
+
         String email      = request.getEmail().trim().toLowerCase();
         String otp        = request.getOtp().trim();
         String newPwd     = request.getNewPassword();

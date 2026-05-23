@@ -265,6 +265,25 @@ public class KalSuperUserServiceImpl implements KalSuperService {
         user.setUpdatedAt(LocalDateTime.now());
         kalSuperUserRepository.save(user);
 
+        // ── TestInstitution status → VERIFIED (Sir's rule: only after new password set) ──
+        Optional<TestInstitution> optInst = testInstitutionRepository
+                .findByInstitutionCodeAndSuperUserId(
+                        dto.getInstitutionCode().trim(),
+                        dto.getUsername().trim());
+        if (optInst.isPresent()) {
+            TestInstitution institution = optInst.get();
+            if ("REQUEST".equals(institution.getStatus())) {
+                institution.setStatus("VERIFIED");
+                institution.setDefaultPassword(null);        // default password null — kaam khatam
+                institution.setVerificationToken(null);      // link dead on success
+                institution.setTokenExpiry(LocalDateTime.now());
+                institution.setUpdatedAt(LocalDateTime.now());
+                testInstitutionRepository.save(institution);
+                logger.info("Institution {} status → VERIFIED after password setup",
+                        dto.getInstitutionCode());
+            }
+        }
+
         logger.info("setNewPassword → SUCCESS for username={}", dto.getUsername());
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS",
@@ -302,7 +321,8 @@ public class KalSuperUserServiceImpl implements KalSuperService {
                     dto.getUsername().trim());
         } else {
             // Sirf username se dhundho (direct login case)
-            optUser = kalSuperUserRepository.findByUsername(dto.getUsername().trim());
+            // findFirst — duplicate rows hone par bhi crash nahi karta
+            optUser = kalSuperUserRepository.findFirstByUsername(dto.getUsername().trim());
         }
 
         if (!optUser.isPresent()) {
@@ -548,25 +568,61 @@ public class KalSuperUserServiceImpl implements KalSuperService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ACTIVATE INSTITUTION — OTP verify ke baad status → ACTIVE
+    // STEP 3.5 — After OTP verified → Set institution status ACTIVE
+    // Called from OtpController after successful OTP verification
     // ─────────────────────────────────────────────────────────────────────────
     @Override
-    public void activateInstitution(String email) {
-        if (email == null || email.trim().isEmpty()) return;
-        Optional<TestInstitution> opt = testInstitutionRepository.findByPrimaryEmail(email.trim());
-        if (!opt.isPresent()) {
+    public ResponseEntity<RestWithStatusList> activateInstitution(String email) {
+
+        // Find SubSuperUser by email — findFirst avoids NonUniqueResultException
+        Optional<SubSuperUser> optUser = kalSuperUserRepository.findFirstByEmailOrderByIdAsc(email);
+
+        if (!optUser.isPresent()) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE",
+                            "Super User not found for email: " + email, null),
+                    HttpStatus.NOT_FOUND);
+        }
+
+        SubSuperUser user = optUser.get();
+
+        // Find institution by institutionCode + superUserId (superUserId = username)
+        Optional<TestInstitution> optInst = testInstitutionRepository
+                .findByInstitutionCodeAndSuperUserId(
+                        user.getInstitutionCode(),
+                        user.getUsername());
+
+        if (!optInst.isPresent()) {
             logger.warn("[ACTIVATE] Institution not found for email: {}", email);
-            return;
+            return new ResponseEntity<>(
+                    new RestWithStatusList("SUCCESS",
+                            "Login successful.", new ArrayList<>()),
+                    HttpStatus.OK);
         }
-        TestInstitution inst = opt.get();
-        if ("ACTIVE".equals(inst.getStatus())) {
-            logger.info("[ACTIVATE] Institution already ACTIVE: {}", inst.getInstitutionCode());
-            return;
+
+        TestInstitution institution = optInst.get();
+
+        // RETIRED — kabhi ACTIVE mat karo
+        if ("RETIRED".equals(institution.getStatus())) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE",
+                            "Retired institution cannot be activated.", null),
+                    HttpStatus.FORBIDDEN);
         }
-        inst.setStatus("ACTIVE");
-        inst.setUpdatedAt(java.time.LocalDateTime.now());
-        testInstitutionRepository.save(inst);
-        logger.info("[ACTIVATE] Institution status set to ACTIVE: {}", inst.getInstitutionCode());
+
+        // Sirf VERIFIED → ACTIVE (INACTIVE/BLOCKED automatically ACTIVE nahi honge)
+        if ("VERIFIED".equals(institution.getStatus())) {
+            institution.setStatus("ACTIVE");
+            institution.setUpdatedAt(LocalDateTime.now());
+            testInstitutionRepository.save(institution);
+            logger.info("[ACTIVATE] Institution {} status → ACTIVE after first login",
+                    institution.getInstitutionCode());
+        }
+
+        return new ResponseEntity<>(
+                new RestWithStatusList("SUCCESS",
+                        "Institution activated successfully.", new ArrayList<>()),
+                HttpStatus.OK);
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────

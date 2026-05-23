@@ -777,19 +777,26 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
                 .body(new RestWithStatusList("FAILURE", message, new ArrayList<>()));
     }
     
- // ─────────────────────────────────────────────────────────────────────────
- // CHECK NAME EXISTS — Step 1 real-time validation
- // ─────────────────────────────────────────────────────────────────────────
- @Override
- public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
-     if (name == null || name.trim().isEmpty()) {
-         return bad("Institution name is required.");
-     }
-     return ResponseEntity.ok(
-             new RestWithStatusList("AVAILABLE",
-                     "Institution name is available.",
-                     new ArrayList<>()));
- }
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHECK NAME EXISTS — Step 1 real-time uniqueness validation
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return bad("Institution name is required.");
+        }
+        boolean exists = testInstitutionRepository.existsByInstitutionNameFull(name.trim());
+        if (exists) {
+            return ResponseEntity.ok(
+                    new RestWithStatusList("EXISTS",
+                            "Institution name '" + name.trim() + "' is already registered.",
+                            new ArrayList<>()));
+        }
+        return ResponseEntity.ok(
+                new RestWithStatusList("AVAILABLE",
+                        "Institution name is available.",
+                        new ArrayList<>()));
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // CHECK NAME EXISTS — Step 1 real-time validation

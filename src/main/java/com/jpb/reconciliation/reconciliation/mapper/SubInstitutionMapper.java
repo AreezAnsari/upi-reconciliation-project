@@ -154,6 +154,10 @@ public class SubInstitutionMapper {
         dto.setEnableHrms("Y".equals(entity.getEnableHrms()));
         dto.setEnableOtp("Y".equals(entity.getEnableOtp()));
 
+        // Super-user credentials — shown on success page
+        dto.setSuperUserId(entity.getSuperUserId());
+        dto.setDefaultPassword(entity.getDefaultPassword());
+
         return dto;
     }
 }
