@@ -106,87 +106,25 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
             return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
 
-        // ── Generate Sub-Institution Code ──────────────────────────────────────
-        // Rule: first 4 digits of parent institution code + last 4 digits of epoch ms
-        // e.g. parent = "47050033" → prefix = "4705"
-        //      epoch  = 1716123456789  → suffix = "6789"
-        //      result = "47056789"
-        //
-        // Lookup path:
-        //   createdBy (JWT email)
-        //     → KAL_SUPER_USER.email  →  KAL_SUPER_USER.institutionCode
-        //     → first 4 digits = parentPrefix
-        //
-        // This is more reliable than TestInstitution.primaryEmail because
-        // KAL_SUPER_USER.email = exact email used to generate the JWT token.
-        // ── Resolve parent institution prefix (3-strategy fallback chain) ────
-        // Strategy 1: KAL_SUPER_USER by email → institutionCode (set on newer records)
-        // Strategy 2: KAL_SUPER_USER.username (superUserId) → TestInstitution.superUserId
-        //             (covers old records where institution_code column was NULL)
-        // Strategy 3: TestInstitution by primaryEmail (last resort)
-        String parentPrefix = "0000";
-
-        logger.info("[SubInstCode] Starting prefix lookup — createdBy (JWT email) = '{}'", createdBy);
-
-        Optional<SubSuperUser> superUserOpt = kalSuperUserRepository.findFirstByEmail(createdBy);
-
-        if (superUserOpt.isPresent()) {
-            SubSuperUser su = superUserOpt.get();
-            logger.info("[SubInstCode] KAL_SUPER_USER found — username='{}' institutionCode='{}'",
-                    su.getUsername(), su.getInstitutionCode());
-
-            // Strategy 1 — institutionCode directly on KAL_SUPER_USER row
-            if (su.getInstitutionCode() != null && su.getInstitutionCode().length() >= 4) {
-                parentPrefix = su.getInstitutionCode().substring(0, 4);
-                logger.info("[SubInstCode] Strategy 1 HIT — instCode='{}' prefix='{}'",
-                        su.getInstitutionCode(), parentPrefix);
-            } else {
-                logger.warn("[SubInstCode] Strategy 1 MISS — institutionCode is null/short on KAL_SUPER_USER row, trying Strategy 2...");
-                // Strategy 2 — find TestInstitution by superUserId (username in KAL_SUPER_USER)
-                Optional<TestInstitution> parentInst =
-                        testInstitutionRepository.findFirstBySuperUserId(su.getUsername());
-                if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
-                        && parentInst.get().getInstitutionCode().length() >= 4) {
-                    parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
-                    logger.info("[SubInstCode] Strategy 2 HIT — superUserId='{}' instCode='{}' prefix='{}'",
-                            su.getUsername(), parentInst.get().getInstitutionCode(), parentPrefix);
-                } else {
-                    logger.warn("[SubInstCode] Strategy 2 MISS — superUserId='{}' not found in TestInstitution (parentInst present={})",
-                            su.getUsername(), parentInst.isPresent());
-                }
-            }
+        // ── Sub-Institution Code ───────────────────────────────────────────────
+        // Frontend calls /generate-code first (same as admin), gets a pre-generated code,
+        // shows it in the form, and sends it in the payload as institutionCode.
+        // We trust that code if it is valid (8 digits) and still unique.
+        // If it is missing / stale / collided, we generate a fresh one here.
+        String institutionCode;
+        String dtoCode = dto.getInstitutionCode();
+        if (dtoCode != null && dtoCode.matches("\\d{8}")
+                && !subinstitutionRepository.existsByInstitutionCode(dtoCode)) {
+            institutionCode = dtoCode;
+            logger.info("[SubInstCode] Using frontend pre-generated code: {}", institutionCode);
         } else {
-            logger.warn("[SubInstCode] KAL_SUPER_USER NOT FOUND for email='{}' — trying Strategy 3 (primaryEmail on TestInstitution)...", createdBy);
-            // Strategy 3 — TestInstitution by primaryEmail
-            Optional<TestInstitution> parentInst =
-                    testInstitutionRepository.findByPrimaryEmail(createdBy);
-            if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
-                    && parentInst.get().getInstitutionCode().length() >= 4) {
-                parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
-                logger.info("[SubInstCode] Strategy 3 HIT — email='{}' instCode='{}' prefix='{}'",
-                        createdBy, parentInst.get().getInstitutionCode(), parentPrefix);
-            } else {
-                logger.error("[SubInstCode] ALL STRATEGIES FAILED for createdBy='{}' — defaulting to '0000'. Check DB data!",
-                        createdBy);
+            // Fallback: generate fresh (covers missing / collided DTO code)
+            institutionCode = generateSubInstCode(createdBy);
+            if (institutionCode == null) {
+                return bad("Failed to generate a unique institution code. Please try again.");
             }
         }
-
-        // Collision-safe: retry up to 10 times with shifted epoch
-        String institutionCode = null;
-        for (int attempt = 0; attempt < 10; attempt++) {
-            String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
-            String suffix   = epochStr.substring(epochStr.length() - 4);
-            String candidate = parentPrefix + suffix;
-            if (!subinstitutionRepository.existsByInstitutionCode(candidate)) {
-                institutionCode = candidate;
-                break;
-            }
-            logger.warn("Sub-institution code collision on attempt {}: {}", attempt + 1, candidate);
-        }
-        if (institutionCode == null) {
-            return bad("Failed to generate a unique institution code. Please try again.");
-        }
-        logger.info("Generated sub-institution code: {} (parent prefix: {})", institutionCode, parentPrefix);
+        logger.info("Final sub-institution code: {}", institutionCode);
 
         // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
         // e.g. "Rajesh Kumar" → "rajesh.kumar"
@@ -516,9 +454,85 @@ public class SubInstitutionServiceImpl implements SubInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
 
 
-    // Sub-Institution Code: first 4 digits of parent code + last 4 digits of epoch ms
-    // e.g. parent="43460231", epoch=1716123456789 → "43466789"
-    // (collision retry is handled in createInstitution — this method is a pure helper)
+    // ── PUBLIC: called by /generate-code endpoint ─────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> generateCode(String createdBy) {
+        String code = generateSubInstCode(createdBy);
+        if (code == null) {
+            return bad("Failed to generate a unique sub-institution code. Please try again.");
+        }
+        logger.info("[generateCode] Pre-generated sub-inst code: {} for createdBy='{}'", code, createdBy);
+        List<Object> data = new ArrayList<>();
+        data.add(code);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Code generated.", data));
+    }
+
+    // ── PRIVATE: resolve parent prefix + build unique 8-digit code ────────────
+    // Strategy 1: KAL_SUPER_USER by username → institutionCode (direct)
+    // Strategy 2: KAL_SUPER_USER.username → TestInstitution.superUserId → institutionCode
+    // Strategy 3: TestInstitution.superUserId = createdBy (last resort)
+    private String generateSubInstCode(String createdBy) {
+        String parentPrefix = "0000";
+
+        logger.info("[SubInstCode] Resolving parent prefix for createdBy='{}'", createdBy);
+
+        // JWT subject = username → try by username first, then email
+        Optional<SubSuperUser> superUserOpt = kalSuperUserRepository.findFirstByUsername(createdBy);
+        if (!superUserOpt.isPresent()) {
+            superUserOpt = kalSuperUserRepository.findFirstByEmail(createdBy);
+        }
+
+        if (superUserOpt.isPresent()) {
+            SubSuperUser su = superUserOpt.get();
+            logger.info("[SubInstCode] KAL_SUPER_USER found — username='{}' institutionCode='{}'",
+                    su.getUsername(), su.getInstitutionCode());
+
+            if (su.getInstitutionCode() != null && su.getInstitutionCode().length() >= 4) {
+                // Strategy 1
+                parentPrefix = su.getInstitutionCode().substring(0, 4);
+                logger.info("[SubInstCode] Strategy 1 HIT — prefix='{}'", parentPrefix);
+            } else {
+                // Strategy 2
+                logger.warn("[SubInstCode] Strategy 1 MISS — trying Strategy 2...");
+                Optional<TestInstitution> parentInst =
+                        testInstitutionRepository.findFirstBySuperUserId(su.getUsername());
+                if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
+                        && parentInst.get().getInstitutionCode().length() >= 4) {
+                    parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                    logger.info("[SubInstCode] Strategy 2 HIT — instCode='{}' prefix='{}'",
+                            parentInst.get().getInstitutionCode(), parentPrefix);
+                } else {
+                    logger.warn("[SubInstCode] Strategy 2 MISS for superUserId='{}'", su.getUsername());
+                }
+            }
+        } else {
+            // Strategy 3
+            logger.warn("[SubInstCode] KAL_SUPER_USER not found, trying Strategy 3...");
+            Optional<TestInstitution> parentInst =
+                    testInstitutionRepository.findFirstBySuperUserId(createdBy);
+            if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
+                    && parentInst.get().getInstitutionCode().length() >= 4) {
+                parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                logger.info("[SubInstCode] Strategy 3 HIT — prefix='{}'", parentPrefix);
+            } else {
+                logger.error("[SubInstCode] ALL STRATEGIES FAILED for createdBy='{}' — using '0000'", createdBy);
+            }
+        }
+
+        // Collision-safe: retry up to 10 times with shifted epoch
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
+            String suffix   = epochStr.substring(epochStr.length() - 4);
+            String candidate = parentPrefix + suffix;
+            if (!subinstitutionRepository.existsByInstitutionCode(candidate)) {
+                return candidate;
+            }
+            logger.warn("[SubInstCode] Collision on attempt {}: {}", attempt + 1, candidate);
+        }
+        return null; // caller handles null
+    }
+
+    // Sub-Institution Code pure helper (kept for reference)
     private String buildSubCode(String parentPrefix, int attempt) {
         String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
         String suffix   = epochStr.substring(epochStr.length() - 4);
