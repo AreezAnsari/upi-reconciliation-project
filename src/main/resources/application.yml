@@ -12,12 +12,12 @@ jasypt:
   datasource:
 #    primary:
 #      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb
+      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/OracleDatabase/Wallet_RECONDB1
       driver-class-name: oracle.jdbc.OracleDriver
 #      username: recon_sit
-      username: jpb_recon
+      username: kal_recon
 #      password: recon_sit
-      password: Jpbrecon2026
+      password: Finrecon1234567
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000

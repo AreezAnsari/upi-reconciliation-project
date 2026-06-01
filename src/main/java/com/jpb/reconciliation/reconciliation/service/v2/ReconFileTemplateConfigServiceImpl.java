@@ -1,0 +1,1234 @@
+package com.jpb.reconciliation.reconciliation.service.v2;
+
+
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.sql.DataSource;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlOutParameter;
+import org.springframework.jdbc.core.SqlParameter;
+import org.springframework.jdbc.core.simple.SimpleJdbcCall;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import com.jpb.reconciliation.reconciliation.constants.v2.SftpConstants;
+import com.jpb.reconciliation.reconciliation.constants.v2.TemplateConstants;
+import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.v2.ReconFieldConfigurationDto;
+import com.jpb.reconciliation.reconciliation.dto.v2.ReconFileTemplateMastDto;
+import com.jpb.reconciliation.reconciliation.dto.v2.ReconTemplateConfigRequest;
+import com.jpb.reconciliation.reconciliation.dto.v2.SftpServerRequestDTO;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFieldFormatMast;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFieldTypeMast;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFileTmpltMast;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconSftpServerMast;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
+import com.jpb.reconciliation.reconciliation.mapper.v2.ReconFieldDetailsMapper;
+import com.jpb.reconciliation.reconciliation.mapper.v2.ReconFileTemplateMastMapper;
+import com.jpb.reconciliation.reconciliation.mapper.v2.ReconSftpServerMapper;
+import com.jpb.reconciliation.reconciliation.entity.ReconSourceSystemMast;
+import com.jpb.reconciliation.reconciliation.repository.ReconSourceSystemMastRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconFieldFormatMastRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconFieldTypeMastRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconFileTmpltMastRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconSftpServerMastRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconTmpltFieldDtlsRepository;
+import com.jpb.reconciliation.reconciliation.service.ReconFieldDtlMastService;
+import com.jpb.reconciliation.reconciliation.util.CommonUtil;
+import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
+
+@Service
+@Transactional(readOnly = true)
+public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConfigService {
+
+    Logger logger = LoggerFactory.getLogger(ReconFileTemplateConfigServiceImpl.class);
+
+    @Autowired ReconFileTmpltMastRepository      templateRepository;
+    @Autowired ReconFieldFormatMastRepository    fieldFormatRepository;
+    @Autowired ReconFieldTypeMastRepository      fieldTypeRepository;
+    @Autowired ReconTmpltFieldDtlsRepository     fieldDetailsRepository;
+    @Autowired ReconFieldDtlMastService          reconFieldDtlMastService;
+    @Autowired ObjectMapper                      objectMapper;
+    @Autowired ReconSourceSystemMastRepository   sourceSystemRepository;
+
+    @Autowired
+    ReconSftpServerService  reconSftpServerService;
+
+    @Autowired
+    ReconSftpServerMastRepository sftpServerRepo;
+
+    @Autowired
+    ReconSftpServerMapper reconSftpServerMapper;
+
+    @Autowired
+    ReconExecScheduleConfigService reconExecScheduleConfigService;
+
+    @Autowired @Lazy
+    private ReconFileTemplateConfigServiceImpl self;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public ReconFileTemplateConfigServiceImpl(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
+
+    // =========================================================================
+    // CONFIGURE TEMPLATE + FIELDS (CREATE)
+    // =========================================================================
+
+    @Override
+    public ResponseEntity<RestWithMapStatusList> configureTemplateAndFieldData(ReconTemplateConfigRequest request) {
+
+        // Normalise case
+        if (null != request.getDeliverMode()) request.setDeliverMode(request.getDeliverMode().toUpperCase());
+        if (null != request.getAction()) request.setAction(request.getAction().toUpperCase());
+        if (null != request.getTemplateType()) request.setTemplateType(request.getTemplateType().toUpperCase());
+
+        // templateId present → UPDATE via configure API; absent → CREATE
+        if (null != request.getTemplateId()) {
+            return updateTemplate(request);
+        }
+
+        boolean isDraft = TemplateConstants.ACTION_DRAFT.equalsIgnoreCase(request.getAction());
+        if (!isDraft && (null == request.getFieldDetails() || request.getFieldDetails().isEmpty())) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure("fieldDetails must not be null or empty"),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // ── Validation — DRAFT bypasses logical validations, SAVE runs full ──
+        String valErr = isDraft ? validateDraftRequest(request) : validateRequest(request);
+        if (null != valErr) {
+            return new ResponseEntity<>(ResponseBuilder.failure(valErr), HttpStatus.BAD_REQUEST);
+        }
+
+        ReconFileTmpltMast existing = templateRepository.findByTemplateName(request.getTemplateName());
+        if (null != existing) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure("Template already configured."),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        ReconFileTmpltMast savedTemplate;
+        try {
+            savedTemplate = self.saveTemplateAndFields(request);
+            logger.info("Template saved. ID: {}, Code: {}",
+                    savedTemplate.getTemplateId(), savedTemplate.getTemplateCode());
+
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation error while saving template: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure(e.getMessage()),
+                    HttpStatus.BAD_REQUEST);
+        } catch (DataIntegrityViolationException e) {
+            logger.error("Data integrity error saving template: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.error("Template name already exists or a required field is missing."),
+                    HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            logger.error("Unexpected error saving template: {}", e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.error("Failed to save template: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        
+        
+      // DRAFT templates skip SP — stage table created only when SAVE (ACTIVE)
+      if (!TemplateConstants.ACTION_DRAFT.equalsIgnoreCase(request.getAction())) {
+          String spResult;
+          try {
+              spResult = self.callStageTableProcedure(savedTemplate);
+              logger.info("SP result for [{}]: {}", savedTemplate.getTemplateCode(), spResult);
+          } catch (Exception e) {
+              logger.error("SP exception for [{}]. Rolling back.", savedTemplate.getTemplateCode(), e);
+              self.rollbackTemplateAndFields(savedTemplate.getTemplateId());
+              return new ResponseEntity<>(
+                      ResponseBuilder.error(
+                              "Stage table creation failed. Template rolled back. " + e.getMessage()),
+                      HttpStatus.INTERNAL_SERVER_ERROR);
+          }
+
+          if (null == spResult || !spResult.equalsIgnoreCase("OK")) {
+              logger.warn("SP returned [{}] for [{}]. Rolling back.",
+                      spResult, savedTemplate.getTemplateCode());
+              self.rollbackTemplateAndFields(savedTemplate.getTemplateId());
+              return new ResponseEntity<>(
+                      ResponseBuilder.error(
+                              "Stage table creation failed. Template rolled back. Reason: " + spResult),
+                      HttpStatus.INTERNAL_SERVER_ERROR);
+          }
+      } else {
+          logger.info("DRAFT template [{}] — skipping SP_STAGE_TAB_CREATION.", savedTemplate.getTemplateCode());
+      }
+
+        // Return full DTO — JOIN FETCH so sourceSystem + fields are eagerly loaded
+        List<ReconFileTmpltMast> found = templateRepository.findByIdWithDetails(savedTemplate.getTemplateId());
+        ReconFileTmpltMast fullTemplate = found.isEmpty() ? savedTemplate : found.get(0);
+        ReconFileTemplateMastDto dto = enrichWithSftp(ReconFileTemplateMastMapper.toDTO(fullTemplate), fullTemplate);
+        Map<String, Object> row = ResponseBuilder.toMap(dto, objectMapper);
+
+        return ResponseEntity.ok(
+                ResponseBuilder.ok("Template configured successfully.", "template", Collections.singletonList(row)));
+    }
+
+    // =========================================================================
+    // UPDATE TEMPLATE BY ID  (PUT endpoint entry point)
+    // =========================================================================
+
+    @Override
+    public ResponseEntity<RestWithMapStatusList> updateTemplateById(Long templateId,
+                                                                     ReconTemplateConfigRequest request) {
+        // If body also carries a templateId it must match the path variable
+        if (request.getTemplateId() != null && !request.getTemplateId().equals(templateId)) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure(
+                            "templateId in request body (" + request.getTemplateId()
+                            + ") does not match path variable (" + templateId + ")."),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        request.setTemplateId(templateId);   // path variable is authoritative
+        return configureTemplateAndFieldData(request);
+    }
+
+    // =========================================================================
+    // VIEW TEMPLATE — paginated
+    // =========================================================================
+
+    @Override
+    public ResponseEntity<RestWithMapStatusList> viewTemplate(String action, int page, int size) {
+        try {
+            if (page < 0) {
+                return ResponseEntity.badRequest().body(
+                        ResponseBuilder.failure("Page number cannot be negative."));
+            }
+            if (size <= 0 || size > 100) {
+                return ResponseEntity.badRequest().body(
+                        ResponseBuilder.failure("Size must be between 1 and 100."));
+            }
+
+            // action=D → DRAFT, action=Y → ACTIVE, null/absent → all templates
+            String statusFilter = null;
+            if ("D".equalsIgnoreCase(action)) {
+                statusFilter = TemplateConstants.STATUS_DRAFT;
+            } else if (TemplateConstants.FLAG_YES.equalsIgnoreCase(action)) {
+                statusFilter = TemplateConstants.STATUS_ACTIVE;
+            }
+
+            Pageable pageable = PageRequest.of(page, size);
+            Page<ReconFileTmpltMast> templatePage =
+                    templateRepository.findAllWithFilters(statusFilter, null, null, pageable);
+
+            if (templatePage.isEmpty()) {
+                return ResponseEntity.ok(
+                        ResponseBuilder.okPaged(
+                                "No templates available.",
+                                "templates",
+                                Collections.emptyList(),
+                                templatePage));
+            }
+
+            List<ReconFileTmpltMast> withDetails =
+                    templateRepository.fetchTemplateDetails(templatePage.getContent());
+            List<ReconFileTemplateMastDto> dtos = enrichListWithSftp(
+                    ReconFileTemplateMastMapper.toDTOList(withDetails), withDetails);
+            List<Map<String, Object>> rows = ResponseBuilder.toMapList(new ArrayList<>(dtos), objectMapper);
+
+            return ResponseEntity.ok(
+                    ResponseBuilder.okPaged(
+                            "Templates retrieved successfully.",
+                            "templates",
+                            rows,
+                            templatePage));
+
+        } catch (Exception e) {
+            logger.error("Error fetching templates: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseBuilder.error("Error retrieving templates: " + e.getMessage()));
+        }
+    }
+
+    // =========================================================================
+    // DELETE TEMPLATE
+    // =========================================================================
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithMapStatusList> deleteTemplate(Long templateId) {
+        Optional<ReconFileTmpltMast> opt = templateRepository.findById(templateId)
+                .filter(t -> !TemplateConstants.STATUS_INACTIVE.equalsIgnoreCase(t.getStatus()));
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure("Template not found: " + templateId),
+                    HttpStatus.NOT_FOUND);
+        }
+
+        try {
+            // Soft delete — mark template as INACTIVE and hard-delete its fields
+            ReconFileTmpltMast template = opt.get();
+            template.setStatus(TemplateConstants.STATUS_INACTIVE);
+            templateRepository.save(template);
+            fieldDetailsRepository.deleteByTemplateId(templateId);
+            logger.info("Template soft-deleted. ID: {}", templateId);
+
+        } catch (DataIntegrityViolationException e) {
+            logger.error("Data integrity error deleting template {}: {}", templateId, e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.error("Cannot delete template: it is referenced by other records."),
+                    HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            logger.error("Unexpected error deleting template {}: {}", templateId, e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.error("Failed to delete template: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("deletedTemplateId", templateId);
+
+        return ResponseEntity.ok(
+                ResponseBuilder.ok("Template deleted successfully.", "deleted", Collections.singletonList(row)));
+    }
+
+    // =========================================================================
+    // SEARCH TEMPLATE — paginated
+    // =========================================================================
+
+    @Override
+    public ResponseEntity<RestWithMapStatusList> searchTemplate(String name, String type,
+                                                                 int page, int size) {
+        if (page < 0) {
+            return ResponseEntity.badRequest().body(
+                    ResponseBuilder.failure("Page number cannot be negative."));
+        }
+        if (size <= 0 || size > 100) {
+            return ResponseEntity.badRequest().body(
+                    ResponseBuilder.failure("Size must be between 1 and 100."));
+        }
+
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<ReconFileTmpltMast> results;
+
+            if (null != name && null != type) {
+                results = templateRepository
+                        .findByTemplateNameContainingIgnoreCaseAndTemplateType(name, type, pageable);
+            } else if (null != name) {
+                results = templateRepository
+                        .findByTemplateNameContainingIgnoreCase(name, pageable);
+            } else if (null != type) {
+                results = templateRepository.findByTemplateType(type, pageable);
+            } else {
+                results = templateRepository.findTemplates(pageable);
+            }
+
+            if (results.isEmpty()) {
+                return ResponseEntity.ok(
+                        ResponseBuilder.okPaged(
+                                "No templates found matching the search criteria.",
+                                "templates",
+                                Collections.emptyList(),
+                                results));
+            }
+
+            List<ReconFileTmpltMast> withDetails =
+                    templateRepository.fetchTemplateDetails(results.getContent());
+            List<ReconFileTemplateMastDto> dtos = enrichListWithSftp(
+                    ReconFileTemplateMastMapper.toDTOList(withDetails), withDetails);
+            List<Map<String, Object>> rows = ResponseBuilder.toMapList(new ArrayList<>(dtos), objectMapper);
+
+            return ResponseEntity.ok(
+                    ResponseBuilder.okPaged("Templates fetched successfully.", "templates", rows, results));
+
+        } catch (Exception e) {
+            logger.error("Error searching templates (name={}, type={}): {}", name, type, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseBuilder.error("Error searching templates: " + e.getMessage()));
+        }
+    }
+
+    // =========================================================================
+    // GET TEMPLATE BY ID
+    // =========================================================================
+
+    @Override
+    public ResponseEntity<RestWithMapStatusList> getTemplateById(Long templateId) {
+        try {
+            List<ReconFileTmpltMast> results = templateRepository.findByIdWithDetails(templateId);
+            ReconFileTmpltMast entity = results.isEmpty() ? null : results.get(0);
+            if (null == entity || TemplateConstants.STATUS_INACTIVE.equalsIgnoreCase(entity.getStatus())) {
+                return new ResponseEntity<>(
+                        ResponseBuilder.failure("Template not found: " + templateId),
+                        HttpStatus.NOT_FOUND);
+            }
+
+            ReconFileTemplateMastDto dto = enrichWithSftp(ReconFileTemplateMastMapper.toDTO(entity), entity);
+            Map<String, Object> row = ResponseBuilder.toMap(dto, objectMapper);
+
+            return ResponseEntity.ok(
+                    ResponseBuilder.ok("Template fetched successfully.", "template", Collections.singletonList(row)));
+
+        } catch (Exception e) {
+            logger.error("Error fetching template {}: {}", templateId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseBuilder.error("Error fetching template: " + e.getMessage()));
+        }
+    }
+
+    // =========================================================================
+    // INNER TRANSACTIONAL HELPERS (called via self-proxy)
+    // =========================================================================
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ReconFileTmpltMast saveTemplateAndFields(ReconTemplateConfigRequest request) {
+
+        // ── deliverMode: SFTP → save/link SFTP server; MANUAL → skip SFTP entirely ──
+        String deliverMode = request.getDeliverMode();
+        if (!TemplateConstants.DELIVER_MODE_MANUAL.equalsIgnoreCase(deliverMode)
+                && null != request.getSftpServerDetails()) {
+
+            Long linkedSftpServerId;
+            if (null != request.getSftpServerDetails().getServerId()) {
+                // ── Case A: Existing server selected — just link it, no DB change ──
+                linkedSftpServerId = request.getSftpServerDetails().getServerId();
+                logger.info("Linking existing SFTP server [{}] to new template.", linkedSftpServerId);
+            } else {
+                // ── Case B: "+Add Custom SFTP" — nullify irrelevant auth fields then create and link ──
+                SftpServerRequestDTO sftpReq = request.getSftpServerDetails();
+                String sftpAuthType = null != sftpReq.getAuthType()
+                        ? sftpReq.getAuthType().toUpperCase() : SftpConstants.AUTH_PASSWORD;
+                if (SftpConstants.AUTH_SSH_KEY.equals(sftpAuthType)) {
+                    // SSH_KEY: privateKeyPath required; password irrelevant → nullify
+                    if (null == sftpReq.getPrivateKeyPath() || sftpReq.getPrivateKeyPath().trim().isEmpty())
+                        throw new IllegalArgumentException(
+                                "privateKeyPath is required when authType is SSH_KEY.");
+                    sftpReq.setPassword(null);
+                } else {
+                    // PASSWORD: password required; privateKeyPath + passphrase irrelevant → nullify
+                    if (null == sftpReq.getPassword() || sftpReq.getPassword().trim().isEmpty())
+                        throw new IllegalArgumentException(
+                                "password is required when authType is PASSWORD.");
+                    sftpReq.setPrivateKeyPath(null);
+                    sftpReq.setPassphrase(null);
+                }
+                ReconSftpServerMast reconSftpServerMast =
+                        reconSftpServerMapper.toEntity(sftpReq);
+                String actor = null != request.getCreatedBy()
+                        ? request.getCreatedBy() : TemplateConstants.DEFAULT_ACTOR;
+                reconSftpServerMast.setCreatedBy(actor);
+                reconSftpServerMast.setUpdatedBy(actor);
+                reconSftpServerMast = sftpServerRepo.save(reconSftpServerMast);
+                linkedSftpServerId = reconSftpServerMast.getServerId();
+                logger.info("Created new SFTP server [{}] for template.", linkedSftpServerId);
+            }
+
+            ReconFileTmpltMast template = ReconFileTemplateMastMapper
+                    .mapTemplateDtoToFileTmpltMast(request, new ReconFileTmpltMast());
+            template.setTemplateCode(generateTemplateCode());
+            template.setStageTabName(generateStageTableName(template));
+            // ── action: DRAFT → status=DRAFT; SAVE (or anything else) → ACTIVE ──
+            template.setStatus(TemplateConstants.ACTION_DRAFT.equalsIgnoreCase(request.getAction())
+                    ? TemplateConstants.STATUS_DRAFT : TemplateConstants.STATUS_ACTIVE);
+            template.setSftpServerId(linkedSftpServerId);
+            // sourceSystem FK lookup — set entity from sourceCode string
+            if (null != request.getSourceSystem()) {
+                ReconSourceSystemMast srcSys = sourceSystemRepository
+                        .findBySourceCode(request.getSourceSystem().trim().toUpperCase())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Source system not found: " + request.getSourceSystem()
+                                + ". Please add it in recon_source_system_mast table first."));
+                template.setSourceSystem(srcSys);
+            }
+            // Null out fields irrelevant to this templateType + reversal condition
+            nullifyIrrelevantTemplateFields(template);
+            templateRepository.save(template);
+            if (null != request.getFieldDetails() && !request.getFieldDetails().isEmpty()) {
+                List<ReconTmpltFieldDtls> fields = buildFieldEntities(request.getFieldDetails(), template);
+                fieldDetailsRepository.saveAll(fields);
+                logger.info("Saved {} fields for Template [{}] (SFTP mode, action={})",
+                        fields.size(), template.getTemplateCode(), request.getAction());
+            } else {
+                logger.info("No fields provided for Template [{}] (SFTP mode, action=DRAFT)",
+                        template.getTemplateCode());
+            }
+            return template;
+        }
+
+        // MANUAL delivery mode — no SFTP server saved
+        ReconFileTmpltMast template = ReconFileTemplateMastMapper
+                .mapTemplateDtoToFileTmpltMast(request, new ReconFileTmpltMast());
+        template.setTemplateCode(generateTemplateCode());
+        template.setStageTabName(generateStageTableName(template));
+        // ── action: DRAFT → status=DRAFT; SAVE (or anything else) → ACTIVE ──
+        template.setStatus(TemplateConstants.ACTION_DRAFT.equalsIgnoreCase(request.getAction())
+                ? TemplateConstants.STATUS_DRAFT : TemplateConstants.STATUS_ACTIVE);
+        // sourceSystem FK lookup — set entity from sourceCode string
+        if (null != request.getSourceSystem()) {
+            ReconSourceSystemMast srcSys = sourceSystemRepository
+                    .findBySourceCode(request.getSourceSystem().trim().toUpperCase())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Source system not found: " + request.getSourceSystem()
+                            + ". Please add it in recon_source_system_mast table first."));
+            template.setSourceSystem(srcSys);
+        }
+        // Null out fields irrelevant to this templateType + reversal condition
+        nullifyIrrelevantTemplateFields(template);
+        templateRepository.save(template);
+        if (null != request.getFieldDetails() && !request.getFieldDetails().isEmpty()) {
+            List<ReconTmpltFieldDtls> fields = buildFieldEntities(request.getFieldDetails(), template);
+            fieldDetailsRepository.saveAll(fields);
+            logger.info("Saved {} fields for Template [{}] (MANUAL mode, action={})",
+                    fields.size(), template.getTemplateCode(), request.getAction());
+        } else {
+            logger.info("No fields provided for Template [{}] (MANUAL mode, action=DRAFT)",
+                    template.getTemplateCode());
+        }
+
+        // Scheduler config suppressed — will be handled via separate dedicated API
+        // reconExecScheduleConfigService.saveScheduleConfig(...) removed intentionally
+
+        return template;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ReconFileTmpltMast updateTemplateAndFields(Long templateId, ReconTemplateConfigRequest request) {
+        ReconFileTmpltMast template = templateRepository.findById(templateId)
+                .filter(t -> !TemplateConstants.STATUS_INACTIVE.equalsIgnoreCase(t.getStatus()))
+                .orElseThrow(() -> new IllegalArgumentException("Template not found: " + templateId));
+
+        // Duplicate name check — only if name is being changed to something different
+        if (null != request.getTemplateName()
+                && !request.getTemplateName().equalsIgnoreCase(template.getTemplateName())
+                && templateRepository.existsByTemplateNameAndTenantId(
+                        request.getTemplateName(), template.getTenantId())) {
+            throw new IllegalArgumentException(
+                    "Template name '" + request.getTemplateName() + "' already exists for this tenant.");
+        }
+
+        if (null != request.getTemplateName()) template.setTemplateName(request.getTemplateName());
+        if (null != request.getTemplateType()) template.setTemplateType(request.getTemplateType());
+        if (null != request.getColumnCount()) template.setColumnCount(Long.valueOf(request.getColumnCount()));
+        if (null != request.getReversalIndicator()) template.setReversalIndicator(request.getReversalIndicator());
+        if (null != request.getDataReference()) template.setDataReferenceFlag(request.getDataReference());
+        if (null != request.getOnlineRefund()) template.setOnlRefundFlag(request.getOnlineRefund());
+        if (null != request.getDelimiter()) template.setDelimiter(request.getDelimiter());
+        if (null != request.getTextQualifier()) template.setTextQualifier(request.getTextQualifier());
+        if (null != request.getFileEncoding()) template.setFileEncoding(request.getFileEncoding());
+        if (null != request.getDateFormat()) template.setDateFormat(request.getDateFormat());
+        if (null != request.getAmountFormat()) template.setAmountFormat(request.getAmountFormat());
+        if (null != request.getDupCheckFlag()) template.setDupCheckFlag(request.getDupCheckFlag());
+        if (null != request.getReversalHandling()) template.setReversalHandling(request.getReversalHandling());
+        if (null != request.getRecordLength()) template.setRecordLength(request.getRecordLength());
+        if (null != request.getPaddingChar()) template.setPaddingChar(request.getPaddingChar());
+        if (null != request.getXmlRootTag()) template.setXmlRootTag(request.getXmlRootTag());
+        if (null != request.getXmlRowTag()) template.setXmlRowTag(request.getXmlRowTag());
+        if (null != request.getXmlNamespace()) template.setXmlNamespace(request.getXmlNamespace());
+        if (null != request.getFilePath()) template.setFilePath(request.getFilePath());
+        if (null != request.getDescription()) template.setDescription(request.getDescription());
+        // sourceSystem FK lookup — update only if new code provided
+        if (null != request.getSourceSystem()) {
+            ReconSourceSystemMast srcSys = sourceSystemRepository
+                    .findBySourceCode(request.getSourceSystem().trim().toUpperCase())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Source system not found: " + request.getSourceSystem()
+                            + ". Please add it in recon_source_system_mast table first."));
+            template.setSourceSystem(srcSys);
+        }
+        if (null != request.getHasHeader()) template.setHasHeader(request.getHasHeader());
+        if (null != request.getHasTrailer()) template.setHasTrailer(request.getHasTrailer());
+        if (null != request.getHeaderLineCount()) template.setHeaderLineCount(request.getHeaderLineCount());
+        if (null != request.getTrailerLineCount()) template.setTrailerLineCount(request.getTrailerLineCount());
+        if (null != request.getFrequencyType()) template.setFrequencyType(request.getFrequencyType());
+        if (null != request.getFileNamePattern()) template.setFileNamePattern(request.getFileNamePattern());
+        if (null != request.getReversalFieldName()) template.setReversalFieldName(request.getReversalFieldName());
+        if (null != request.getReversalValue()) template.setReversalValue(request.getReversalValue());
+        if (null != request.getReversalAmtHandling()) template.setReversalAmtHandling(request.getReversalAmtHandling());
+
+        // SAVE promotes DRAFT → ACTIVE; DRAFT keeps existing status (SAVE→DRAFT blocked in configureAsUpdate)
+        if (TemplateConstants.ACTION_SAVE.equalsIgnoreCase(request.getAction())) {
+            template.setStatus(TemplateConstants.STATUS_ACTIVE);
+        }
+
+        template.setUpdatedBy(request.getUpdatedBy());
+        template.setUpdatedAt(java.time.LocalDateTime.now());
+
+        // ── SFTP / deliverMode handling on update ────────────────────────────
+        // Case 2: MANUAL → SFTP  (add new SFTP server)
+        // Case 3: SFTP  → SFTP  (update existing server details)
+        // Case 4: SFTP  → MANUAL (remove SFTP association)
+        String deliverMode = request.getDeliverMode();
+        if (TemplateConstants.DELIVER_MODE_SFTP.equalsIgnoreCase(deliverMode)) {
+            if (null == request.getSftpServerDetails()) {
+                throw new IllegalArgumentException(
+                        "sftpServerDetails is required when deliverMode is SFTP.");
+            }
+            ReconSftpServerMast sftpServer;
+            if (null != request.getSftpServerDetails().getServerId()) {
+                // Case 3: existing server — fetch first to preserve createdBy/createdAt, then update
+                sftpServer = sftpServerRepo.findById(request.getSftpServerDetails().getServerId())
+                        .orElse(reconSftpServerMapper.toEntity(request.getSftpServerDetails()));
+                reconSftpServerMapper.updateEntityFromRequest(request.getSftpServerDetails(), sftpServer);
+                // Nullify irrelevant auth fields directly on entity AFTER mapper runs
+                // (mapper skips null DTO values to preserve existing credentials —
+                //  so we must explicitly null the irrelevant field on the entity itself)
+                String sftpAuthType3 = null != request.getSftpServerDetails().getAuthType()
+                        ? request.getSftpServerDetails().getAuthType().toUpperCase() : SftpConstants.AUTH_PASSWORD;
+                if (SftpConstants.AUTH_SSH_KEY.equals(sftpAuthType3)) {
+                    sftpServer.setPassword(null);
+                } else {
+                    sftpServer.setPrivateKeyPath(null);
+                    sftpServer.setPassphrase(null);
+                }
+                sftpServer.setUpdatedBy(null != request.getUpdatedBy()
+                        ? request.getUpdatedBy() : TemplateConstants.DEFAULT_ACTOR);
+            } else {
+                // Case 2: new SFTP server being added during update
+                // Nullify irrelevant auth fields before mapping to entity
+                SftpServerRequestDTO sftpReq = request.getSftpServerDetails();
+                String sftpAuthType = null != sftpReq.getAuthType()
+                        ? sftpReq.getAuthType().toUpperCase() : SftpConstants.AUTH_PASSWORD;
+                if (SftpConstants.AUTH_SSH_KEY.equals(sftpAuthType)) {
+                    sftpReq.setPassword(null);
+                } else {
+                    sftpReq.setPrivateKeyPath(null);
+                    sftpReq.setPassphrase(null);
+                }
+                sftpServer = reconSftpServerMapper.toEntity(sftpReq);
+                String actor = null != request.getUpdatedBy()
+                        ? request.getUpdatedBy() : TemplateConstants.DEFAULT_ACTOR;
+                sftpServer.setCreatedBy(actor);
+                sftpServer.setUpdatedBy(actor);
+            }
+            // Case 2 & 3: save (insert or update) SFTP server
+            sftpServer = sftpServerRepo.save(sftpServer);
+            template.setSftpServerId(sftpServer.getServerId());
+        } else if (TemplateConstants.DELIVER_MODE_MANUAL.equalsIgnoreCase(deliverMode)) {
+            // Case 4: SFTP → MANUAL — unlink only; SFTP server record is preserved
+            Long oldSftpServerId = template.getSftpServerId();
+            template.setSftpServerId(null);
+            if (null != oldSftpServerId) {
+                logger.info("Unlinked SFTP server [{}] from template — record preserved.", oldSftpServerId);
+            }
+        } else if (null != deliverMode) {
+            // Unknown deliverMode value — reject
+            throw new IllegalArgumentException(
+                    "Invalid deliverMode: " + deliverMode + ". Must be SFTP or MANUAL.");
+        }
+        // deliverMode null = frontend didn't send it = no change (defensive only — HTML marks it required)
+
+        // Null out fields irrelevant to this templateType + reversal condition
+        nullifyIrrelevantTemplateFields(template);
+        templateRepository.save(template);
+        // Hard delete old fields then re-insert updated ones
+        fieldDetailsRepository.deleteByTemplateId(template.getTemplateId());
+        if (null != request.getFieldDetails() && !request.getFieldDetails().isEmpty()) {
+            fieldDetailsRepository.saveAll(buildFieldEntities(request.getFieldDetails(), template));
+        }
+        return template;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String callStageTableProcedure(ReconFileTmpltMast template) {
+        SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
+                .withProcedureName("SP_STAGE_TAB_CREATION")
+                .declareParameters(
+                        new SqlParameter("Prm_tmplt_Id", Types.NUMERIC),
+                        new SqlOutParameter("Prm_Error", Types.VARCHAR));
+        Map<String, Object> params = new HashMap<>();
+        params.put("Prm_tmplt_Id", template.getTemplateId());
+        Map<String, Object> result = call.execute(params);
+        return (String) result.get("Prm_Error");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void rollbackTemplateAndFields(Long templateId) {
+        try {
+            fieldDetailsRepository.deleteByTemplateId(templateId);
+            templateRepository.deleteById(templateId);
+            logger.info("Rolled back template {}", templateId);
+        } catch (Exception e) {
+            logger.error("Rollback failed for template {}: {}", templateId, e.getMessage(), e);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void restoreTemplateAndFields(ReconFileTmpltMast snapshot,
+                                          List<ReconTmpltFieldDtls> prevFields) {
+        try {
+            templateRepository.save(snapshot);
+            fieldDetailsRepository.deleteByTemplateId(snapshot.getTemplateId());
+            if (null != prevFields && !prevFields.isEmpty()) {
+                prevFields.forEach(f -> f.setFieldId(null));
+                fieldDetailsRepository.saveAll(prevFields);
+            }
+            logger.info("Restored template {}", snapshot.getTemplateId());
+        } catch (Exception e) {
+            logger.error("Restore failed for template {}: {}", snapshot.getTemplateId(), e.getMessage(), e);
+        }
+    }
+
+    // =========================================================================
+    // PRIVATE HELPERS
+    // =========================================================================
+
+    /**
+     * UPDATE path for both the configure API (POST) and the dedicated update endpoint (PUT).
+     * Invoked by configureTemplateAndFieldData() when request.templateId is non-null,
+     * and also directly by the PUT /update-template/{id} controller (which sets templateId
+     * from the path variable into the request before calling configureTemplateAndFieldData).
+     *
+     * Rules:
+     *   SAVE → DRAFT demotion is rejected — an ACTIVE template cannot go back to DRAFT.
+     *   DRAFT → SAVE, DRAFT → DRAFT, and SAVE → SAVE are all permitted.
+     */
+    private ResponseEntity<RestWithMapStatusList> updateTemplate(ReconTemplateConfigRequest request) {
+
+        Long templateId = request.getTemplateId();
+
+        // ── Load existing template ────────────────────────────────────────────
+        ReconFileTmpltMast existing = templateRepository.findById(templateId)
+                .filter(t -> !TemplateConstants.STATUS_INACTIVE.equalsIgnoreCase(t.getStatus()))
+                .orElse(null);
+        if (null == existing) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure("Template not found: " + templateId),
+                    HttpStatus.NOT_FOUND);
+        }
+
+        // ── SAVE → DRAFT restriction ──────────────────────────────────────────
+        // An ACTIVE (saved) template cannot be demoted back to DRAFT.
+        // Only DRAFT → SAVE promotion is permitted, not the reverse.
+        if (TemplateConstants.STATUS_ACTIVE.equalsIgnoreCase(existing.getStatus())
+                && TemplateConstants.ACTION_DRAFT.equalsIgnoreCase(request.getAction())) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure(
+                            "Cannot switch to DRAFT — template is already SAVED (ACTIVE). "
+                            + "DRAFT → SAVE is allowed but SAVE → DRAFT is not."),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        boolean isDraft = TemplateConstants.ACTION_DRAFT.equalsIgnoreCase(request.getAction());
+
+        // ── fieldDetails guard ────────────────────────────────────────────────
+        if (!isDraft && (null == request.getFieldDetails() || request.getFieldDetails().isEmpty())) {
+            return new ResponseEntity<>(
+                    ResponseBuilder.failure("fieldDetails must not be null or empty"),
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // ── Partial-update fill — merge missing request fields from DB ────────
+        // Ensures validation runs against the full merged state, not just
+        // what the caller happened to send.
+        if (!isDraft) {
+            fillMissingFromExisting(request, existing);
+        }
+
+        // ── Validation ────────────────────────────────────────────────────────
+        String valErr = isDraft ? validateDraftRequest(request) : validateRequest(request);
+        if (null != valErr) {
+            return new ResponseEntity<>(ResponseBuilder.failure(valErr), HttpStatus.BAD_REQUEST);
+        }
+
+        // ── Snapshot — needed to restore previous state if SP fails ──────────
+        List<ReconTmpltFieldDtls> prevFields =
+                fieldDetailsRepository.findActiveFieldsByTemplateId(existing.getTemplateId());
+        ReconFileTmpltMast prevSnapshot = copyTemplateSnapshot(existing);
+
+        // ── Persist update ────────────────────────────────────────────────────
+        ReconFileTmpltMast updatedTemplate;
+        try {
+            updatedTemplate = self.updateTemplateAndFields(templateId, request);
+            logger.info("Template updated. ID: {}", updatedTemplate.getTemplateId());
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation error — updateTemplate templateId={}: {}",
+                    templateId, e.getMessage(), e);
+            return new ResponseEntity<>(ResponseBuilder.failure(e.getMessage()), HttpStatus.BAD_REQUEST);
+        } catch (DataIntegrityViolationException e) {
+            logger.error("Data integrity error — updateTemplate templateId={}: {}",
+                    templateId, e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.error(
+                            "Data conflict during template update. Check for duplicate template name."),
+                    HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            logger.error("Unexpected error — updateTemplate templateId={}: {}",
+                    templateId, e.getMessage(), e);
+            return new ResponseEntity<>(
+                    ResponseBuilder.error("Failed to update template: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        // ── Stage table — DRAFT templates skip SP ─────────────────────────────
+        if (!isDraft) {
+            String spResult;
+            try {
+                spResult = self.callStageTableProcedure(updatedTemplate);
+            } catch (Exception e) {
+                self.restoreTemplateAndFields(prevSnapshot, prevFields);
+                return new ResponseEntity<>(
+                        ResponseBuilder.error(
+                                "Stage table update failed. Previous state restored. " + e.getMessage()),
+                        HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            if (null == spResult || !spResult.equalsIgnoreCase("OK")) {
+                self.restoreTemplateAndFields(prevSnapshot, prevFields);
+                return new ResponseEntity<>(
+                        ResponseBuilder.error(
+                                "Stage table update failed. Previous state restored. Reason: " + spResult),
+                        HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        } else {
+            logger.info("DRAFT template [{}] — skipping SP_STAGE_TAB_CREATION on update.",
+                    updatedTemplate.getTemplateCode());
+        }
+
+        // ── Build and return full response ────────────────────────────────────
+        entityManager.clear();
+        List<ReconFileTmpltMast> foundUpd =
+                templateRepository.findByIdWithDetails(updatedTemplate.getTemplateId());
+        ReconFileTmpltMast fullTemplate = foundUpd.isEmpty() ? updatedTemplate : foundUpd.get(0);
+        ReconFileTemplateMastDto updatedDto =
+                enrichWithSftp(ReconFileTemplateMastMapper.toDTO(fullTemplate), fullTemplate);
+        Map<String, Object> updatedRow = ResponseBuilder.toMap(updatedDto, objectMapper);
+
+        return ResponseEntity.ok(
+                ResponseBuilder.ok("Template updated successfully.", "template",
+                        Collections.singletonList(updatedRow)));
+    }
+
+    private List<ReconTmpltFieldDtls> buildFieldEntities(List<ReconFieldConfigurationDto> dtos,
+                                                           ReconFileTmpltMast template) {
+        List<ReconTmpltFieldDtls> fields = new ArrayList<>();
+        for (ReconFieldConfigurationDto dto : dtos) {
+            // fieldType  → always uppercase (DB stores STRING, DATE, NUMBER, DECIMAL, BOOLEAN)
+            // fieldFormat → keep as-is  (DB stores mixed-case: "dd-MM-yyyy", "yyyy-MM-dd" etc.)
+            String fieldTypeInput   = null != dto.getFieldtype() ? dto.getFieldtype().trim().toUpperCase() : null;
+            String fieldFormatInput = null != dto.getFieldFormat() ? dto.getFieldFormat().trim()             : null;
+
+            ReconFieldTypeMast type = fieldTypeRepository
+                    .findByFieldTypeDes(fieldTypeInput)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Invalid Field Type: " + dto.getFieldtype()
+                            + ". Valid values: STRING, NUMBER, DATE, DECIMAL, BOOLEAN"));
+            ReconFieldFormatMast format = fieldFormatRepository
+                    .findByReconFieldFormatDesc(fieldFormatInput)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Invalid Field Format: " + dto.getFieldFormat()
+                            + ". Use GET /api/v2/field/field-formats to see valid values."));
+            ReconTmpltFieldDtls field =
+                    ReconFieldDetailsMapper.mapFieldDtoToEntity(dto, template, type, format);
+            // Null out field columns irrelevant to this templateType
+            String templateType = null != template.getTemplateType()
+                    ? template.getTemplateType().trim().toUpperCase() : "";
+            nullifyIrrelevantFieldColumns(field, templateType);
+            fields.add(field);
+        }
+        return fields;
+    }
+
+    /**
+     * Nullifies template-level fields that do not belong to the given templateType.
+     * Called after building / updating a ReconFileTmpltMast entity so that DB always
+     * stores NULL for fields irrelevant to the current type — regardless of what
+     * the frontend sent in the payload.
+     *
+     * Also nullifies reversal fields when reversalIndicator is not "Y".
+     */
+    private void nullifyIrrelevantTemplateFields(ReconFileTmpltMast template) {
+        String type = null != template.getTemplateType()
+                ? template.getTemplateType().trim().toUpperCase() : "";
+
+        switch (type) {
+            case TemplateConstants.TYPE_CSV:
+                // CSV uses: delimiter, textQualifier
+                // Null out Fixed Width, XML specific fields
+                template.setRecordLength(null);
+                template.setPaddingChar(null);
+                template.setXmlRootTag(null);
+                template.setXmlRowTag(null);
+                template.setXmlNamespace(null);
+                break;
+
+            case TemplateConstants.TYPE_FIXED_WIDTH:
+            case TemplateConstants.TYPE_FIXED_WIDTH2:
+                // Fixed Width uses: recordLength, paddingChar
+                // Null out CSV, XML specific fields
+                template.setDelimiter(null);
+                template.setTextQualifier(null);
+                template.setXmlRootTag(null);
+                template.setXmlRowTag(null);
+                template.setXmlNamespace(null);
+                break;
+
+            case TemplateConstants.TYPE_XML:
+                // XML uses: xmlRootTag, xmlRowTag, xmlNamespace
+                // Null out CSV, Fixed Width specific fields
+                template.setDelimiter(null);
+                template.setTextQualifier(null);
+                template.setRecordLength(null);
+                template.setPaddingChar(null);
+                break;
+
+            case TemplateConstants.TYPE_EXCEL:
+                // Excel has no template-level type-specific fields
+                // Null out all type-specific fields
+                template.setDelimiter(null);
+                template.setTextQualifier(null);
+                template.setRecordLength(null);
+                template.setPaddingChar(null);
+                template.setXmlRootTag(null);
+                template.setXmlRowTag(null);
+                template.setXmlNamespace(null);
+                break;
+
+            default:
+                // Unknown type — leave as-is (will be caught by validation)
+                break;
+        }
+
+        // Reversal conditional: if reversalIndicator is not "Y", null out reversal fields
+        if (!TemplateConstants.FLAG_YES.equalsIgnoreCase(template.getReversalIndicator())) {
+            template.setReversalFieldName(null);
+            template.setReversalValue(null);
+            template.setReversalAmtHandling(null);
+        }
+    }
+
+    /**
+     * Nullifies field-level columns that do not belong to the given templateType.
+     * Called after building each ReconTmpltFieldDtls entity so that DB always
+     * stores NULL for columns irrelevant to the current template type.
+     *
+     * Fixed Width: positionFrom / positionTo kept; xmlXpath + excelColIndex → NULL
+     * XML:         xmlXpath kept; positionFrom / positionTo + excelColIndex → NULL
+     * Excel:       excelColIndex kept; positionFrom / positionTo + xmlXpath → NULL
+     * CSV:         no type-specific field columns; all set to NULL
+     */
+    private void nullifyIrrelevantFieldColumns(ReconTmpltFieldDtls field, String type) {
+        switch (type) {
+            case TemplateConstants.TYPE_CSV:
+                field.setPositionFrom(null);
+                field.setPositionTo(null);
+                field.setFromPosition(null);   // legacy VARCHAR column
+                field.setToPosition(null);     // legacy VARCHAR column
+                field.setXmlXpath(null);
+                field.setExcelColIndex(null);
+                break;
+
+            case TemplateConstants.TYPE_FIXED_WIDTH:
+            case TemplateConstants.TYPE_FIXED_WIDTH2:
+                // positionFrom / positionTo kept
+                field.setXmlXpath(null);
+                field.setExcelColIndex(null);
+                break;
+
+            case TemplateConstants.TYPE_XML:
+                // xmlXpath kept
+                field.setPositionFrom(null);
+                field.setPositionTo(null);
+                field.setFromPosition(null);
+                field.setToPosition(null);
+                field.setExcelColIndex(null);
+                break;
+
+            case TemplateConstants.TYPE_EXCEL:
+                // excelColIndex kept
+                field.setPositionFrom(null);
+                field.setPositionTo(null);
+                field.setFromPosition(null);
+                field.setToPosition(null);
+                field.setXmlXpath(null);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private ReconFileTmpltMast copyTemplateSnapshot(ReconFileTmpltMast src) {
+        ReconFileTmpltMast snap = new ReconFileTmpltMast();
+        snap.setTemplateId(src.getTemplateId());
+        snap.setTemplateName(src.getTemplateName());
+        snap.setTemplateType(src.getTemplateType());
+        snap.setTemplateCode(src.getTemplateCode());
+        snap.setColumnCount(src.getColumnCount());
+        snap.setReversalIndicator(src.getReversalIndicator());
+        snap.setDataReferenceFlag(src.getDataReferenceFlag());
+        snap.setOnlRefundFlag(src.getOnlRefundFlag());
+        snap.setStageTabName(src.getStageTabName());
+        snap.setSubTemplateId(src.getSubTemplateId());
+        snap.setStatus(src.getStatus());
+        snap.setTenantId(src.getTenantId());
+        return snap;
+    }
+
+    /**
+     * DRAFT validation — only bare minimum checked.
+     * Bypasses all logical/conditional validations (sourceSystem, filePath,
+     * frequencyType, dateFormat, amountFormat, deliverMode, fieldDetails etc.)
+     * Only templateName + templateType + tenantId are required for a draft save.
+     */
+    private String validateDraftRequest(ReconTemplateConfigRequest request) {
+        if (isEmpty(request.getTemplateName())) return "templateName is required even for Draft.";
+        if (isEmpty(request.getTemplateType())) return "templateType is required even for Draft.";
+        if (null == request.getTenantId())      return "tenantId is required even for Draft.";
+        // templateType value must still be a known type
+        String type = request.getTemplateType().trim().toUpperCase();
+        if (!type.equals(TemplateConstants.TYPE_CSV)
+                && !type.equals(TemplateConstants.TYPE_FIXED_WIDTH)
+                && !type.equals(TemplateConstants.TYPE_FIXED_WIDTH2)
+                && !type.equals(TemplateConstants.TYPE_XML)
+                && !type.equals(TemplateConstants.TYPE_EXCEL)) {
+            return "Invalid templateType: " + request.getTemplateType()
+                    + ". Allowed: CSV, Fixed Width, XML, Excel.";
+        }
+        return null;
+    }
+
+    /**
+     * Enriches a ReconFileTemplateMastDto with SFTP server details.
+     * Called after every mapper.toDTO() so all responses include sftpServerDetails.
+     */
+    private ReconFileTemplateMastDto enrichWithSftp(ReconFileTemplateMastDto dto,
+                                                     ReconFileTmpltMast entity) {
+        if (null != entity.getSftpServerId()) {
+            sftpServerRepo.findById(entity.getSftpServerId()).ifPresent(sftp ->
+                    dto.setSftpServerDetails(reconSftpServerMapper.toResponseDTO(sftp)));
+        }
+        return dto;
+    }
+
+    /**
+     * Enriches a list of DTOs with SFTP server details.
+     * Uses a templateId→entity map so order-independence is guaranteed
+     * (fetchTemplateDetails uses DISTINCT which may reorder results).
+     */
+    private List<ReconFileTemplateMastDto> enrichListWithSftp(List<ReconFileTemplateMastDto> dtos,
+                                                               List<ReconFileTmpltMast> entities) {
+        Map<Long, ReconFileTmpltMast> entityMap = new HashMap<>();
+        for (ReconFileTmpltMast e : entities) {
+            entityMap.put(e.getTemplateId(), e);
+        }
+        for (ReconFileTemplateMastDto dto : dtos) {
+            ReconFileTmpltMast entity = entityMap.get(dto.getTemplateId());
+            if (null != entity) enrichWithSftp(dto, entity);
+        }
+        return dtos;
+    }
+
+    /**
+     * PUT partial-update helper — fills null request fields from the existing
+     * template so validation can run against the full merged state.
+     * Only fills if the request field is null/blank (user didn't send it).
+     * Fields the user DID send are left untouched — those are their intended changes.
+     */
+    private void fillMissingFromExisting(ReconTemplateConfigRequest request,
+                                          ReconFileTmpltMast existing) {
+        if (isEmpty(request.getTemplateName()))    request.setTemplateName(existing.getTemplateName());
+        if (isEmpty(request.getTemplateType()))    request.setTemplateType(existing.getTemplateType());
+        if (null == request.getTenantId())         request.setTenantId(existing.getTenantId());
+        // sourceSystem — extract code string from FK entity (null-safe)
+        if (isEmpty(request.getSourceSystem()) && null != existing.getSourceSystem())
+            request.setSourceSystem(existing.getSourceSystem().getSourceCode());
+        if (isEmpty(request.getFilePath()))        request.setFilePath(existing.getFilePath());
+        if (isEmpty(request.getFrequencyType()))   request.setFrequencyType(existing.getFrequencyType());
+        if (isEmpty(request.getDateFormat()))      request.setDateFormat(existing.getDateFormat());
+        if (isEmpty(request.getAmountFormat()))    request.setAmountFormat(existing.getAmountFormat());
+        if (isEmpty(request.getHasHeader()))       request.setHasHeader(existing.getHasHeader());
+        // Type-specific fields — only fill the relevant ones
+        if (isEmpty(request.getDelimiter()))       request.setDelimiter(existing.getDelimiter());
+        if (null == request.getRecordLength())     request.setRecordLength(existing.getRecordLength());
+        if (isEmpty(request.getPaddingChar()))      request.setPaddingChar(existing.getPaddingChar());
+        if (isEmpty(request.getXmlRootTag()))      request.setXmlRootTag(existing.getXmlRootTag());
+        if (isEmpty(request.getXmlRowTag()))       request.setXmlRowTag(existing.getXmlRowTag());
+        if (isEmpty(request.getXmlNamespace()))    request.setXmlNamespace(existing.getXmlNamespace());
+        // deliverMode — infer from existing sftpServerId if not provided
+        if (isEmpty(request.getDeliverMode()))
+            request.setDeliverMode(null != existing.getSftpServerId()
+                    ? TemplateConstants.DELIVER_MODE_SFTP : TemplateConstants.DELIVER_MODE_MANUAL);
+        // reversalFieldName — fill only if reversalIndicator is Y and fieldName missing
+        if (isEmpty(request.getReversalIndicator()))
+            request.setReversalIndicator(existing.getReversalIndicator());
+        if (TemplateConstants.FLAG_YES.equalsIgnoreCase(request.getReversalIndicator())
+                && isEmpty(request.getReversalFieldName()))
+            request.setReversalFieldName(existing.getReversalFieldName());
+    }
+
+    /**
+     * Full HTML-aligned validation — covers ALL sections.
+     * Returns first error message found, or null if valid.
+     *
+     * Section 1 Base     → templateType, templateName, sourceSystem, filePath,
+     *                       frequencyType, dateFormat, amountFormat, hasHeader required
+     * Section 1 Reversal → reversalFieldName required when reversalIndicator = Y
+     * Section 1 Type     → CSV/Fixed Width/XML/Excel conditional rules
+     * Section 2 Fields   → fieldName required per row; type-specific field rules
+     * Section 4 Delivery → deliverMode required; SFTP rules when deliverMode=SFTP
+     */
+    private String validateRequest(ReconTemplateConfigRequest request) {
+
+        // ── Section 1: Base required fields ──────────────────────────────────
+        if (isEmpty(request.getTemplateName()))  return "templateName is required.";
+        if (isEmpty(request.getTemplateType()))  return "templateType is required.";
+        if (null == request.getTenantId())       return "tenantId is required.";
+        if (isEmpty(request.getSourceSystem()))  return "sourceSystem is required.";
+        if (isEmpty(request.getFilePath()))      return "filePath is required.";
+        if (isEmpty(request.getFrequencyType())) return "frequencyType is required.";
+        if (isEmpty(request.getDateFormat()))    return "dateFormat is required.";
+        if (isEmpty(request.getAmountFormat()))  return "amountFormat is required.";
+        if (isEmpty(request.getHasHeader()))     return "hasHeader is required (Y/N).";
+
+        // ── Section 1: Reversal conditional ──────────────────────────────────
+        if (TemplateConstants.FLAG_YES.equalsIgnoreCase(request.getReversalIndicator())) {
+            if (isEmpty(request.getReversalFieldName())) {
+                return "reversalFieldName is required when reversalIndicator is Y.";
+            }
+        }
+
+        // ── Section 1: Template-type conditional ─────────────────────────────
+        String type = request.getTemplateType().trim().toUpperCase();
+        switch (type) {
+
+            case TemplateConstants.TYPE_CSV:
+                // Only required field check — irrelevant fields nullified on save
+                if (isEmpty(request.getDelimiter()))
+                    return "delimiter is required for CSV template.";
+                break;
+
+            case TemplateConstants.TYPE_FIXED_WIDTH:
+            case TemplateConstants.TYPE_FIXED_WIDTH2:
+                // Only required field checks — irrelevant fields nullified on save
+                if (null == request.getRecordLength())
+                    return "recordLength is required for Fixed Width template.";
+                // paddingChar: intentionally NOT using isEmpty() — a single space " " is a valid padding char
+                if (null == request.getPaddingChar() || request.getPaddingChar().isEmpty())
+                    return "paddingChar is required for Fixed Width template.";
+                break;
+
+            case TemplateConstants.TYPE_XML:
+                // Only required field checks — irrelevant fields nullified on save
+                if (isEmpty(request.getXmlRootTag()))
+                    return "xmlRootTag is required for XML template.";
+                if (isEmpty(request.getXmlRowTag()))
+                    return "xmlRowTag is required for XML template.";
+                if (isEmpty(request.getXmlNamespace()))
+                    return "xmlNamespace is required for XML template.";
+                break;
+
+            case TemplateConstants.TYPE_EXCEL:
+                // No template-level required fields — irrelevant fields nullified on save
+                break;
+
+            default:
+                return "Invalid templateType: " + request.getTemplateType()
+                        + ". Allowed values: CSV, Fixed Width, XML, Excel.";
+        }
+
+        // ── Section 2: Field-level validation ────────────────────────────────
+        if (null != request.getFieldDetails()) {
+            for (ReconFieldConfigurationDto f : request.getFieldDetails()) {
+
+                // fieldName required for every row
+                if (isEmpty(f.getFieldName()))
+                    return "fieldName is required for every field row.";
+
+                // Fixed Width → positionFrom + positionTo required per field
+                if (TemplateConstants.TYPE_FIXED_WIDTH.equals(type)
+                        || TemplateConstants.TYPE_FIXED_WIDTH2.equals(type)) {
+                    if (null == f.getPositionFrom() || null == f.getPositionTo())
+                        return "positionFrom and positionTo are required for every field in Fixed Width template."
+                                + " Missing in field: " + f.getFieldName();
+                }
+
+                // Excel → excelColIndex required per field
+                if (TemplateConstants.TYPE_EXCEL.equals(type)) {
+                    if (null == f.getExcelColIndex())
+                        return "excelColIndex is required for every field in Excel template."
+                                + " Missing in field: " + f.getFieldName();
+                }
+
+                // XML → xmlXpath required per field
+                if (TemplateConstants.TYPE_XML.equals(type)) {
+                    if (isEmpty(f.getXmlXpath()))
+                        return "xmlXpath is required for every field in XML template."
+                                + " Missing in field: " + f.getFieldName();
+                }
+            }
+        }
+
+        // ── Section 4: Delivery mode required ────────────────────────────────
+        if (isEmpty(request.getDeliverMode()))
+            return "deliverMode is required (SFTP or MANUAL).";
+
+        if (TemplateConstants.DELIVER_MODE_SFTP.equalsIgnoreCase(request.getDeliverMode())) {
+            // sftpServerDetails object required
+            if (null == request.getSftpServerDetails())
+                return "sftpServerDetails is required when deliverMode is SFTP.";
+
+            // remotePath required
+            if (isEmpty(request.getSftpServerDetails().getRemotePath()))
+                return "sftpServerDetails.remotePath is required when deliverMode is SFTP.";
+
+            // New custom SFTP (no serverId) → host, username, password required
+            if (null == request.getSftpServerDetails().getServerId()) {
+                if (isEmpty(request.getSftpServerDetails().getHost()))
+                    return "sftpServerDetails.host is required for a new SFTP server.";
+                if (isEmpty(request.getSftpServerDetails().getDefaultUsername()))
+                    return "sftpServerDetails.defaultUsername is required for a new SFTP server.";
+                // password required only when authType = PASSWORD (default)
+                String authType = request.getSftpServerDetails().getAuthType();
+                if (null == authType || SftpConstants.AUTH_PASSWORD.equalsIgnoreCase(authType)) {
+                    if (isEmpty(request.getSftpServerDetails().getPassword()))
+                        return "sftpServerDetails.password is required when authType is PASSWORD.";
+                }
+            }
+        } else if (!TemplateConstants.DELIVER_MODE_MANUAL.equalsIgnoreCase(request.getDeliverMode())) {
+            return "Invalid deliverMode: " + request.getDeliverMode() + ". Allowed: SFTP, MANUAL.";
+        }
+
+        return null; // all valid
+    }
+
+    /** Java 8 compatible isEmpty — null or blank string check */
+    private boolean isEmpty(String value) {
+        return null == value || value.trim().isEmpty();
+    }
+
+    private String generateTemplateCode() {
+        String date = java.time.LocalDate.now()
+                .format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        long seq = templateRepository.countByTemplateCodeStartingWith("TMPLT-" + date);
+        return String.format("TMPLT-%s-%04d", date, seq + 1);
+    }
+
+    private String generateStageTableName(ReconFileTmpltMast t) {
+        return "RECON_" + CommonUtil.removeAllWhitespace(
+                t.getTemplateCode()).toUpperCase().replace("-", "_") + "_STAGE_T";
+    }
+}

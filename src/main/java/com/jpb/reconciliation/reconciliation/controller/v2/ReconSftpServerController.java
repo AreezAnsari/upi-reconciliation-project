@@ -16,54 +16,82 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.dto.SftpServerRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
-import com.jpb.reconciliation.reconciliation.service.ReconSftpServerService;
+import com.jpb.reconciliation.reconciliation.dto.v2.SftpServerRequestDTO;
+import com.jpb.reconciliation.reconciliation.service.v2.ReconSftpServerService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v2/recon/sftp-servers")
 @RequiredArgsConstructor
+@Tag(name = "SFTP Server v2", description = "APIs for managing SFTP server configurations used in template file delivery")
 public class ReconSftpServerController {
 
     private final ReconSftpServerService sftpServerService;
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/v2/recon/sftp-servers
+    // ─────────────────────────────────────────────────────────────────────────
     @PostMapping
-    public ResponseEntity<RestWithMapStatusList> create(
+    @Operation(summary = "Register a new SFTP server configuration")
+    public ResponseEntity<RestWithMapStatusList> createSftpServer(
             @RequestBody SftpServerRequestDTO request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String userId,@AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails) {
         return sftpServerService.createServer(request, userDetails.getUsername());
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PUT /api/v2/recon/sftp-servers/{serverId}
+    // ─────────────────────────────────────────────────────────────────────────
     @PutMapping("/{serverId}")
-    public ResponseEntity<RestWithMapStatusList> update(
+    @Operation(summary = "Update an existing SFTP server configuration by serverId")
+    public ResponseEntity<RestWithMapStatusList> updateSftpServer(
             @PathVariable Long serverId,
             @RequestBody SftpServerRequestDTO request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String userId) {
-        return sftpServerService.updateServer(serverId, request, userId);
+            @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String updatedBy) {
+        return sftpServerService.updateServer(serverId, request, updatedBy);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/v2/recon/sftp-servers/{serverId}
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping("/{serverId}")
-    public ResponseEntity<RestWithMapStatusList> getById(@PathVariable Long serverId) {
+    @Operation(summary = "Get a single SFTP server configuration by serverId")
+    public ResponseEntity<RestWithMapStatusList> getSftpServerById(
+            @PathVariable Long serverId) {
         return sftpServerService.getServerById(serverId);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/v2/recon/sftp-servers?activeOnly=true
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping
-    public ResponseEntity<RestWithStatusList> getAll(
+    @Operation(summary = "List all SFTP server configurations. activeOnly=true returns only active servers")
+    public ResponseEntity<RestWithStatusList> getAllSftpServers(
             @RequestParam(defaultValue = "true") boolean activeOnly) {
         return sftpServerService.getAllServers(activeOnly);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // DELETE /api/v2/recon/sftp-servers/{serverId}
+    // ─────────────────────────────────────────────────────────────────────────
     @DeleteMapping("/{serverId}")
-    public ResponseEntity<RestWithMapStatusList> delete(
+    @Operation(summary = "Soft-delete an SFTP server configuration by serverId (sets isActive = N)")
+    public ResponseEntity<RestWithMapStatusList> deleteSftpServer(
             @PathVariable Long serverId,
-            @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String userId) {
-        return sftpServerService.deleteServer(serverId, userId);
+            @RequestHeader(value = "X-User-Id", defaultValue = "SYSTEM") String deletedBy) {
+        return sftpServerService.deleteServer(serverId, deletedBy);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/v2/recon/sftp-servers/test-connection
+    // ─────────────────────────────────────────────────────────────────────────
     @PostMapping("/test-connection")
-    public ResponseEntity<RestWithStatusList> testConnection(
+    @Operation(summary = "Test connectivity to an SFTP server using the provided credentials")
+    public ResponseEntity<RestWithStatusList> testSftpConnection(
             @RequestBody SftpTestConnectionRequestDTO request) {
         return sftpServerService.testConnection(request);
     }

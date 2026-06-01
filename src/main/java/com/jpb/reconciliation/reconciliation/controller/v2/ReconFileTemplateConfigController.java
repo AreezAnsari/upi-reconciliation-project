@@ -1,7 +1,5 @@
 package com.jpb.reconciliation.reconciliation.controller.v2;
 
-
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,12 +14,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
-import com.jpb.reconciliation.reconciliation.dto.ReconTemplateConfigRequest;
-import com.jpb.reconciliation.reconciliation.dto.ReconTemplateDetailsDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
-import com.jpb.reconciliation.reconciliation.dto.TemplateFieldDto;
-import com.jpb.reconciliation.reconciliation.service.ReconFileTemplateConfigServiceImpl;
-import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
+import com.jpb.reconciliation.reconciliation.dto.v2.ReconTemplateConfigRequest;
+import com.jpb.reconciliation.reconciliation.service.v2.ReconFileTemplateConfigService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -31,99 +26,93 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping(path = "/api/v2/template/")
 @RequiredArgsConstructor
-@Tag(name = "Reconciliation Template", description = "APIs for managing reconciliation templates")
+@Tag(name = "Reconciliation Template v2", description = "APIs for managing reconciliation file templates and field definitions")
 public class ReconFileTemplateConfigController {
 
-    private final ReconFileTemplateConfigServiceImpl reconFileTemplateConfigServiceImpl;
+    private final ReconFileTemplateConfigService templateConfigService;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // POST  /api/v1/template/add-template
-    // ─────────────────────────────────────────────────────────────────────────
-//    @PostMapping(value = "add-template", produces = CommonConstants.APPLICATION_JSON)
-//    @Operation(summary = "Add a new template header record")
-//    public ResponseEntity<RestWithMapStatusList> addTemplate(
-//            @RequestBody ReconTemplateDetailsDto dto) {
-//        return reconFileTemplateConfigServiceImpl.addTemplate(dto);
-//    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // POST  /api/v1/template/template-configure
+    // POST /api/v2/template/template-configure
+    // Dual-mode: templateId absent = CREATE, templateId present = UPDATE
     // ─────────────────────────────────────────────────────────────────────────
     @PostMapping(value = "template-configure", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "Configure a new template with its field definitions")
-    public ResponseEntity<RestWithMapStatusList> configureTemplateWithField(
-            @RequestBody ReconTemplateConfigRequest request,@AuthenticationPrincipal UserDetails userDetails) {
+    @Operation(summary = "Configure or update a template. "
+            + "templateId absent → creates new template. "
+            + "templateId present → updates existing template. "
+            + "action=SAVE promotes DRAFT to ACTIVE; SAVE→DRAFT switch is rejected.")
+    public ResponseEntity<RestWithMapStatusList> configureTemplate(
+            @RequestBody ReconTemplateConfigRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        if (request.getFieldDetails() == null || request.getFieldDetails().isEmpty()) {
-        	return new ResponseEntity<>(
-                    ResponseBuilder.failure("fieldDetails must not be null or empty"),
-                    HttpStatus.BAD_REQUEST);
-        }
         request.setCreatedBy(userDetails.getUsername());
-        
-        return reconFileTemplateConfigServiceImpl.configureTemplateAndFieldData(request);
+        request.setUpdatedBy(userDetails.getUsername());
+        return templateConfigService.configureTemplateAndFieldData(request);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET   /api/v1/template/view-template?page=0&size=10
-    // ─────────────────────────────────────────────────────────────────────────
-    @GetMapping(value = "/view-template", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "View all templates with pagination")
-    public ResponseEntity<RestWithMapStatusList> viewTemplate(
-            @Parameter(description = "Page number (0-based)", example = "0")
-            @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Records per page", example = "10")
-            @RequestParam(defaultValue = "10") int size) {
-        return reconFileTemplateConfigServiceImpl.viewTemplate(page, size);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // PUT   /api/v1/template/update-template/{templateId}
+    // PUT /api/v2/template/update-template/{templateId}
+    // Dedicated update endpoint — routes through the same configure flow.
+    // templateId is taken from the path variable and set on the request,
+    // so configureTemplateAndFieldData() treats it as an UPDATE automatically.
     // ─────────────────────────────────────────────────────────────────────────
     @PutMapping(value = "/update-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "Update template fields and format")
+    @Operation(summary = "Update an existing template and its field definitions by templateId. "
+            + "Routes through the configure flow — SAVE→DRAFT demotion is rejected.")
     public ResponseEntity<RestWithMapStatusList> updateTemplate(
             @PathVariable Long templateId,
-            @RequestBody ReconTemplateConfigRequest request) {
+            @RequestBody ReconTemplateConfigRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        if (request.getFieldDetails() == null || request.getFieldDetails().isEmpty()) {
-            return new ResponseEntity<>(
-                    ResponseBuilder.failure("fieldDetails must not be null or empty"),
-                    HttpStatus.BAD_REQUEST);
-        }
-        return reconFileTemplateConfigServiceImpl.updateTemplate(templateId, request);
+        request.setCreatedBy(userDetails.getUsername());
+        request.setUpdatedBy(userDetails.getUsername());
+        return templateConfigService.updateTemplateById(templateId, request);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // DELETE /api/v1/template/delete-template/{templateId}
+    // GET /api/v2/template/view-template?action=&page=0&size=10
     // ─────────────────────────────────────────────────────────────────────────
-    @DeleteMapping(value = "/delete-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "Delete a template by ID")
-    public ResponseEntity<RestWithMapStatusList> deleteTemplate(
+    @GetMapping(value = "/view-template", produces = CommonConstants.APPLICATION_JSON)
+    @Operation(summary = "List all templates with pagination. action: D=DRAFT, Y=ACTIVE, absent=all")
+    public ResponseEntity<RestWithMapStatusList> viewTemplateList(
+            @Parameter(description = "Status filter: D=DRAFT, Y=ACTIVE, omit for all")
+            @RequestParam(required = false) String action,
+            @Parameter(description = "Page number (0-based)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Records per page (max 100)", example = "10")
+            @RequestParam(defaultValue = "10") int size) {
+        return templateConfigService.viewTemplate(action, page, size);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/v2/template/get-template/{templateId}
+    // ─────────────────────────────────────────────────────────────────────────
+    @GetMapping(value = "/get-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
+    @Operation(summary = "Get full template details including all field definitions by templateId")
+    public ResponseEntity<RestWithMapStatusList> getTemplateById(
             @PathVariable Long templateId) {
-        return reconFileTemplateConfigServiceImpl.deleteTemplate(templateId);
+        return templateConfigService.getTemplateById(templateId);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET   /api/v1/template/search-template?templateName=&templateType=
+    // GET /api/v2/template/search-template?templateName=&templateType=
     // ─────────────────────────────────────────────────────────────────────────
     @GetMapping(value = "/search-template", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "Search templates by name or type")
+    @Operation(summary = "Search templates by name or type with pagination")
     public ResponseEntity<RestWithMapStatusList> searchTemplate(
             @RequestParam(required = false) String templateName,
             @RequestParam(required = false) String templateType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return reconFileTemplateConfigServiceImpl.searchTemplate(templateName, templateType, page, size);
+        return templateConfigService.searchTemplate(templateName, templateType, page, size);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET   /api/v1/template/get-template/{templateId}
+    // DELETE /api/v2/template/delete-template/{templateId}
     // ─────────────────────────────────────────────────────────────────────────
-    @GetMapping(value = "/get-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
-    @Operation(summary = "Get template by ID")
-    public ResponseEntity<RestWithMapStatusList> getTemplateById(
+    @DeleteMapping(value = "/delete-template/{templateId}", produces = CommonConstants.APPLICATION_JSON)
+    @Operation(summary = "Soft-delete a template by templateId (sets status = INACTIVE)")
+    public ResponseEntity<RestWithMapStatusList> deleteTemplate(
             @PathVariable Long templateId) {
-        return reconFileTemplateConfigServiceImpl.getTemplateById(templateId);
+        return templateConfigService.deleteTemplate(templateId);
     }
 }
