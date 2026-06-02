@@ -24,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
-import com.jpb.reconciliation.reconciliation.service.RetireScheduleService;
+import com.jpb.reconciliation.reconciliation.service.BlockScheduleService;
 import com.jpb.reconciliation.reconciliation.service.TestInstitutionService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,8 +39,8 @@ public class TestInstitutionController {
     @Autowired
     TestInstitutionService testInstitutionService;
     
-    @Autowired 
-    RetireScheduleService retireScheduleService;
+    @Autowired
+    BlockScheduleService blockScheduleService;
 
     // ─────────────────────────────────────────────
     // CREATE
@@ -207,30 +207,30 @@ public class TestInstitutionController {
         return testInstitutionService.exportToCsv();
     }
     
- // ─────────────────────────────────────────────
-    // SCHEDULE RETIRE
-    // POST /test/api/v1/institution/schedule-retire/{institutionId}
     // ─────────────────────────────────────────────
-    @Operation(summary = "Schedule institution retire — auto-retires after 24 hrs")
-    @PostMapping(value = "/schedule-retire/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> scheduleRetire(
+    // SCHEDULE BLOCK
+    // POST /test/api/v1/institution/schedule-block/{institutionId}
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Schedule institution permanent block — auto-blocks after 24 hrs")
+    @PostMapping(value = "/schedule-block/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> scheduleBlock(
             @PathVariable Long institutionId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        logger.info("Schedule retire request for institution ID: {}", institutionId);
-        return retireScheduleService.scheduleRetire(institutionId, userDetails.getUsername());
+        logger.info("Schedule block request for institution ID: {}", institutionId);
+        return blockScheduleService.scheduleBlock(institutionId, userDetails.getUsername());
     }
- 
+
     // ─────────────────────────────────────────────
-    // UNDO RETIRE
-    // POST /test/api/v1/institution/undo-retire/{institutionId}
+    // UNDO BLOCK
+    // POST /test/api/v1/institution/undo-block/{institutionId}
     // ─────────────────────────────────────────────
-    @Operation(summary = "Undo scheduled retire — only within 24 hrs")
-    @PostMapping(value = "/undo-retire/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> undoRetire(
+    @Operation(summary = "Undo scheduled block — only within 24 hrs")
+    @PostMapping(value = "/undo-block/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> undoBlock(
             @PathVariable Long institutionId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        logger.info("Undo retire request for institution ID: {}", institutionId);
-        return retireScheduleService.undoRetire(institutionId, userDetails.getUsername());
+        logger.info("Undo block request for institution ID: {}", institutionId);
+        return blockScheduleService.undoBlock(institutionId, userDetails.getUsername());
     }
     
     // ─────────────────────────────────────────────────────────────────────────

@@ -22,9 +22,9 @@ import com.jpb.reconciliation.reconciliation.repository.SubTestInstitutionReposi
 import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
-public class RetireScheduleServiceImpl implements RetireScheduleService {
+public class BlockScheduleServiceImpl implements BlockScheduleService {
 
-    private static final Logger logger = LoggerFactory.getLogger(RetireScheduleServiceImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(BlockScheduleServiceImpl.class);
 
     @Autowired
     private TestInstitutionRepository testInstitutionRepository;
@@ -36,12 +36,12 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
     private EmailService emailService;
 
     // ─────────────────────────────────────────────
-    // SCHEDULE RETIRE — Admin ne "Yes" kiya retire popup mein
-    // Status → RETIRE_PENDING (30s ke liye — DEMO MODE)
+    // SCHEDULE BLOCK — Admin ne "Yes" kiya block popup mein
+    // Status → BLOCK_PENDING (24 hrs ke baad permanent BLOCKED)
     // ─────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleRetire(Long institutionId, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long institutionId, String scheduledBy) {
 
         Optional<TestInstitution> opt = testInstitutionRepository.findByInstitutionId(institutionId);
         if (!opt.isPresent()) {
@@ -50,28 +50,28 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
 
         TestInstitution inst = opt.get();
 
-        if ("RETIRED".equals(inst.getStatus())) {
-            return bad("This institution is already RETIRED.");
+        if ("BLOCKED".equals(inst.getStatus())) {
+            return bad("This institution is already permanently BLOCKED.");
         }
 
-        if ("RETIRE_PENDING".equals(inst.getStatus())) {
-            return bad("Retire is already scheduled for this institution.");
+        if ("BLOCK_PENDING".equals(inst.getStatus())) {
+            return bad("Block is already scheduled for this institution.");
         }
 
-        // Save current status so we can undo
-        inst.setPreRetireStatus(inst.getStatus());
-        inst.setStatus("RETIRE_PENDING");
-        inst.setRetireScheduledAt(LocalDateTime.now());
-        inst.setRetireScheduledBy(scheduledBy);
+        // Save current status so we can undo within 24 hrs
+        inst.setPreBlockStatus(inst.getStatus());
+        inst.setStatus("BLOCK_PENDING");
+        inst.setBlockScheduledAt(LocalDateTime.now());
+        inst.setBlockScheduledBy(scheduledBy);
         inst.setUpdatedAt(LocalDateTime.now());
 
         testInstitutionRepository.save(inst);
-        logger.info("Retire scheduled for institution {} by {} at {}",
-                institutionId, scheduledBy, inst.getRetireScheduledAt());
+        logger.info("Block scheduled for institution {} by {} at {}",
+                institutionId, scheduledBy, inst.getBlockScheduledAt());
 
-        // ── Formatted retire time for emails ──
-        String retireAtFormatted = inst.getRetireScheduledAt()
-                .plusHours(24)
+        // ── Formatted block time for emails ──
+        String blockAtFormatted = inst.getBlockScheduledAt()
+                .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
                 .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
 
         // ── Send warning email to Institution Super User ──
@@ -82,21 +82,30 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                         inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                         inst.getInstitutionNameFull(),
                         inst.getInstitutionCode(),
-                        retireAtFormatted
+                        blockAtFormatted
                 );
-                logger.info("[RETIRE-WARN] Warning email sent to institution super user: {}", inst.getPrimaryEmail());
+                logger.info("[BLOCK-WARN] Warning email sent to institution super user: {}", inst.getPrimaryEmail());
             }
         } catch (Exception e) {
-            logger.warn("[RETIRE-WARN] Warning email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
+            logger.warn("[BLOCK-WARN] Warning email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
         }
 
-        // ── Send warning email to all Sub-Institutes ──
+        // ── Set block schedule data + Send warning email to all Sub-Institutes ──
         List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(institutionId);
-        logger.info("[RETIRE-WARN] Sending retirement warning to {} sub-institute(s) under institution {}",
+        logger.info("[BLOCK-WARN] Sending block warning to {} sub-institute(s) under institution {}",
                 subs.size(), inst.getInstitutionCode());
 
         for (SubTestInstitution sub : subs) {
-            if ("RETIRED".equals(sub.getStatus())) continue;
+            if ("BLOCKED".equals(sub.getStatus())) continue;
+
+            // ── Schedule ke time hi sub-institute mein bhi 3 fields save karo ──
+            sub.setPreBlockStatus(sub.getStatus());
+            sub.setBlockScheduledAt(inst.getBlockScheduledAt());
+            sub.setBlockScheduledBy(scheduledBy);
+            subTestInstitutionRepository.save(sub);
+            logger.info("[BLOCK-WARN] Block schedule data saved for sub-institute: {} ({})",
+                    sub.getInstitutionCode(), sub.getSubInstitutionId());
+
             try {
                 if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
                     emailService.sendSubInstituteRetireWarning(
@@ -106,29 +115,29 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                             sub.getInstitutionCode(),
                             inst.getInstitutionNameFull(),
                             inst.getInstitutionCode(),
-                            retireAtFormatted
+                            blockAtFormatted
                     );
-                    logger.info("[RETIRE-WARN] Warning email sent to sub-institute: {} ({})",
+                    logger.info("[BLOCK-WARN] Warning email sent to sub-institute: {} ({})",
                             sub.getInstitutionCode(), sub.getPrimaryEmail());
                 }
             } catch (Exception e) {
-                logger.warn("[RETIRE-WARN] Warning email failed for sub-institute {} ({}): {}",
+                logger.warn("[BLOCK-WARN] Warning email failed for sub-institute {} ({}): {}",
                         sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
             }
         }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Retire scheduled. Institution will be permanently retired in 24 hours. You can undo this within 24 hours.",
+                "Block scheduled. Institution will be permanently blocked in 24 hours. You can undo this within 24 hours.",
                 new ArrayList<>()));
     }
 
     // ─────────────────────────────────────────────
-    // UNDO RETIRE — Admin ne "Undo" kiya 30s ke andar
+    // UNDO BLOCK — Admin ne "Undo" kiya 24hrs ke andar
     // Status → wapas preRetireStatus
     // ─────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> undoRetire(Long institutionId, String undoneBy) {
+    public ResponseEntity<RestWithStatusList> undoBlock(Long institutionId, String undoneBy) {
 
         Optional<TestInstitution> opt = testInstitutionRepository.findByInstitutionId(institutionId);
         if (!opt.isPresent()) {
@@ -137,24 +146,24 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
 
         TestInstitution inst = opt.get();
 
-        if (!"RETIRE_PENDING".equals(inst.getStatus())) {
-            return bad("No scheduled retire found for this institution.");
+        if (!"BLOCK_PENDING".equals(inst.getStatus())) {
+            return bad("No scheduled block found for this institution.");
         }
 
-        if (inst.getRetireScheduledAt() != null &&
-                LocalDateTime.now().isAfter(inst.getRetireScheduledAt().plusSeconds(30))) {  // DEMO: 30s — change to plusHours(24) for production
-            return bad("Undo period has expired (30 seconds). Institution has been retired.");
+        if (inst.getBlockScheduledAt() != null &&
+                LocalDateTime.now().isAfter(inst.getBlockScheduledAt().plusSeconds(30))) {   // DEMO: 30s — change to plusHours(24) for production
+            return bad("Undo period has expired (30 seconds). Institution has been permanently blocked.");
         }
 
-        String restoredStatus = inst.getPreRetireStatus() != null ? inst.getPreRetireStatus() : "ACTIVE";
+        String restoredStatus = inst.getPreBlockStatus() != null ? inst.getPreBlockStatus() : "ACTIVE";
         inst.setStatus(restoredStatus);
-        inst.setRetireScheduledAt(null);
-        inst.setRetireScheduledBy(null);
-        inst.setPreRetireStatus(null);
+        inst.setBlockScheduledAt(null);
+        inst.setBlockScheduledBy(null);
+        inst.setPreBlockStatus(null);
         inst.setUpdatedAt(LocalDateTime.now());
 
         testInstitutionRepository.save(inst);
-        logger.info("Retire undone for institution {} by {}. Restored to {}", institutionId, undoneBy, restoredStatus);
+        logger.info("Block undone for institution {} by {}. Restored to {}", institutionId, undoneBy, restoredStatus);
 
         // ── Send cancellation email to Institution Super User ──
         try {
@@ -166,16 +175,25 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                         inst.getInstitutionCode(),
                         restoredStatus
                 );
-                logger.info("[UNDO-RETIRE] Cancellation email sent to super user: {}", inst.getPrimaryEmail());
+                logger.info("[UNDO-BLOCK] Cancellation email sent to super user: {}", inst.getPrimaryEmail());
             }
         } catch (Exception e) {
-            logger.warn("[UNDO-RETIRE] Cancellation email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
+            logger.warn("[UNDO-BLOCK] Cancellation email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
         }
 
-        // ── Send cancellation email to all non-RETIRED Sub-Institutes ──
+        // ── Undo: sub-institutes ke schedule fields clear karo + email bhejo ──
         List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(institutionId);
         for (SubTestInstitution sub : subs) {
-            if ("RETIRED".equals(sub.getStatus())) continue;
+            if ("BLOCKED".equals(sub.getStatus())) continue;
+
+            // Schedule data clear karo — block cancel ho gaya
+            sub.setBlockScheduledAt(null);
+            sub.setBlockScheduledBy(null);
+            sub.setPreBlockStatus(null);
+            subTestInstitutionRepository.save(sub);
+            logger.info("[UNDO-BLOCK] Schedule data cleared for sub-institute: {} ({})",
+                    sub.getInstitutionCode(), sub.getSubInstitutionId());
+
             try {
                 if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
                     emailService.sendSubInstituteRetireCancelled(
@@ -186,44 +204,46 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                             inst.getInstitutionNameFull(),
                             inst.getInstitutionCode()
                     );
-                    logger.info("[UNDO-RETIRE] Cancellation email sent to sub-institute: {} ({})",
+                    logger.info("[UNDO-BLOCK] Cancellation email sent to sub-institute: {} ({})",
                             sub.getInstitutionCode(), sub.getPrimaryEmail());
                 }
             } catch (Exception e) {
-                logger.warn("[UNDO-RETIRE] Cancellation email failed for sub-institute {} ({}): {}",
+                logger.warn("[UNDO-BLOCK] Cancellation email failed for sub-institute {} ({}): {}",
                         sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
             }
         }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Retire has been cancelled. Institution status restored to '" + restoredStatus + "'.",
+                "Block has been cancelled. Institution status restored to '" + restoredStatus + "'.",
                 new ArrayList<>()));
     }
 
     // ─────────────────────────────────────────────
-    // AUTO-RETIRE — Runs every 24 hours
-    // Retires institutions whose 24hr window has passed
+    // AUTO-BLOCK — Runs every hour, checks 24hr window
+    // Permanently blocks institutions whose 24hr window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 86400000)   // DEMO: 5s — change to 86400000 for production (24 hrs)
+    @Scheduled(fixedRate = 5000)   // DEMO: every 5s — change to 3600000 for production (1 hr)
     @Transactional
-    public void autoRetireScheduledInstitutions() {
-        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);  // DEMO: 30s — change to minusHours(24) for production
+    public void autoBlockScheduledInstitutions() {
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);   // DEMO: 30s — change to minusHours(24) for production
 
         List<TestInstitution> pendingList = testInstitutionRepository
-                .findByStatusAndRetireScheduledAtBefore("RETIRE_PENDING", cutoff);
+                .findByStatusAndBlockScheduledAtBefore("BLOCK_PENDING", cutoff);
 
         if (pendingList.isEmpty()) return;
 
-        logger.info("Auto-retire: {} institution(s) to be retired", pendingList.size());
+        logger.info("Auto-block: {} institution(s) to be permanently blocked", pendingList.size());
 
         for (TestInstitution inst : pendingList) {
-            inst.setStatus("RETIRED");
+            inst.setStatus("BLOCKED");
+            // blockScheduledAt, blockScheduledBy, preBlockStatus — null mat karo
+            // ye audit trail ke liye DB mein permanently rehenge
             inst.setUpdatedAt(LocalDateTime.now());
             testInstitutionRepository.save(inst);
-            logger.info("Auto-retired institution: {} ({})",
+            logger.info("Auto-blocked institution: {} ({})",
                     inst.getInstitutionNameFull(), inst.getInstitutionId());
 
-            // ── Send RETIRED notification email to Super User ──
+            // ── Send BLOCKED notification email to Super User ──
             try {
                 if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
                     emailService.sendStatusChangeNotification(
@@ -231,29 +251,32 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                         inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                         inst.getInstitutionNameFull(),
                         inst.getInstitutionCode(),
-                        "RETIRE_PENDING",
-                        "RETIRED"
+                        "BLOCK_PENDING",
+                        "BLOCKED"
                     );
                 }
             } catch (Exception e) {
-                logger.warn("Auto-retire email failed for institution {}: {}",
+                logger.warn("Auto-block email failed for institution {}: {}",
                             inst.getInstitutionCode(), e.getMessage());
             }
 
-            // ── Cascade RETIRED to all sub-institutes ──
+            // ── Cascade BLOCKED to all sub-institutes (permanent) ──
             List<SubTestInstitution> subs =
                     subTestInstitutionRepository.findByParentInstitutionId(inst.getInstitutionId());
-            logger.info("[CASCADE] Auto-retire: {} sub-institute(s) found under institution {} ({})",
+            logger.info("[CASCADE] Auto-block: {} sub-institute(s) found under institution {} ({})",
                     subs.size(), inst.getInstitutionNameFull(), inst.getInstitutionCode());
 
             for (SubTestInstitution sub : subs) {
-                if ("RETIRED".equals(sub.getStatus())) continue;   // already retired — skip
+                if ("BLOCKED".equals(sub.getStatus())) continue;   // already blocked — skip
 
                 String subOldStatus = sub.getStatus();
-                sub.setPreBlockStatus(null);   // RETIRED is permanent — clear any saved state
-                sub.setStatus("RETIRED");
+                sub.setPreBlockStatus(subOldStatus);
+                sub.setStatus("BLOCKED");
+                // Sub-institute mein bhi block audit data save karo
+                sub.setBlockScheduledAt(inst.getBlockScheduledAt());
+                sub.setBlockScheduledBy(inst.getBlockScheduledBy());
                 subTestInstitutionRepository.save(sub);
-                logger.info("[CASCADE] Auto-retire: sub-institute {} ({}) → RETIRED (was: {})",
+                logger.info("[CASCADE] Auto-block: sub-institute {} ({}) → BLOCKED (was: {})",
                         sub.getInstitutionCode(), sub.getSubInstitutionId(), subOldStatus);
 
                 // Send email to sub-institute Super User
@@ -265,13 +288,13 @@ public class RetireScheduleServiceImpl implements RetireScheduleService {
                             sub.getInstitutionNameFull() != null
                                     ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
                             sub.getInstitutionCode(),
-                            subOldStatus, "RETIRED",
+                            subOldStatus, "BLOCKED",
                             inst.getInstitutionNameFull(),
                             inst.getInstitutionCode()
                         );
                     }
                 } catch (Exception e) {
-                    logger.warn("[CASCADE-EMAIL] Auto-retire email failed for sub-institute {} ({}): {}",
+                    logger.warn("[CASCADE-EMAIL] Auto-block email failed for sub-institute {} ({}): {}",
                             sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
                 }
             }

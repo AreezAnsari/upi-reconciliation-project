@@ -38,8 +38,8 @@ public interface TestInstitutionRepository extends JpaRepository<TestInstitution
 
     Optional<TestInstitution> findByPrimaryEmail(String primaryEmail);
     
-    // For auto-retire scheduler — finds all RETIRE_PENDING whose 24hr window passed
-    List<TestInstitution> findByStatusAndRetireScheduledAtBefore(String status, LocalDateTime cutoff);
+    // For auto-block scheduler — finds all BLOCK_PENDING whose window has passed
+    List<TestInstitution> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);
     
     List<TestInstitution> findByCreatedBy(String createdBy);
 

@@ -26,7 +26,7 @@ public interface EmailService {
     /**
      * Send status change notification email to Institution's Super User
      * whenever KalInfotech Admin changes the institution status.
-     * e.g. ACTIVE → INACTIVE, BLOCKED, RETIRED, etc.
+     * e.g. ACTIVE → INACTIVE, BLOCKED, etc.
      */
     void sendStatusChangeNotification(String toEmail, String superUserName,
                                       String institutionName, String institutionCode,
@@ -34,7 +34,7 @@ public interface EmailService {
 
     /**
      * Send cascade status change notification to a Sub-Institute's primary contact.
-     * Triggered when parent institution is BLOCKED / ACTIVE / RETIRED.
+     * Triggered when parent institution is BLOCKED / ACTIVE.
      * Email includes a note referencing the parent institution that caused the cascade.
      */
     void sendSubInstituteStatusNotification(String toEmail, String contactName,
@@ -43,33 +43,33 @@ public interface EmailService {
                                             String parentInstitutionName, String parentInstitutionCode);
 
     /**
-     * Send retirement warning email to Institution's Super User when admin schedules retire.
-     * Tells them: account will be retired in 24 hours, contact admin to cancel.
+     * Send block warning email to Institution's Super User when admin schedules permanent block.
+     * Tells them: account will be permanently blocked in 24 hours, contact admin to cancel.
      */
     void sendRetireWarning(String toEmail, String superUserName,
                            String institutionName, String institutionCode,
-                           String retireAt);
+                           String blockAt);
 
     /**
-     * Send retirement cancelled email to Institution's Super User when admin undoes retire.
+     * Send block cancelled email to Institution's Super User when admin undoes block.
      */
     void sendRetireCancelled(String toEmail, String superUserName,
                              String institutionName, String institutionCode,
                              String restoredStatus);
 
     /**
-     * Send retirement cancelled email to a Sub-Institute when parent's retire is undone.
+     * Send block cancelled email to a Sub-Institute when parent's block is undone.
      */
     void sendSubInstituteRetireCancelled(String toEmail, String contactName,
                                          String subInstitutionName, String subInstitutionCode,
                                          String parentInstitutionName, String parentInstitutionCode);
 
     /**
-     * Send retirement warning email to a Sub-Institute's primary contact.
-     * Triggered at same time as parent institution retire warning.
+     * Send block warning email to a Sub-Institute's primary contact.
+     * Triggered at same time as parent institution block warning.
      */
     void sendSubInstituteRetireWarning(String toEmail, String contactName,
                                        String subInstitutionName, String subInstitutionCode,
                                        String parentInstitutionName, String parentInstitutionCode,
-                                       String retireAt);
+                                       String blockAt);
 }

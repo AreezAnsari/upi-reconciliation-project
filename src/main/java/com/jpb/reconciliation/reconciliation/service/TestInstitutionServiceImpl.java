@@ -372,12 +372,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     @Transactional
     public ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status) {
 
-        // Valid statuses per sir's rules
+        // Valid statuses
         List<String> validStatuses = Arrays.asList(
-            "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"
+            "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "BLOCK_PENDING"
         );
         if (!validStatuses.contains(status.toUpperCase())) {
-            return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, RETIRED.");
+            return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, BLOCK_PENDING.");
         }
 
         Optional<TestInstitution> optional = testInstitutionRepository.findByInstitutionId(institutionId);
@@ -388,18 +388,18 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         TestInstitution institution = optional.get();
         String currentStatus = institution.getStatus();
 
-        // ── RETIRED is permanent — cannot be changed by anyone ──
-        if ("RETIRED".equals(currentStatus)) {
-            return bad("This institution is RETIRED. Its status cannot be changed by anyone.");
+        // ── BLOCKED is permanent — cannot be changed by anyone ──
+        if ("BLOCKED".equals(currentStatus)) {
+            return bad("This institution is permanently BLOCKED. Its status cannot be changed.");
         }
-        
-     // ── Transition validation ──
+
+        // ── Transition validation ──
         Map<String, List<String>> allowedTransitions = new HashMap<>();
-        allowedTransitions.put("ACTIVE",   Arrays.asList("INACTIVE", "BLOCKED", "RETIRED"));
-        allowedTransitions.put("INACTIVE", Arrays.asList("ACTIVE", "BLOCKED", "RETIRED"));  // ← ACTIVE add
-        allowedTransitions.put("BLOCKED",  Arrays.asList("ACTIVE", "RETIRED"));              // ← ACTIVE add
-        allowedTransitions.put("PENDING",  Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
-        allowedTransitions.put("VERIFIED", Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
+        allowedTransitions.put("ACTIVE",        Arrays.asList("INACTIVE", "BLOCK_PENDING"));
+        allowedTransitions.put("INACTIVE",       Arrays.asList("ACTIVE",   "BLOCK_PENDING"));
+        allowedTransitions.put("BLOCK_PENDING",  Arrays.asList("ACTIVE",   "INACTIVE"));    // undo via undo-block only
+        allowedTransitions.put("PENDING",        Arrays.asList("ACTIVE",   "INACTIVE", "BLOCK_PENDING"));
+        allowedTransitions.put("VERIFIED",       Arrays.asList("ACTIVE",   "INACTIVE", "BLOCK_PENDING"));
 
         List<String> allowed = allowedTransitions.getOrDefault(currentStatus, new ArrayList<>());
         if (!allowed.contains(status.toUpperCase())) {
@@ -438,15 +438,11 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         }
 
         // ── Cascade status to sub-institutes based on business rules ─────────
-        // BLOCKED  → all non-RETIRED sub-institutes get BLOCKED
-        // RETIRED  → all non-RETIRED sub-institutes get RETIRED (permanent)
-        // ACTIVE   → only currently-BLOCKED sub-institutes restored to ACTIVE
-        //            (INACTIVE ones stay INACTIVE — they were inactive independently)
-        //            (RETIRED ones stay RETIRED — permanent, never touched)
+        // BLOCKED (permanent) → all non-BLOCKED sub-institutes get BLOCKED permanently
+        // ACTIVE              → no cascade (sub-institutes manage their own status)
+        // INACTIVE            → no cascade
         int cascadeCount = 0;
-        boolean shouldCascade = "BLOCKED".equals(upperStatus)
-                             || "RETIRED".equals(upperStatus)
-                             || "ACTIVE".equals(upperStatus);
+        boolean shouldCascade = "BLOCKED".equals(upperStatus);
 
         if (shouldCascade) {
             logger.info("[CASCADE] Triggered for institution {} ({}) → status: {}",
@@ -461,57 +457,23 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             for (com.jpb.reconciliation.reconciliation.entity.SubTestInstitution sub : subInstitutes) {
                 String subCurrentStatus = sub.getStatus();
 
-                // RETIRED sub-institutes are permanent — never touch them
-                if ("RETIRED".equals(subCurrentStatus)) {
-                    logger.info("[CASCADE] Skipping RETIRED sub-institute: {} ({})",
+                // Already permanently BLOCKED — skip
+                if ("BLOCKED".equals(subCurrentStatus)) {
+                    logger.info("[CASCADE] Skipping already-BLOCKED sub-institute: {} ({})",
                             sub.getSubInstitutionId(), sub.getInstitutionCode());
                     continue;
                 }
 
-                if ("BLOCKED".equals(upperStatus)) {
-                    // Save current status before blocking so we can restore it later
-                    sub.setPreBlockStatus(subCurrentStatus);
-                    sub.setStatus("BLOCKED");
-                    subTestInstitutionRepository.save(sub);
-                    cascadeCount++;
-                    logger.info("[CASCADE] Sub-institute {} ({}) {} → BLOCKED (preBlockStatus saved: {})",
-                            sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus, subCurrentStatus);
-                    // Send email to sub-institute primary contact
-                    sendSubCascadeEmail(sub, subCurrentStatus, "BLOCKED", institution);
-                    continue;
-                }
-
-                if ("ACTIVE".equals(upperStatus)) {
-                    // Restore to last state before block — only if it was blocked via cascade
-                    if (!"BLOCKED".equals(subCurrentStatus)) {
-                        logger.info("[CASCADE] Skipping sub-institute {} ({}) — status is {}, not BLOCKED",
-                                sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus);
-                        continue;
-                    }
-                    // Restore from preBlockStatus — if not saved, default to ACTIVE
-                    String restoreStatus = (sub.getPreBlockStatus() != null && !sub.getPreBlockStatus().isEmpty())
-                            ? sub.getPreBlockStatus()
-                            : "ACTIVE";
-                    sub.setStatus(restoreStatus);
-                    sub.setPreBlockStatus(null); // clear after restore
-                    subTestInstitutionRepository.save(sub);
-                    cascadeCount++;
-                    logger.info("[CASCADE] Sub-institute {} ({}) BLOCKED → {} (restored from preBlockStatus)",
-                            sub.getSubInstitutionId(), sub.getInstitutionCode(), restoreStatus);
-                    // Send email to sub-institute primary contact
-                    sendSubCascadeEmail(sub, subCurrentStatus, restoreStatus, institution);
-                    continue;
-                }
-
-                // RETIRED — permanent, cascade to all non-RETIRED
-                sub.setPreBlockStatus(null); // clear any saved state — RETIRED is final
-                sub.setStatus(upperStatus);
+                // Permanent BLOCKED — save preBlockStatus for audit, set block audit fields
+                sub.setPreBlockStatus(subCurrentStatus);
+                sub.setStatus("BLOCKED");
+                sub.setBlockScheduledAt(institution.getBlockScheduledAt());
+                sub.setBlockScheduledBy(institution.getBlockScheduledBy());
                 subTestInstitutionRepository.save(sub);
                 cascadeCount++;
-                logger.info("[CASCADE] Sub-institute {} ({}) {} → {}",
-                        sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus, upperStatus);
-                // Send email to sub-institute primary contact
-                sendSubCascadeEmail(sub, subCurrentStatus, upperStatus, institution);
+                logger.info("[CASCADE] Sub-institute {} ({}) {} → BLOCKED (permanent)",
+                        sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus);
+                sendSubCascadeEmail(sub, subCurrentStatus, "BLOCKED", institution);
             }
 
             logger.info("[CASCADE] Done — {} sub-institute(s) updated for institution {}",

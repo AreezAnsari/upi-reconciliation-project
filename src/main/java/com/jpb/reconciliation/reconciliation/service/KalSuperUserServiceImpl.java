@@ -602,11 +602,11 @@ public class KalSuperUserServiceImpl implements KalSuperService {
 
         TestInstitution institution = optInst.get();
 
-        // RETIRED — kabhi ACTIVE mat karo
-        if ("RETIRED".equals(institution.getStatus())) {
+        // BLOCKED — permanently blocked, kabhi ACTIVE mat karo
+        if ("BLOCKED".equals(institution.getStatus())) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Retired institution cannot be activated.", null),
+                            "Blocked institution cannot be activated.", null),
                     HttpStatus.FORBIDDEN);
         }
 
