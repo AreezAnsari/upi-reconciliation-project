@@ -53,8 +53,8 @@ public class AddUserServiceImpl implements AddUserService {
             AddUser user = AddUserMapper.toEntity(request, createdBy, instCode);
             userRepository.save(user);
 
-            log.info("User created → id={}, username={}, role={}, type={}",
-                    user.getId(), user.getUsername(), user.getRole(), user.getUserType());
+            log.info("User created → id={}, username={}, role={}, roleType={}, type={}",
+                    user.getId(), user.getUsername(), user.getRole(), user.getRoleType(), user.getUserType());
 
             return RestWithStatusList.builder()
                     .status("SUCCESS")
@@ -130,6 +130,7 @@ public class AddUserServiceImpl implements AddUserService {
         user.setDesignation(request.getDesignation());
         user.setMobileNumber(request.getMobileNumber());
         user.setRole(AddUser.Role.valueOf(request.getRole().toUpperCase()));
+        user.setRoleType(AddUser.RoleType.valueOf(request.getRoleType().toUpperCase()));
         user.setUserType(AddUser.UserType.valueOf(request.getUserType().toUpperCase()));
         // External fields
         boolean isExternal = "EXTERNAL".equalsIgnoreCase(request.getUserType());

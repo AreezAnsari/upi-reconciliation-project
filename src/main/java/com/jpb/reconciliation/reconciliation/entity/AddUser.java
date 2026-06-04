@@ -20,13 +20,17 @@ public class AddUser {
     public enum Role {
         MAKER, CHECKER, WORKER, AUDITOR, IT_OPS, SUPERVISOR, RCC_CXO
     }
+    
+    public enum RoleType {
+        RECON_USER, BANK_USER, BRANCH_USER
+    }
  
     public enum UserType {
         INTERNAL, EXTERNAL
     }
  
     public enum UserStatus {
-        REQUEST, ACTIVE, INACTIVE , BLOCK , RETIRED
+        REQUEST, VERIFIED , ACTIVE, INACTIVE , BLOCK ,
     }
  
     // ---- Fields ----
@@ -62,6 +66,10 @@ public class AddUser {
     @Enumerated(EnumType.STRING)
     @Column(name = "ROLE", nullable = false, length = 20)
     private Role role;                      // MAKER | CHECKER
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ROLE_TYPE", nullable = false , length = 20)
+    private RoleType roleType;
  
     @Enumerated(EnumType.STRING)
     @Column(name = "STATUS", nullable = false, length = 20)

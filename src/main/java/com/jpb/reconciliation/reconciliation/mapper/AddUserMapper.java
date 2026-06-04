@@ -27,6 +27,7 @@ public class AddUserMapper {
                 .mobileNumber(req.getMobileNumber())
                 .userType(AddUser.UserType.valueOf(req.getUserType().toUpperCase()))
                 .role(AddUser.Role.valueOf(req.getRole().toUpperCase()))
+                .roleType(AddUser.RoleType.valueOf(req.getRoleType().toUpperCase())) 
                 .status(AddUser.UserStatus.ACTIVE) // default
                 .createdBy(createdBy)
                 .institutionCode(institutionCode)
@@ -53,6 +54,7 @@ public class AddUserMapper {
                 .mobileNumber(user.getMobileNumber())
                 .userType(user.getUserType() != null ? user.getUserType().name() : null)
                 .role(user.getRole() != null ? user.getRole().name() : null)
+                .roleType(user.getRoleType() != null ? user.getRoleType().name() : null)
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
                 .externalDepartmentName(user.getExternalDepartmentName())
                 .externalSupervisorName(user.getExternalSupervisorName())

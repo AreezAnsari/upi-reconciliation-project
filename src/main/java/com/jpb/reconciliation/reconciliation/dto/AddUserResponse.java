@@ -24,6 +24,7 @@ public class AddUserResponse{
     private String mobileNumber;
     private String userType;        // "INTERNAL" | "EXTERNAL"
     private String role;            // "MAKER" | "CHECKER"
+    private String roleType;        // "RECON USER" | "BRANCH USER"
     private String status;          // "ACTIVE" | "INACTIVE"
     
  // External org fields — null when INTERNAL

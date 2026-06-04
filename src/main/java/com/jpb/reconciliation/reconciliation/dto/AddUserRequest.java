@@ -36,12 +36,16 @@ public class AddUserRequest {
  
     private String designation;
  
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Mobile number must be 10-15 digits")
+    @Pattern(regexp = "^[0-9]{10}$", message = "Mobile number must be 10 digits")
     private String mobileNumber;
  
     @NotBlank(message = "Role is required")
     @Pattern(regexp = "MAKER|CHECKER|WORKER|AUDITOR|IT_OPS|SUPERVISOR|RCC_CXO", message = "Role must be MAKER or CHECKER")
     private String role;                    // "MAKER" or "CHECKER"
+    
+    @NotBlank(message = "Role Type is required")
+    @Pattern(regexp = "RECON_USER|BANK_USER|BRANCH_USER", message = "Invalid role type")
+    private String roleType;                    // "BANK USER | BRANCH USER | RECON USER"
  
     @Pattern(regexp = "INTERNAL|EXTERNAL", message = "User type must be INTERNAL or EXTERNAL")
     @Builder.Default
