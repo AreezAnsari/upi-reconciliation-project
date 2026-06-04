@@ -20,9 +20,9 @@ public interface KalSuperUserRepository
     // Forgot password
     Optional<SubSuperUser> findFirstByEmail(String email);
 
-    // Username lookup
-    Optional<SubSuperUser> findByUsername(String username);
+    // Username lookup — findFirst avoids NonUniqueResultException if duplicate rows exist
+    Optional<SubSuperUser> findFirstByUsername(String username);
 
-    // Email lookup
-    Optional<SubSuperUser> findByEmail(String email);
+    // Email lookup — findFirst avoids NonUniqueResultException if duplicate rows exist
+    Optional<SubSuperUser> findFirstByEmailOrderByIdAsc(String email);
 }

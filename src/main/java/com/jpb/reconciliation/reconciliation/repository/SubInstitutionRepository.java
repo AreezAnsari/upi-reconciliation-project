@@ -34,5 +34,7 @@ public interface SubInstitutionRepository extends JpaRepository<SubInstitution, 
             String superUserId
     );
     boolean existsByPrimaryEmail(String primaryEmail);
-  
+
+    boolean existsByInstitutionCode(String institutionCode);
+
 }

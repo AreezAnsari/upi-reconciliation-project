@@ -41,13 +41,17 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jpb.reconciliation.reconciliation.dto.SubInstitutionDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.SubInstitution;
+import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
+import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
 import com.jpb.reconciliation.reconciliation.mapper.SubInstitutionMapper;
+import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.SubInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
-public class SubInstitionServiceImpl implements SubInstitutionService {
+public class SubInstitutionServiceImpl implements SubInstitutionService {
 
-    private static final Logger logger = LoggerFactory.getLogger(SubInstitionServiceImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(SubInstitutionServiceImpl.class);
 
     private static final String LOGO_UPLOAD_DIR = "/home/ec2-user/institution_logos/";
 
@@ -58,6 +62,12 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
 
     @Autowired
     private SubInstitutionRepository subinstitutionRepository;
+
+    @Autowired
+    private KalSuperUserRepository kalSuperUserRepository;
+
+    @Autowired
+    private TestInstitutionRepository testInstitutionRepository;
 
     @Autowired
     private EmailService emailService;
@@ -96,9 +106,25 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
             return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
         }
 
-        // Generate unique institution code
-        String institutionCode = dto.getInstitutionCode();
-        logger.info("Generated institution code: {}", institutionCode);
+        // ── Sub-Institution Code ───────────────────────────────────────────────
+        // Frontend calls /generate-code first (same as admin), gets a pre-generated code,
+        // shows it in the form, and sends it in the payload as institutionCode.
+        // We trust that code if it is valid (8 digits) and still unique.
+        // If it is missing / stale / collided, we generate a fresh one here.
+        String institutionCode;
+        String dtoCode = dto.getInstitutionCode();
+        if (dtoCode != null && dtoCode.matches("\\d{8}")
+                && !subinstitutionRepository.existsByInstitutionCode(dtoCode)) {
+            institutionCode = dtoCode;
+            logger.info("[SubInstCode] Using frontend pre-generated code: {}", institutionCode);
+        } else {
+            // Fallback: generate fresh (covers missing / collided DTO code)
+            institutionCode = generateSubInstCode(createdBy);
+            if (institutionCode == null) {
+                return bad("Failed to generate a unique institution code. Please try again.");
+            }
+        }
+        logger.info("Final sub-institution code: {}", institutionCode);
 
         // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
         // e.g. "Rajesh Kumar" → "rajesh.kumar"
@@ -428,6 +454,91 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
     // ─────────────────────────────────────────────────────────────────────────
 
 
+    // ── PUBLIC: called by /generate-code endpoint ─────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> generateCode(String createdBy) {
+        String code = generateSubInstCode(createdBy);
+        if (code == null) {
+            return bad("Failed to generate a unique sub-institution code. Please try again.");
+        }
+        logger.info("[generateCode] Pre-generated sub-inst code: {} for createdBy='{}'", code, createdBy);
+        List<Object> data = new ArrayList<>();
+        data.add(code);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Code generated.", data));
+    }
+
+    // ── PRIVATE: resolve parent prefix + build unique 8-digit code ────────────
+    // Strategy 1: KAL_SUPER_USER by username → institutionCode (direct)
+    // Strategy 2: KAL_SUPER_USER.username → TestInstitution.superUserId → institutionCode
+    // Strategy 3: TestInstitution.superUserId = createdBy (last resort)
+    private String generateSubInstCode(String createdBy) {
+        String parentPrefix = "0000";
+
+        logger.info("[SubInstCode] Resolving parent prefix for createdBy='{}'", createdBy);
+
+        // JWT subject = username → try by username first, then email
+        Optional<SubSuperUser> superUserOpt = kalSuperUserRepository.findFirstByUsername(createdBy);
+        if (!superUserOpt.isPresent()) {
+            superUserOpt = kalSuperUserRepository.findFirstByEmail(createdBy);
+        }
+
+        if (superUserOpt.isPresent()) {
+            SubSuperUser su = superUserOpt.get();
+            logger.info("[SubInstCode] KAL_SUPER_USER found — username='{}' institutionCode='{}'",
+                    su.getUsername(), su.getInstitutionCode());
+
+            if (su.getInstitutionCode() != null && su.getInstitutionCode().length() >= 4) {
+                // Strategy 1
+                parentPrefix = su.getInstitutionCode().substring(0, 4);
+                logger.info("[SubInstCode] Strategy 1 HIT — prefix='{}'", parentPrefix);
+            } else {
+                // Strategy 2
+                logger.warn("[SubInstCode] Strategy 1 MISS — trying Strategy 2...");
+                Optional<TestInstitution> parentInst =
+                        testInstitutionRepository.findFirstBySuperUserId(su.getUsername());
+                if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
+                        && parentInst.get().getInstitutionCode().length() >= 4) {
+                    parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                    logger.info("[SubInstCode] Strategy 2 HIT — instCode='{}' prefix='{}'",
+                            parentInst.get().getInstitutionCode(), parentPrefix);
+                } else {
+                    logger.warn("[SubInstCode] Strategy 2 MISS for superUserId='{}'", su.getUsername());
+                }
+            }
+        } else {
+            // Strategy 3
+            logger.warn("[SubInstCode] KAL_SUPER_USER not found, trying Strategy 3...");
+            Optional<TestInstitution> parentInst =
+                    testInstitutionRepository.findFirstBySuperUserId(createdBy);
+            if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
+                    && parentInst.get().getInstitutionCode().length() >= 4) {
+                parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                logger.info("[SubInstCode] Strategy 3 HIT — prefix='{}'", parentPrefix);
+            } else {
+                logger.error("[SubInstCode] ALL STRATEGIES FAILED for createdBy='{}' — using '0000'", createdBy);
+            }
+        }
+
+        // Collision-safe: retry up to 10 times with shifted epoch
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
+            String suffix   = epochStr.substring(epochStr.length() - 4);
+            String candidate = parentPrefix + suffix;
+            if (!subinstitutionRepository.existsByInstitutionCode(candidate)) {
+                return candidate;
+            }
+            logger.warn("[SubInstCode] Collision on attempt {}: {}", attempt + 1, candidate);
+        }
+        return null; // caller handles null
+    }
+
+    // Sub-Institution Code pure helper (kept for reference)
+    private String buildSubCode(String parentPrefix, int attempt) {
+        String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
+        String suffix   = epochStr.substring(epochStr.length() - 4);
+        return parentPrefix + suffix;
+    }
+
     // Super User ID: firstname.lastname all lowercase
     // e.g. "Rajesh Kumar Sharma" → "rajesh.kumar"  (first 2 words only)
     // e.g. "Rajesh Kumar"        → "rajesh.kumar"
@@ -457,7 +568,7 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
         if (email == null || email.trim().isEmpty()) {
             return bad("Email is required.");
         }
-        boolean exists = subinstitutionRepository.existsByPrimaryEmail(email.trim());        
+        boolean exists = subinstitutionRepository.existsByPrimaryEmail(email.trim());
         if (exists) {
             return ResponseEntity.ok(
                     new RestWithStatusList("EXISTS",
@@ -467,6 +578,24 @@ public class SubInstitionServiceImpl implements SubInstitutionService {
         return ResponseEntity.ok(
                 new RestWithStatusList("AVAILABLE",
                         "Email is available.",
+                        new ArrayList<>()));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return bad("Name is required.");
+        }
+        boolean exists = subinstitutionRepository.existsByInstitutionNameFull(name.trim());
+        if (exists) {
+            return ResponseEntity.ok(
+                    new RestWithStatusList("EXISTS",
+                            "Name '" + name.trim() + "' is already registered.",
+                            new ArrayList<>()));
+        }
+        return ResponseEntity.ok(
+                new RestWithStatusList("AVAILABLE",
+                        "Name is available.",
                         new ArrayList<>()));
     }
 

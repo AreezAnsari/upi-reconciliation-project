@@ -111,41 +111,22 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         }
 
 
-        // Institution Name Check
-        if (testInstitutionRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
-
-            logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
-
-            return bad("Institution with name '" +
-                    dto.getInstitutionNameFull() +
-                    "' already exists.");
-        }
         if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
             return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
         }
 
-        // Email Check
-        if (testInstitutionRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
-
-            return bad("An institution with email '" +
-                    dto.getPrimaryEmail() +
-                    "' is already registered.");
-        }
-
-        // Institution Code Validation
+        // ── Institution code: frontend sends backend-generated code (via /generate-code API) ──
+        // Validate format + uniqueness as final safety check
         String institutionCode = dto.getInstitutionCode();
 
         if (institutionCode == null || !institutionCode.matches("\\d{8}")) {
-
-            return bad("Institution code must be exactly 8 digits.");
+            institutionCode = generateInstitutionCode(); // fallback: generate if missing
         }
 
         if (testInstitutionRepository.findByInstitutionCode(institutionCode).isPresent()) {
-
-            return bad("Institution code already exists. Please regenerate and try again.");
+            institutionCode = generateInstitutionCode(); // duplicate? generate fresh
         }
-
-        logger.info("Institution code accepted from frontend: {}", institutionCode);
+        logger.info("Institution code: {}", institutionCode);
 
         // Generate Super User ID
         String superUserId = generateSuperUserId(dto.getPrimaryFullName());
@@ -391,12 +372,12 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     @Transactional
     public ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status) {
 
-        // Valid statuses per sir's rules
+        // Valid statuses
         List<String> validStatuses = Arrays.asList(
-            "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"
+            "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "BLOCK_PENDING"
         );
         if (!validStatuses.contains(status.toUpperCase())) {
-            return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, RETIRED.");
+            return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, BLOCK_PENDING.");
         }
 
         Optional<TestInstitution> optional = testInstitutionRepository.findByInstitutionId(institutionId);
@@ -407,18 +388,18 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         TestInstitution institution = optional.get();
         String currentStatus = institution.getStatus();
 
-        // ── RETIRED is permanent — cannot be changed by anyone ──
-        if ("RETIRED".equals(currentStatus)) {
-            return bad("This institution is RETIRED. Its status cannot be changed by anyone.");
+        // ── BLOCKED is permanent — cannot be changed by anyone ──
+        if ("BLOCKED".equals(currentStatus)) {
+            return bad("This institution is permanently BLOCKED. Its status cannot be changed.");
         }
-        
-     // ── Transition validation ──
+
+        // ── Transition validation ──
         Map<String, List<String>> allowedTransitions = new HashMap<>();
-        allowedTransitions.put("ACTIVE",   Arrays.asList("INACTIVE", "BLOCKED", "RETIRED"));
-        allowedTransitions.put("INACTIVE", Arrays.asList("ACTIVE", "BLOCKED", "RETIRED"));  // ← ACTIVE add
-        allowedTransitions.put("BLOCKED",  Arrays.asList("ACTIVE", "RETIRED"));              // ← ACTIVE add
-        allowedTransitions.put("PENDING",  Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
-        allowedTransitions.put("VERIFIED", Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED", "RETIRED"));
+        allowedTransitions.put("ACTIVE",        Arrays.asList("INACTIVE", "BLOCK_PENDING"));
+        allowedTransitions.put("INACTIVE",       Arrays.asList("ACTIVE",   "BLOCK_PENDING"));
+        allowedTransitions.put("BLOCK_PENDING",  Arrays.asList("ACTIVE",   "INACTIVE"));    // undo via undo-block only
+        allowedTransitions.put("PENDING",        Arrays.asList("ACTIVE",   "INACTIVE", "BLOCK_PENDING"));
+        allowedTransitions.put("VERIFIED",       Arrays.asList("ACTIVE",   "INACTIVE", "BLOCK_PENDING"));
 
         List<String> allowed = allowedTransitions.getOrDefault(currentStatus, new ArrayList<>());
         if (!allowed.contains(status.toUpperCase())) {
@@ -431,11 +412,13 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         // RETIRED can only be set if current status is not already RETIRED
         // (admin can set any → RETIRED but not out of RETIRED)
 
-        institution.setStatus(status.toUpperCase());
+        String upperStatus = status.toUpperCase();
+
+        institution.setStatus(upperStatus);
         institution.setUpdatedAt(LocalDateTime.now());
         testInstitutionRepository.save(institution);
 
-        logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, status.toUpperCase());
+        logger.info("Institution {} status updated: {} → {}", institutionId, currentStatus, upperStatus);
 
         // ── Send status change notification email to Super User ──
         try {
@@ -446,17 +429,63 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
                     institution.getInstitutionNameFull(),
                     institution.getInstitutionCode(),
                     currentStatus,
-                    status.toUpperCase()
+                    upperStatus
                 );
             }
         } catch (Exception e) {
-            // Email failure should NOT block the status update — just log
             logger.warn("Status updated but notification email failed for institution {}: {}",
                         institution.getInstitutionCode(), e.getMessage());
         }
 
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Institution status updated to '" + status.toUpperCase() + "'.", new ArrayList<>()));
+        // ── Cascade status to sub-institutes based on business rules ─────────
+        // BLOCKED (permanent) → all non-BLOCKED sub-institutes get BLOCKED permanently
+        // ACTIVE              → no cascade (sub-institutes manage their own status)
+        // INACTIVE            → no cascade
+        int cascadeCount = 0;
+        boolean shouldCascade = "BLOCKED".equals(upperStatus);
+
+        if (shouldCascade) {
+            logger.info("[CASCADE] Triggered for institution {} ({}) → status: {}",
+                    institutionId, institution.getInstitutionCode(), upperStatus);
+
+            List<com.jpb.reconciliation.reconciliation.entity.SubTestInstitution> subInstitutes =
+                subTestInstitutionRepository.findByParentInstitutionId(institutionId);
+
+            logger.info("[CASCADE] Found {} sub-institute(s) under institution {}",
+                    subInstitutes.size(), institutionId);
+
+            for (com.jpb.reconciliation.reconciliation.entity.SubTestInstitution sub : subInstitutes) {
+                String subCurrentStatus = sub.getStatus();
+
+                // Already permanently BLOCKED — skip
+                if ("BLOCKED".equals(subCurrentStatus)) {
+                    logger.info("[CASCADE] Skipping already-BLOCKED sub-institute: {} ({})",
+                            sub.getSubInstitutionId(), sub.getInstitutionCode());
+                    continue;
+                }
+
+                // Permanent BLOCKED — save preBlockStatus for audit, set block audit fields
+                sub.setPreBlockStatus(subCurrentStatus);
+                sub.setStatus("BLOCKED");
+                sub.setBlockScheduledAt(institution.getBlockScheduledAt());
+                sub.setBlockScheduledBy(institution.getBlockScheduledBy());
+                subTestInstitutionRepository.save(sub);
+                cascadeCount++;
+                logger.info("[CASCADE] Sub-institute {} ({}) {} → BLOCKED (permanent)",
+                        sub.getSubInstitutionId(), sub.getInstitutionCode(), subCurrentStatus);
+                sendSubCascadeEmail(sub, subCurrentStatus, "BLOCKED", institution);
+            }
+
+            logger.info("[CASCADE] Done — {} sub-institute(s) updated for institution {}",
+                    cascadeCount, institutionId);
+        }
+
+        String message = "Institution status updated to '" + upperStatus + "'.";
+        if (cascadeCount > 0) {
+            message += " " + cascadeCount + " sub-institute(s) also updated.";
+        }
+
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", message, new ArrayList<>()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -541,6 +570,45 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // SERVE LOGO IMAGE
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<byte[]> getLogoImage(String institutionCode) {
+        Optional<TestInstitution> optional = testInstitutionRepository.findByInstitutionCode(institutionCode);
+        if (!optional.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+        String logoPath = optional.get().getLogoPath();
+        if (logoPath == null || logoPath.trim().isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            // Strip surrounding quotes if path was stored with them
+            String cleanLogoPath = logoPath.trim();
+            cleanLogoPath = cleanLogoPath.replaceAll("^\"|\"$", "");
+            if (cleanLogoPath.startsWith("'") && cleanLogoPath.endsWith("'")) {
+                cleanLogoPath = cleanLogoPath.substring(1, cleanLogoPath.length() - 1);
+            }
+            Path path = Paths.get(cleanLogoPath);
+            if (!Files.exists(path)) {
+                logger.warn("Logo file not found on disk for institution {}: {}", institutionCode, cleanLogoPath);
+                return ResponseEntity.notFound().build();
+            }
+            byte[] imageBytes = Files.readAllBytes(path);
+            String contentType = Files.probeContentType(path);
+            if (contentType == null) contentType = "image/jpeg";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, contentType)
+                    .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
+                    .body(imageBytes);
+
+        } catch (IOException e) {
+            logger.error("Failed to serve logo for institution {}: {}", institutionCode, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // VERIFY EMAIL
     // ─────────────────────────────────────────────────────────────────────────
     @Override
@@ -589,11 +657,32 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GENERATE CODE (public — called by controller for preview on form open)
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> generateCode() {
+        String code = generateInstitutionCode();
+        logger.info("Pre-generated institution code: {}", code);
+        List<Object> data = new ArrayList<>();
+        data.add(code);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Institution code generated.", data));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ─────────────────────────────────────────────────────────────────────────
 
-    // Institution code is generated by frontend (pure 8 digits)
-    // Backend only validates format and uniqueness — no generation needed here
+    // Institution code: Epoch seconds (last 6 digits) + 2 random digits = always 8 digits
+    // e.g. "57227523", "34891642" — near-zero duplicate chance, DB check as safety net
+    private String generateInstitutionCode() {
+        String code;
+        do {
+            long epochPart = (System.currentTimeMillis() / 1000) % 1_000_000L; // last 6 digits of epoch seconds
+            int  randomPart = 10 + new Random().nextInt(90);                    // 2 digits: 10–99
+            code = String.format("%06d%02d", epochPart, randomPart);            // always exactly 8 digits
+        } while (testInstitutionRepository.findByInstitutionCode(code).isPresent());
+        return code;
+    }
 
     // Super User ID: firstname.lastname all lowercase
     // e.g. "Rajesh Kumar Sharma" → "rajesh.kumar"  (first 2 words only)
@@ -613,25 +702,63 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
         return "Recon@" + digits;
     }
 
+    /**
+     * Fire-and-forget email to sub-institute primary contact after cascade status change.
+     * Uses @Async in EmailServiceImpl — never blocks the transaction.
+     */
+    private void sendSubCascadeEmail(
+            com.jpb.reconciliation.reconciliation.entity.SubTestInstitution sub,
+            String oldStatus, String newStatus,
+            TestInstitution parent) {
+        try {
+            if (sub.getPrimaryEmail() == null || sub.getPrimaryEmail().isEmpty()) {
+                logger.warn("[CASCADE-EMAIL] No email for sub-institute: {} ({})",
+                        sub.getSubInstitutionId(), sub.getInstitutionCode());
+                return;
+            }
+            emailService.sendSubInstituteStatusNotification(
+                    sub.getPrimaryEmail(),
+                    sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Contact",
+                    sub.getInstitutionNameFull() != null ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
+                    sub.getInstitutionCode(),
+                    oldStatus,
+                    newStatus,
+                    parent.getInstitutionNameFull(),
+                    parent.getInstitutionCode()
+            );
+        } catch (Exception e) {
+            // Email failure must never break the cascade transaction
+            logger.warn("[CASCADE-EMAIL] Failed for sub-institute {} ({}): {}",
+                    sub.getSubInstitutionId(), sub.getInstitutionCode(), e.getMessage());
+        }
+    }
+
     /** Convenience — 400 Bad Request */
     private ResponseEntity<RestWithStatusList> bad(String message) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new RestWithStatusList("FAILURE", message, new ArrayList<>()));
     }
     
- // ─────────────────────────────────────────────────────────────────────────
- // CHECK NAME EXISTS — Step 1 real-time validation
- // ─────────────────────────────────────────────────────────────────────────
- @Override
- public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
-     if (name == null || name.trim().isEmpty()) {
-         return bad("Institution name is required.");
-     }
-     return ResponseEntity.ok(
-             new RestWithStatusList("AVAILABLE",
-                     "Institution name is available.",
-                     new ArrayList<>()));
- }
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHECK NAME EXISTS — Step 1 real-time uniqueness validation
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return bad("Institution name is required.");
+        }
+        boolean exists = testInstitutionRepository.existsByInstitutionNameFull(name.trim());
+        if (exists) {
+            return ResponseEntity.ok(
+                    new RestWithStatusList("EXISTS",
+                            "Institution name '" + name.trim() + "' is already registered.",
+                            new ArrayList<>()));
+        }
+        return ResponseEntity.ok(
+                new RestWithStatusList("AVAILABLE",
+                        "Institution name is available.",
+                        new ArrayList<>()));
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // CHECK NAME EXISTS — Step 1 real-time validation
@@ -836,6 +963,7 @@ public class TestInstitutionServiceImpl implements TestInstitutionService {
             dto.setRegCountry(sub.getRegCountry());
             dto.setPrimaryFullName(sub.getPrimaryFullName());
             dto.setPrimaryEmail(sub.getPrimaryEmail());
+            dto.setPrimaryMobile(sub.getPrimaryPhone());
             dto.setStatus(sub.getStatus());
             return dto;
         }).collect(Collectors.toList());

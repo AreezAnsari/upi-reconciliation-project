@@ -24,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TestInstitutionDTO;
-import com.jpb.reconciliation.reconciliation.service.RetireScheduleService;
+import com.jpb.reconciliation.reconciliation.service.BlockScheduleService;
 import com.jpb.reconciliation.reconciliation.service.TestInstitutionService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,8 +39,8 @@ public class TestInstitutionController {
     @Autowired
     TestInstitutionService testInstitutionService;
     
-    @Autowired 
-    RetireScheduleService retireScheduleService;
+    @Autowired
+    BlockScheduleService blockScheduleService;
 
     // ─────────────────────────────────────────────
     // CREATE
@@ -153,6 +153,17 @@ public class TestInstitutionController {
     }
 
     // ─────────────────────────────────────────────
+    // GENERATE INSTITUTION CODE
+    // GET /test/api/v1/institution/generate-code
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Generate a unique 8-digit institution code")
+    @GetMapping(value = "/generate-code", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> generateCode() {
+        logger.info("Generate institution code request received");
+        return testInstitutionService.generateCode();
+    }
+
+    // ─────────────────────────────────────────────
     // CHECK NAME EXISTS
     // GET /test/api/v1/institution/check-name?name=State Bank of India
     // ─────────────────────────────────────────────
@@ -196,32 +207,43 @@ public class TestInstitutionController {
         return testInstitutionService.exportToCsv();
     }
     
- // ─────────────────────────────────────────────
-    // SCHEDULE RETIRE
-    // POST /test/api/v1/institution/schedule-retire/{institutionId}
     // ─────────────────────────────────────────────
-    @Operation(summary = "Schedule institution retire — auto-retires after 24 hrs")
-    @PostMapping(value = "/schedule-retire/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> scheduleRetire(
+    // SCHEDULE BLOCK
+    // POST /test/api/v1/institution/schedule-block/{institutionId}
+    // ─────────────────────────────────────────────
+    @Operation(summary = "Schedule institution permanent block — auto-blocks after 24 hrs")
+    @PostMapping(value = "/schedule-block/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> scheduleBlock(
             @PathVariable Long institutionId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        logger.info("Schedule retire request for institution ID: {}", institutionId);
-        return retireScheduleService.scheduleRetire(institutionId, userDetails.getUsername());
+        logger.info("Schedule block request for institution ID: {}", institutionId);
+        return blockScheduleService.scheduleBlock(institutionId, userDetails.getUsername());
     }
- 
+
     // ─────────────────────────────────────────────
-    // UNDO RETIRE
-    // POST /test/api/v1/institution/undo-retire/{institutionId}
+    // UNDO BLOCK
+    // POST /test/api/v1/institution/undo-block/{institutionId}
     // ─────────────────────────────────────────────
-    @Operation(summary = "Undo scheduled retire — only within 24 hrs")
-    @PostMapping(value = "/undo-retire/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> undoRetire(
+    @Operation(summary = "Undo scheduled block — only within 24 hrs")
+    @PostMapping(value = "/undo-block/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> undoBlock(
             @PathVariable Long institutionId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        logger.info("Undo retire request for institution ID: {}", institutionId);
-        return retireScheduleService.undoRetire(institutionId, userDetails.getUsername());
+        logger.info("Undo block request for institution ID: {}", institutionId);
+        return blockScheduleService.undoBlock(institutionId, userDetails.getUsername());
     }
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // SERVE LOGO IMAGE
+    // GET /test/api/v1/institution/logo/{institutionCode}
+    // ─────────────────────────────────────────────────────────────────────────
+    @Operation(summary = "Serve institution logo image by institution code")
+    @GetMapping(value = "/logo/{institutionCode}")
+    public ResponseEntity<byte[]> getLogoImage(@PathVariable String institutionCode) {
+        logger.info("Logo image request for institution code: {}", institutionCode);
+        return testInstitutionService.getLogoImage(institutionCode);
+    }
+
     @GetMapping(value = "/get-my-institutions", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getMyInstitutions(
             @AuthenticationPrincipal UserDetails userDetails) {

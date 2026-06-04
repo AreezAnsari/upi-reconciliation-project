@@ -1,8 +1,13 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.util.Collections;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -10,6 +15,8 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.CustomUserDetail;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
+import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 
 @Service
@@ -20,17 +27,72 @@ public class CustomUserDetailService implements UserDetailsService {
 	@Autowired
 	private ReconUserRepository reconUserRepository;
 
+	@Autowired
+	private KalSuperUserRepository kalSuperUserRepository;
+
+	/**
+	 * Called by JwtAuthenticationFilter to validate every request's Bearer token.
+	 *
+	 * Strategy:
+	 * 1. Try regular-user table by username
+	 * 2. Try regular-user table by email (some tokens use email as subject)
+	 * 3. Try KAL_SUPER_USER table by email (super-user OTP tokens use email as subject)
+	 * 4. Try KAL_SUPER_USER table by username
+	 *
+	 * If none found → UsernameNotFoundException → 401
+	 */
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		ReconUser reconUser = reconUserRepository.findByUserName(username)
-				.orElseThrow(() -> new UsernameNotFoundException("User not found with given username " + username));
-		return new CustomUserDetail(reconUser);
+
+		// ── Step 1: Regular user — by username ──
+		Optional<ReconUser> byUsername = reconUserRepository.findByUserName(username);
+		if (byUsername.isPresent()) {
+			return new CustomUserDetail(byUsername.get());
+		}
+
+		// ── Step 2: Regular user — by email (some tokens store email as subject) ──
+		try {
+			Optional<ReconUser> byEmail = reconUserRepository.findByEmailId(username);
+			if (byEmail.isPresent()) {
+				return new CustomUserDetail(byEmail.get());
+			}
+		} catch (Exception ignored) {
+			// findByEmailId may throw if column doesn't match — safe to ignore
+		}
+
+		// ── Step 3: Super-user — by email (OTP token uses email as subject) ──
+		Optional<SubSuperUser> superByEmail = kalSuperUserRepository.findFirstByEmail(username);
+		if (superByEmail.isPresent()) {
+			SubSuperUser su = superByEmail.get();
+			logger.debug("loadUserByUsername — super-user found by email: {}", username);
+			return buildSuperUserDetails(username, su);
+		}
+
+		// ── Step 4: Super-user — by username (fallback) ──
+		Optional<SubSuperUser> superByUsername = kalSuperUserRepository.findFirstByUsername(username);
+		if (superByUsername.isPresent()) {
+			SubSuperUser su = superByUsername.get();
+			logger.debug("loadUserByUsername — super-user found by username: {}", username);
+			return buildSuperUserDetails(username, su);
+		}
+
+		throw new UsernameNotFoundException("User not found: " + username);
 	}
 
 	public UserDetails loadUserByUserEmail(String email) throws UsernameNotFoundException {
 		ReconUser reconUser = reconUserRepository.findByEmailId(email)
-				.orElseThrow(() -> new UsernameNotFoundException("User not found with given username " + email));
+				.orElseThrow(() -> new UsernameNotFoundException("User not found with given email " + email));
 		return new CustomUserDetail(reconUser);
+	}
+
+	// ── Build a minimal UserDetails for super-user (no DB password needed for JWT) ──
+	private UserDetails buildSuperUserDetails(String subject, SubSuperUser su) {
+		return User.builder()
+				.username(subject)
+				.password(su.getPassword() != null ? su.getPassword() : "")
+				.authorities(Collections.singletonList(
+						new SimpleGrantedAuthority("ROLE_SUPER_USER")))
+				.build();
 	}
 
 }

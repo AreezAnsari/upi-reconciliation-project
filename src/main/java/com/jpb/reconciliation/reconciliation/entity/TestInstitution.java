@@ -201,19 +201,15 @@ public class TestInstitution {
     @Column(insertable = false, name = "updated_by")
     private String updatedBy;
     
-    // Sub-institute link — null means this IS a parent institution
-    @Column(name = "parent_institution_id")
-    private Long parentInstitutionId;
+    // Block schedule — set when admin schedules permanent block
+    @Column(name = "block_scheduled_at")
+    private LocalDateTime blockScheduledAt;
 
-    // Retire schedule — set when admin schedules retire
-    @Column(name = "retire_scheduled_at")
-    private LocalDateTime retireScheduledAt;
- 
-    // Who scheduled the retire
-    @Column(name = "retire_scheduled_by", length = 100)
-    private String retireScheduledBy;
- 
-    // Status before retire was scheduled (for undo)
-    @Column(name = "pre_retire_status", length = 20)
-    private String preRetireStatus;
+    // Who scheduled the block
+    @Column(name = "block_scheduled_by", length = 100)
+    private String blockScheduledBy;
+
+    // Status before block was scheduled (for undo within 30s/24hr window)
+    @Column(name = "pre_block_status", length = 20)
+    private String preBlockStatus;
 }

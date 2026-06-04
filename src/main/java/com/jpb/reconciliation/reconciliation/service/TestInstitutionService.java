@@ -49,4 +49,10 @@ public interface TestInstitutionService {
 
     ResponseEntity<RestWithStatusList> getSubInstitutes(Long parentInstitutionId);
 
+    // Generate a unique 8-digit institution code (epoch-based)
+    ResponseEntity<RestWithStatusList> generateCode();
+
+    // Serve institution logo image by institution code
+    ResponseEntity<byte[]> getLogoImage(String institutionCode);
+
 }

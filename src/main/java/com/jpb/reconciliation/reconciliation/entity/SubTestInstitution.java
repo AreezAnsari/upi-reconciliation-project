@@ -63,6 +63,18 @@ public class SubTestInstitution {
     @Column(name = "status", length = 20)
     private String status;
 
+    // Stores the status before a parent-cascade BLOCK — used to restore on ACTIVE
+    @Column(name = "pre_block_status", length = 20)
+    private String preBlockStatus;
+
+    // Block schedule — set when parent institution schedules permanent block
+    @Column(name = "block_scheduled_at")
+    private LocalDateTime blockScheduledAt;
+
+    // Who triggered the block (parent institution's blockScheduledBy)
+    @Column(name = "block_scheduled_by", length = 100)
+    private String blockScheduledBy;
+
     @Column(name = "created_by", length = 100)
     private String createdBy;
 

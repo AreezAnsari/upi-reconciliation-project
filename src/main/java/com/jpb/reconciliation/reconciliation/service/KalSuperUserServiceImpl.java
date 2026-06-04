@@ -21,7 +21,9 @@ import com.jpb.reconciliation.reconciliation.dto.KalVerifyEmailResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
+import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
 import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
 
 @Service
 public class KalSuperUserServiceImpl implements KalSuperService {
@@ -34,6 +36,9 @@ public class KalSuperUserServiceImpl implements KalSuperService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private TestInstitutionRepository testInstitutionRepository;
 
     @Autowired
     private OtpService otpService;
@@ -260,6 +265,25 @@ public class KalSuperUserServiceImpl implements KalSuperService {
         user.setUpdatedAt(LocalDateTime.now());
         kalSuperUserRepository.save(user);
 
+        // ── TestInstitution status → VERIFIED (Sir's rule: only after new password set) ──
+        Optional<TestInstitution> optInst = testInstitutionRepository
+                .findByInstitutionCodeAndSuperUserId(
+                        dto.getInstitutionCode().trim(),
+                        dto.getUsername().trim());
+        if (optInst.isPresent()) {
+            TestInstitution institution = optInst.get();
+            if ("REQUEST".equals(institution.getStatus())) {
+                institution.setStatus("VERIFIED");
+                institution.setDefaultPassword(null);        // default password null — kaam khatam
+                institution.setVerificationToken(null);      // link dead on success
+                institution.setTokenExpiry(LocalDateTime.now());
+                institution.setUpdatedAt(LocalDateTime.now());
+                testInstitutionRepository.save(institution);
+                logger.info("Institution {} status → VERIFIED after password setup",
+                        dto.getInstitutionCode());
+            }
+        }
+
         logger.info("setNewPassword → SUCCESS for username={}", dto.getUsername());
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS",
@@ -297,7 +321,8 @@ public class KalSuperUserServiceImpl implements KalSuperService {
                     dto.getUsername().trim());
         } else {
             // Sirf username se dhundho (direct login case)
-            optUser = kalSuperUserRepository.findByUsername(dto.getUsername().trim());
+            // findFirst — duplicate rows hone par bhi crash nahi karta
+            optUser = kalSuperUserRepository.findFirstByUsername(dto.getUsername().trim());
         }
 
         if (!optUser.isPresent()) {
@@ -539,6 +564,64 @@ public class KalSuperUserServiceImpl implements KalSuperService {
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS",
                         "Password reset successfully. Please login.", new ArrayList<>()),
+                HttpStatus.OK);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STEP 3.5 — After OTP verified → Set institution status ACTIVE
+    // Called from OtpController after successful OTP verification
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    public ResponseEntity<RestWithStatusList> activateInstitution(String email) {
+
+        // Find SubSuperUser by email — findFirst avoids NonUniqueResultException
+        Optional<SubSuperUser> optUser = kalSuperUserRepository.findFirstByEmailOrderByIdAsc(email);
+
+        if (!optUser.isPresent()) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE",
+                            "Super User not found for email: " + email, null),
+                    HttpStatus.NOT_FOUND);
+        }
+
+        SubSuperUser user = optUser.get();
+
+        // Find institution by institutionCode + superUserId (superUserId = username)
+        Optional<TestInstitution> optInst = testInstitutionRepository
+                .findByInstitutionCodeAndSuperUserId(
+                        user.getInstitutionCode(),
+                        user.getUsername());
+
+        if (!optInst.isPresent()) {
+            logger.warn("[ACTIVATE] Institution not found for email: {}", email);
+            return new ResponseEntity<>(
+                    new RestWithStatusList("SUCCESS",
+                            "Login successful.", new ArrayList<>()),
+                    HttpStatus.OK);
+        }
+
+        TestInstitution institution = optInst.get();
+
+        // BLOCKED — permanently blocked, kabhi ACTIVE mat karo
+        if ("BLOCKED".equals(institution.getStatus())) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("FAILURE",
+                            "Blocked institution cannot be activated.", null),
+                    HttpStatus.FORBIDDEN);
+        }
+
+        // Sirf VERIFIED → ACTIVE (INACTIVE/BLOCKED automatically ACTIVE nahi honge)
+        if ("VERIFIED".equals(institution.getStatus())) {
+            institution.setStatus("ACTIVE");
+            institution.setUpdatedAt(LocalDateTime.now());
+            testInstitutionRepository.save(institution);
+            logger.info("[ACTIVATE] Institution {} status → ACTIVE after first login",
+                    institution.getInstitutionCode());
+        }
+
+        return new ResponseEntity<>(
+                new RestWithStatusList("SUCCESS",
+                        "Institution activated successfully.", new ArrayList<>()),
                 HttpStatus.OK);
     }
 

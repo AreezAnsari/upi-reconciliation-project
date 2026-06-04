@@ -119,7 +119,17 @@ public class SubInstitutionController {
     public ResponseEntity<RestWithStatusList> verifyEmail(@RequestParam String token) {
         return institutionService.verifyEmail(token);
     }
- // GET /test/api/v1/subinstitution/check-email?email=abc@gmail.com
+    // GET /test/api/v1/subinstitution/generate-code
+    @Operation(summary = "Pre-generate a unique 8-digit sub-institution code for form preview")
+    @GetMapping(value = "/generate-code", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> generateCode(Authentication authentication) {
+        String createdBy = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Generate sub-institution code request by: {}", createdBy);
+        return institutionService.generateCode(createdBy);
+    }
+
+    // GET /test/api/v1/subinstitution/check-email?email=abc@gmail.com
     @Operation(summary = "Check sub institution email already exists")
     @GetMapping(value = "/check-email", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> checkEmailExists(
@@ -128,5 +138,16 @@ public class SubInstitutionController {
         logger.info("Check sub institution email request: {}", email);
 
         return institutionService.checkEmailExists(email);
+    }
+
+    // GET /test/api/v1/subinstitution/check-name?name=SomeName
+    @Operation(summary = "Check sub institution name already exists")
+    @GetMapping(value = "/check-name", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> checkNameExists(
+            @RequestParam String name) {
+
+        logger.info("Check sub institution name request: {}", name);
+
+        return institutionService.checkNameExists(name);
     }
 }

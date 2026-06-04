@@ -34,5 +34,8 @@ public interface KalSuperService {
     //         VerifyEmail.jsx yeh call karega
     
     ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username);
-    
+
+    // OTP verify ke baad institution status → ACTIVE karo
+    ResponseEntity<RestWithStatusList> activateInstitution(String email);
+
 }
