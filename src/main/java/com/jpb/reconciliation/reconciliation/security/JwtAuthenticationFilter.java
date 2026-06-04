@@ -94,6 +94,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         logger.debug("FILTER RUNNING FOR: {}", requestURI);
 
+        String path = request.getServletPath();
+
+        // ✅ SKIP JWT FOR SUB INSTITUTE APIs
+        if (
+                path.startsWith("/test/api/v1/sub-institution/")
+                        || path.startsWith("/api/v1/otp/")
+        ) {
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String requestHeader = request.getHeader("Authorization");
 
         String username = null;

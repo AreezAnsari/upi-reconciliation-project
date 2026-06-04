@@ -5,11 +5,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 public class KalVerifyEmailResponseDto {
 
     private String userStatus;
+
     private String institutionCode;
+
     private String username;
 }
