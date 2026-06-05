@@ -15,8 +15,8 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.CustomUserDetail;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-import com.jpb.reconciliation.reconciliation.entity.SubSuperUser;
-import com.jpb.reconciliation.reconciliation.repository.KalSuperUserRepository;
+import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
+import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 
 @Service
@@ -28,7 +28,7 @@ public class CustomUserDetailService implements UserDetailsService {
 	private ReconUserRepository reconUserRepository;
 
 	@Autowired
-	private KalSuperUserRepository kalSuperUserRepository;
+	private MainAdminRepository mainAdminRepository;
 
 	/**
 	 * Called by JwtAuthenticationFilter to validate every request's Bearer token.
@@ -61,17 +61,17 @@ public class CustomUserDetailService implements UserDetailsService {
 		}
 
 		// ── Step 3: Super-user — by email (OTP token uses email as subject) ──
-		Optional<SubSuperUser> superByEmail = kalSuperUserRepository.findFirstByEmail(username);
+		Optional<MainAdmin> superByEmail = mainAdminRepository.findFirstByEmail(username);
 		if (superByEmail.isPresent()) {
-			SubSuperUser su = superByEmail.get();
+			MainAdmin su = superByEmail.get();
 			logger.debug("loadUserByUsername — super-user found by email: {}", username);
 			return buildSuperUserDetails(username, su);
 		}
 
 		// ── Step 4: Super-user — by username (fallback) ──
-		Optional<SubSuperUser> superByUsername = kalSuperUserRepository.findFirstByUsername(username);
+		Optional<MainAdmin> superByUsername = mainAdminRepository.findFirstByUsername(username);
 		if (superByUsername.isPresent()) {
-			SubSuperUser su = superByUsername.get();
+			MainAdmin su = superByUsername.get();
 			logger.debug("loadUserByUsername — super-user found by username: {}", username);
 			return buildSuperUserDetails(username, su);
 		}
@@ -86,7 +86,7 @@ public class CustomUserDetailService implements UserDetailsService {
 	}
 
 	// ── Build a minimal UserDetails for super-user (no DB password needed for JWT) ──
-	private UserDetails buildSuperUserDetails(String subject, SubSuperUser su) {
+	private UserDetails buildSuperUserDetails(String subject, MainAdmin su) {
 		return User.builder()
 				.username(subject)
 				.password(su.getPassword() != null ? su.getPassword() : "")

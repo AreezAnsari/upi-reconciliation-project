@@ -15,6 +15,10 @@ public interface ReconUserRepository extends JpaRepository<ReconUser, Long> {
 
 	Optional<ReconUser> findByUserName(String username);
 
+	Boolean existsByUserName(String userName);
+
+	Boolean existsByEmailId(String emailId);
+
 	Boolean existsByUserNameAndEmailId(String userName, String emailId);
 
 	Optional<ReconUser> findByEmailId(String email);

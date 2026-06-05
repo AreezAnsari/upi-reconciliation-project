@@ -1,9 +1,9 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
-import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
-import com.jpb.reconciliation.reconciliation.service.KalSuperService;
+import com.jpb.reconciliation.reconciliation.service.MainAdminService;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;
 
@@ -33,10 +33,10 @@ public class OtpController {
     private JwtHelper jwtHelper;
 
     @Autowired
-    private KalSuperService kalSuperService;
+    private MainAdminService mainAdminService;
 
     @Autowired
-    private TestInstitutionRepository testInstitutionRepository;
+    private MainBankRepository mainBankRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -108,7 +108,7 @@ public class OtpController {
 
             // ── Institution status → ACTIVE (first login ke baad) ──
             try {
-                kalSuperService.activateInstitution(email);
+                mainAdminService.activateInstitution(email);
             } catch (Exception e) {
                 // Abhi ye silently fail ho rha hai — status ACTIVE nhi hoti
                 System.out.println("Warning: Could not activate institution for "
@@ -117,7 +117,7 @@ public class OtpController {
             }
 
             // ── Fetch institution code by primary email so frontend can store it ──
-            String institutionCode = testInstitutionRepository
+            String institutionCode = mainBankRepository
                     .findByPrimaryEmail(email)
                     .map(inst -> inst.getInstitutionCode())
                     .orElse(null);

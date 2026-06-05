@@ -22,10 +22,13 @@ public class ForgotPasswordRequest {
  
     // User email se dhundh sakta hai
     private String email;
- 
+
     // Ya username + institutionCode se dhundh sakta hai
     private String username;
- 
+
     private String institutionCode;
+
+    // OTP — Step B verify ke liye
+    private String otp;
 }
  

@@ -16,10 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.entity.SubTestInstitution;
-import com.jpb.reconciliation.reconciliation.entity.TestInstitution;
-import com.jpb.reconciliation.reconciliation.repository.SubTestInstitutionRepository;
-import com.jpb.reconciliation.reconciliation.repository.TestInstitutionRepository;
+import com.jpb.reconciliation.reconciliation.entity.BranchBank;
+import com.jpb.reconciliation.reconciliation.entity.MainBank;
+import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
+import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 
 @Service
 public class BlockScheduleServiceImpl implements BlockScheduleService {
@@ -27,10 +29,16 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     private static final Logger logger = LoggerFactory.getLogger(BlockScheduleServiceImpl.class);
 
     @Autowired
-    private TestInstitutionRepository testInstitutionRepository;
+    private MainBankRepository mainBankRepository;
 
     @Autowired
-    private SubTestInstitutionRepository subTestInstitutionRepository;
+    private MainAdminRepository mainAdminRepository;
+
+    @Autowired
+    private BranchBankRepository branchBankRepository;
+
+    @Autowired
+    private BranchAdminRepository branchAdminRepository;
 
     @Autowired
     private EmailService emailService;
@@ -43,12 +51,12 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     @Transactional
     public ResponseEntity<RestWithStatusList> scheduleBlock(Long institutionId, String scheduledBy) {
 
-        Optional<TestInstitution> opt = testInstitutionRepository.findByInstitutionId(institutionId);
+        Optional<MainBank> opt = mainBankRepository.findById(institutionId);
         if (!opt.isPresent()) {
             return bad("Institution not found with ID: " + institutionId);
         }
 
-        TestInstitution inst = opt.get();
+        MainBank inst = opt.get();
 
         if ("BLOCKED".equals(inst.getStatus())) {
             return bad("This institution is already permanently BLOCKED.");
@@ -65,7 +73,15 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         inst.setBlockScheduledBy(scheduledBy);
         inst.setUpdatedAt(LocalDateTime.now());
 
-        testInstitutionRepository.save(inst);
+        mainBankRepository.save(inst);
+        // Sync BLOCK_PENDING to KAL_SUPER_USER
+        try {
+            mainAdminRepository.findByInstitutionCodeAndUsername(
+                    inst.getInstitutionCode(), inst.getSuperUserId())
+                .ifPresent(su -> { su.setStatus("BLOCK_PENDING"); su.setUpdatedAt(LocalDateTime.now()); su.setUpdatedBy(scheduledBy); mainAdminRepository.save(su); });
+        } catch (Exception e) {
+            logger.warn("scheduleBlock: KAL_SUPER_USER sync failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+        }
         logger.info("Block scheduled for institution {} by {} at {}",
                 institutionId, scheduledBy, inst.getBlockScheduledAt());
 
@@ -90,41 +106,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             logger.warn("[BLOCK-WARN] Warning email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
         }
 
-        // ── Set block schedule data + Send warning email to all Sub-Institutes ──
-        List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(institutionId);
-        logger.info("[BLOCK-WARN] Sending block warning to {} sub-institute(s) under institution {}",
-                subs.size(), inst.getInstitutionCode());
-
-        for (SubTestInstitution sub : subs) {
-            if ("BLOCKED".equals(sub.getStatus())) continue;
-
-            // ── Schedule ke time hi sub-institute mein bhi 3 fields save karo ──
-            sub.setPreBlockStatus(sub.getStatus());
-            sub.setBlockScheduledAt(inst.getBlockScheduledAt());
-            sub.setBlockScheduledBy(scheduledBy);
-            subTestInstitutionRepository.save(sub);
-            logger.info("[BLOCK-WARN] Block schedule data saved for sub-institute: {} ({})",
-                    sub.getInstitutionCode(), sub.getSubInstitutionId());
-
-            try {
-                if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
-                    emailService.sendSubInstituteRetireWarning(
-                            sub.getPrimaryEmail(),
-                            sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Super User",
-                            sub.getInstitutionNameFull() != null ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
-                            sub.getInstitutionCode(),
-                            inst.getInstitutionNameFull(),
-                            inst.getInstitutionCode(),
-                            blockAtFormatted
-                    );
-                    logger.info("[BLOCK-WARN] Warning email sent to sub-institute: {} ({})",
-                            sub.getInstitutionCode(), sub.getPrimaryEmail());
-                }
-            } catch (Exception e) {
-                logger.warn("[BLOCK-WARN] Warning email failed for sub-institute {} ({}): {}",
-                        sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
-            }
-        }
+        // Individual block only — sub-institutes are NOT affected
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block scheduled. Institution will be permanently blocked in 24 hours. You can undo this within 24 hours.",
@@ -139,12 +121,12 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     @Transactional
     public ResponseEntity<RestWithStatusList> undoBlock(Long institutionId, String undoneBy) {
 
-        Optional<TestInstitution> opt = testInstitutionRepository.findByInstitutionId(institutionId);
+        Optional<MainBank> opt = mainBankRepository.findById(institutionId);
         if (!opt.isPresent()) {
             return bad("Institution not found with ID: " + institutionId);
         }
 
-        TestInstitution inst = opt.get();
+        MainBank inst = opt.get();
 
         if (!"BLOCK_PENDING".equals(inst.getStatus())) {
             return bad("No scheduled block found for this institution.");
@@ -162,7 +144,16 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         inst.setPreBlockStatus(null);
         inst.setUpdatedAt(LocalDateTime.now());
 
-        testInstitutionRepository.save(inst);
+        mainBankRepository.save(inst);
+        // Sync restored status to KAL_SUPER_USER
+        final String finalStatus = restoredStatus;
+        try {
+            mainAdminRepository.findByInstitutionCodeAndUsername(
+                    inst.getInstitutionCode(), inst.getSuperUserId())
+                .ifPresent(su -> { su.setStatus(finalStatus); su.setUpdatedAt(LocalDateTime.now()); su.setUpdatedBy(undoneBy); mainAdminRepository.save(su); });
+        } catch (Exception e) {
+            logger.warn("undoBlock: KAL_SUPER_USER sync failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+        }
         logger.info("Block undone for institution {} by {}. Restored to {}", institutionId, undoneBy, restoredStatus);
 
         // ── Send cancellation email to Institution Super User ──
@@ -181,37 +172,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             logger.warn("[UNDO-BLOCK] Cancellation email failed for institution {}: {}", inst.getInstitutionCode(), e.getMessage());
         }
 
-        // ── Undo: sub-institutes ke schedule fields clear karo + email bhejo ──
-        List<SubTestInstitution> subs = subTestInstitutionRepository.findByParentInstitutionId(institutionId);
-        for (SubTestInstitution sub : subs) {
-            if ("BLOCKED".equals(sub.getStatus())) continue;
-
-            // Schedule data clear karo — block cancel ho gaya
-            sub.setBlockScheduledAt(null);
-            sub.setBlockScheduledBy(null);
-            sub.setPreBlockStatus(null);
-            subTestInstitutionRepository.save(sub);
-            logger.info("[UNDO-BLOCK] Schedule data cleared for sub-institute: {} ({})",
-                    sub.getInstitutionCode(), sub.getSubInstitutionId());
-
-            try {
-                if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
-                    emailService.sendSubInstituteRetireCancelled(
-                            sub.getPrimaryEmail(),
-                            sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Super User",
-                            sub.getInstitutionNameFull() != null ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
-                            sub.getInstitutionCode(),
-                            inst.getInstitutionNameFull(),
-                            inst.getInstitutionCode()
-                    );
-                    logger.info("[UNDO-BLOCK] Cancellation email sent to sub-institute: {} ({})",
-                            sub.getInstitutionCode(), sub.getPrimaryEmail());
-                }
-            } catch (Exception e) {
-                logger.warn("[UNDO-BLOCK] Cancellation email failed for sub-institute {} ({}): {}",
-                        sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
-            }
-        }
+        // Individual undo only — sub-institutes are NOT affected
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block has been cancelled. Institution status restored to '" + restoredStatus + "'.",
@@ -219,83 +180,88 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     }
 
     // ─────────────────────────────────────────────
-    // AUTO-BLOCK — Runs every hour, checks 24hr window
-    // Permanently blocks institutions whose 24hr window has passed
+    // AUTO-BLOCK — Runs every hour, checks 30s/24hr window
+    // Permanently blocks institutions AND sub-institutions whose window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 5000)   // DEMO: every 5s — change to 3600000 for production (1 hr)
+    @Scheduled(fixedRate = 3600000)   // DEMO: every 5s — change to 3600000 for production (1 hr)
     @Transactional
     public void autoBlockScheduledInstitutions() {
         LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);   // DEMO: 30s — change to minusHours(24) for production
 
-        List<TestInstitution> pendingList = testInstitutionRepository
+        // ── Auto-block main institutions ──
+        List<MainBank> pendingList = mainBankRepository
                 .findByStatusAndBlockScheduledAtBefore("BLOCK_PENDING", cutoff);
 
-        if (pendingList.isEmpty()) return;
-
-        logger.info("Auto-block: {} institution(s) to be permanently blocked", pendingList.size());
-
-        for (TestInstitution inst : pendingList) {
-            inst.setStatus("BLOCKED");
-            // blockScheduledAt, blockScheduledBy, preBlockStatus — null mat karo
-            // ye audit trail ke liye DB mein permanently rehenge
-            inst.setUpdatedAt(LocalDateTime.now());
-            testInstitutionRepository.save(inst);
-            logger.info("Auto-blocked institution: {} ({})",
-                    inst.getInstitutionNameFull(), inst.getInstitutionId());
-
-            // ── Send BLOCKED notification email to Super User ──
-            try {
-                if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
-                    emailService.sendStatusChangeNotification(
-                        inst.getPrimaryEmail(),
-                        inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
-                        inst.getInstitutionNameFull(),
-                        inst.getInstitutionCode(),
-                        "BLOCK_PENDING",
-                        "BLOCKED"
-                    );
-                }
-            } catch (Exception e) {
-                logger.warn("Auto-block email failed for institution {}: {}",
-                            inst.getInstitutionCode(), e.getMessage());
-            }
-
-            // ── Cascade BLOCKED to all sub-institutes (permanent) ──
-            List<SubTestInstitution> subs =
-                    subTestInstitutionRepository.findByParentInstitutionId(inst.getInstitutionId());
-            logger.info("[CASCADE] Auto-block: {} sub-institute(s) found under institution {} ({})",
-                    subs.size(), inst.getInstitutionNameFull(), inst.getInstitutionCode());
-
-            for (SubTestInstitution sub : subs) {
-                if ("BLOCKED".equals(sub.getStatus())) continue;   // already blocked — skip
-
-                String subOldStatus = sub.getStatus();
-                sub.setPreBlockStatus(subOldStatus);
-                sub.setStatus("BLOCKED");
-                // Sub-institute mein bhi block audit data save karo
-                sub.setBlockScheduledAt(inst.getBlockScheduledAt());
-                sub.setBlockScheduledBy(inst.getBlockScheduledBy());
-                subTestInstitutionRepository.save(sub);
-                logger.info("[CASCADE] Auto-block: sub-institute {} ({}) → BLOCKED (was: {})",
-                        sub.getInstitutionCode(), sub.getSubInstitutionId(), subOldStatus);
-
-                // Send email to sub-institute Super User
+        if (!pendingList.isEmpty()) {
+            logger.info("Auto-block: {} main institution(s) to be permanently blocked", pendingList.size());
+            for (MainBank inst : pendingList) {
+                inst.setStatus("BLOCKED");
+                inst.setUpdatedAt(LocalDateTime.now());
+                mainBankRepository.save(inst);
+                // Sync BLOCKED to KAL_SUPER_USER
                 try {
-                    if (sub.getPrimaryEmail() != null && !sub.getPrimaryEmail().isEmpty()) {
-                        emailService.sendSubInstituteStatusNotification(
-                            sub.getPrimaryEmail(),
-                            sub.getPrimaryFullName() != null ? sub.getPrimaryFullName() : "Super User",
-                            sub.getInstitutionNameFull() != null
-                                    ? sub.getInstitutionNameFull() : sub.getInstitutionCode(),
-                            sub.getInstitutionCode(),
-                            subOldStatus, "BLOCKED",
+                    mainAdminRepository.findByInstitutionCodeAndUsername(
+                            inst.getInstitutionCode(), inst.getSuperUserId())
+                        .ifPresent(su -> { su.setStatus("BLOCKED"); su.setUpdatedAt(LocalDateTime.now()); su.setUpdatedBy("SYSTEM"); mainAdminRepository.save(su); });
+                } catch (Exception e) {
+                    logger.warn("autoBlock: KAL_SUPER_USER sync failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+                }
+                logger.info("Auto-blocked institution: {} ({})",
+                        inst.getInstitutionNameFull(), inst.getInstitutionId());
+
+                try {
+                    if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
+                        emailService.sendStatusChangeNotification(
+                            inst.getPrimaryEmail(),
+                            inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                             inst.getInstitutionNameFull(),
-                            inst.getInstitutionCode()
+                            inst.getInstitutionCode(),
+                            "BLOCK_PENDING",
+                            "BLOCKED"
                         );
                     }
                 } catch (Exception e) {
-                    logger.warn("[CASCADE-EMAIL] Auto-block email failed for sub-institute {} ({}): {}",
-                            sub.getInstitutionCode(), sub.getSubInstitutionId(), e.getMessage());
+                    logger.warn("Auto-block email failed for institution {}: {}",
+                                inst.getInstitutionCode(), e.getMessage());
+                }
+            }
+        }
+
+        // ── Auto-block sub-institutions ──
+        List<BranchBank> pendingSubList = branchBankRepository
+                .findByStatusAndBlockScheduledAtBefore("BLOCK_PENDING", cutoff);
+
+        if (!pendingSubList.isEmpty()) {
+            logger.info("Auto-block: {} sub-institution(s) to be permanently blocked", pendingSubList.size());
+            for (BranchBank inst : pendingSubList) {
+                inst.setStatus("BLOCKED");
+                inst.setUpdatedAt(LocalDateTime.now());
+                branchBankRepository.save(inst);
+                // Sync BLOCKED to BRANCH_ADMIN
+                try {
+                    branchAdminRepository.findByInstitutionCodeAndUsername(
+                            inst.getInstitutionCode(), inst.getSuperUserId())
+                        .ifPresent(ba -> { ba.setStatus("BLOCKED"); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy("SYSTEM"); branchAdminRepository.save(ba); });
+                } catch (Exception e) {
+                    logger.warn("autoBlock: BRANCH_ADMIN sync failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+                }
+                logger.info("Auto-blocked sub-institution: {} ({})",
+                        inst.getInstitutionNameFull(), inst.getInstitutionId());
+
+                try {
+                    if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
+                        emailService.sendStatusChangeNotification(
+                            inst.getPrimaryEmail(),
+                            inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
+                            inst.getInstitutionNameFull(),
+                            inst.getInstitutionCode(),
+                            "BLOCK_PENDING",
+                            "BLOCKED"
+                        );
+                    }
+                } catch (Exception e) {
+                    logger.warn("Auto-block email failed for sub-institution {}: {}",
+                                inst.getInstitutionCode(), e.getMessage());
                 }
             }
         }

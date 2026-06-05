@@ -68,12 +68,15 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-credentials")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/set-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/direct-login")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/forgot-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-forgot-otp")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/reset-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-user-status")).permitAll()
 
-                // Institution logo images — public (brand logos, no sensitive data)
+                // Institution + SubInstitution logo images — public (brand logos, no sensitive data)
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/logo/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/logo/**")).permitAll()
 
                 // Institution uniqueness check APIs — non-critical, fail-open on frontend
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-email")).permitAll()

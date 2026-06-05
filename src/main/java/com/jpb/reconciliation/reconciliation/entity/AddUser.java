@@ -64,7 +64,7 @@ public class AddUser {
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
  
-    @Column(name = "PASSWORD_HASH", nullable = false)
+    @Column(name = "PASSWORD_HASH", nullable = true)
     private String passwordHash;
  
     @Column(name = "INSTITUTION_CODE", length = 50)
