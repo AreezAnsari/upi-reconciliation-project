@@ -1,12 +1,12 @@
-spring:
-  profiles:
-    active: SIT
+#spring:
+#  profiles:
+#    active: SIT
 
 jasypt:
   encryptor:
     password: jpbrecon@123
 
-#spring:
+spring:
   application:
     name: "flux-recon"
   datasource:
