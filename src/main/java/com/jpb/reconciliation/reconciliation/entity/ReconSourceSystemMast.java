@@ -4,6 +4,9 @@ package com.jpb.reconciliation.reconciliation.entity;
 import java.time.LocalDateTime;
 import java.util.Set;
 import javax.persistence.*;
+
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFileTmpltMast;
+
 import lombok.*;
 
 @Entity
@@ -40,4 +43,5 @@ public class ReconSourceSystemMast {
 
     @OneToMany(mappedBy = "sourceSystem", fetch = FetchType.LAZY)
     private Set<ReconFileTmpltMast> templates;
+
 }

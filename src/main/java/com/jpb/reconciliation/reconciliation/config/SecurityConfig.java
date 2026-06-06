@@ -65,6 +65,7 @@ public class SecurityConfig {
 		configuration.addAllowedOrigin("http://localhost:5173");
 		configuration.addAllowedOrigin("https://jpbreconsit.jiopaymentsbank.com:8080");
 		configuration.addAllowedOrigin("http://13.48.46.135/");  // sit
+		configuration.addAllowedOrigin("http://80.225.233.60/");
 		configuration.addAllowedOrigin("http://10.142.12.140:8080"); // PROD
 		configuration.addAllowedOrigin("http://192.168.1.103:8081");
 		configuration.addAllowedOrigin("https://jio-recon.jiopaymentsbank.com:8080");

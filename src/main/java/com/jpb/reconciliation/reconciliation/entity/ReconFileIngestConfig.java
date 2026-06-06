@@ -4,6 +4,8 @@ package com.jpb.reconciliation.reconciliation.entity;
 import java.time.LocalDateTime;
 import javax.persistence.*;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFileTmpltMast;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconSftpServerMast;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import lombok.*;
 

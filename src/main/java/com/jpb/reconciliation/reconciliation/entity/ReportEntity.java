@@ -32,6 +32,9 @@ public class ReportEntity {
 
 	@Column(name = "PROCESS_ID")
 	private Long processId;
+	
+	@Column(name = "TEMPLATE_ID")
+	private Long templateId;
 
 	@Column(name = "REPORT_KEY")
 	private String reportKey;
@@ -59,4 +62,5 @@ public class ReportEntity {
 	
 	@Column(name = "FILE_NAME")
 	private String fileName;
+
 }

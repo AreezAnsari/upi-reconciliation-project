@@ -21,11 +21,11 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 import com.jpb.reconciliation.reconciliation.dto.fileconfiguration.FileConfigRequest;
 import com.jpb.reconciliation.reconciliation.entity.ProcessMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileIngestConfig;
-import com.jpb.reconciliation.reconciliation.entity.ReconFileTmpltMast;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFileTmpltMast;
 import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
 import com.jpb.reconciliation.reconciliation.repository.ProcessMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileIngestConfigRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconFileTmpltMastRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconFileTmpltMastRepository;
 import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
 
 import lombok.RequiredArgsConstructor;
@@ -76,8 +76,8 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
     @Override
     @Transactional(readOnly = true)
     public ResponseEntity<RestWithMapStatusList> getTemplateById(Long templateId) {
-        ReconFileTmpltMast t = templateRepository
-                .findByTemplateIdAndIsDeleted(templateId, "N")
+        ReconFileTmpltMast t = templateRepository.findById(templateId)
+                .filter(tmpl -> !"INACTIVE".equalsIgnoreCase(tmpl.getStatus()))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Template not found: " + templateId));
 
@@ -173,8 +173,8 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
     @Override
     public ResponseEntity<RestWithMapStatusList> createFileConfig(FileConfigRequest request,
                                                                    Long userId) {
-        ReconFileTmpltMast template = templateRepository
-                .findByTemplateIdAndIsDeleted(request.getRtdTemplateId(), "N")
+        ReconFileTmpltMast template = templateRepository.findById(request.getRtdTemplateId())
+                .filter(t -> !"INACTIVE".equalsIgnoreCase(t.getStatus()))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Template not found: " + request.getRtdTemplateId()));
 
@@ -216,8 +216,8 @@ public class FileConfigServiceNewImpl implements FileConfigServiceNew {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "File configuration not found: " + fileId));
 
-        ReconFileTmpltMast template = templateRepository
-                .findByTemplateIdAndIsDeleted(request.getRtdTemplateId(), "N")
+        ReconFileTmpltMast template = templateRepository.findById(request.getRtdTemplateId())
+                .filter(t -> !"INACTIVE".equalsIgnoreCase(t.getStatus()))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Template not found: " + request.getRtdTemplateId()));
 
