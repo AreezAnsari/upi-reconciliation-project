@@ -10,5 +10,14 @@ public class CommonConstants {
 
 	public static final String APPLICATION_JSON = "Application/json";
 	public static final String APPLICATION_XML = "Application/xml";
+	
+	 public static final String ACTIVE     = "Y";
+	    public static final String INACTIVE   = "N";
+
+	    // ─── Response Status ──────────────────────────────────────────
+	    public static final String SUCCESS    = "SUCCESS";
+	    public static final String FAILURE    = "FAILURE";
+
+	  
 
 }
