@@ -28,8 +28,8 @@ import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.repository.LoadMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 

@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
-import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.service.FileOpearationService;
 

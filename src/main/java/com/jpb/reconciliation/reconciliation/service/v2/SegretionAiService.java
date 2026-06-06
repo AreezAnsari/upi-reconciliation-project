@@ -4,10 +4,8 @@ import java.sql.SQLException;
 import java.sql.SQLRecoverableException;
 import java.sql.Types;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 import javax.sql.DataSource;
 
@@ -22,14 +20,12 @@ import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.jpb.reconciliation.reconciliation.entity.REProcessManager;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessManagerRepository;
 import com.jpb.reconciliation.reconciliation.service.SegretionServiceImpl;

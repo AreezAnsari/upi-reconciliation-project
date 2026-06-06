@@ -7,8 +7,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
-import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 
 import net.sf.jasperreports.engine.JRException;
 

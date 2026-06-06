@@ -26,8 +26,8 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
-import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFieldDetailsMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFieldFormatMasterRepository;
@@ -39,7 +39,6 @@ import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.AuditLogManagerService;
 import com.jpb.reconciliation.reconciliation.service.ExtractionServiceImpl;
 import com.jpb.reconciliation.reconciliation.service.NTSLSettlementService;
-import com.jpb.reconciliation.reconciliation.service.SqlLoaderService;
 import com.jpb.reconciliation.reconciliation.util.v2.CommonAiReport;
 
 @Service

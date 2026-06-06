@@ -21,17 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
-import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReportRepository;
 import com.jpb.reconciliation.reconciliation.service.AuditLogManagerService;
 import com.jpb.reconciliation.reconciliation.service.DataUpdateService;
-import com.jpb.reconciliation.reconciliation.service.ReportGenerationService;
-import com.jpb.reconciliation.reconciliation.service.SegretionService;
 import com.jpb.reconciliation.reconciliation.service.SqlLoaderServiceImpl;
 import com.jpb.reconciliation.reconciliation.service.jasper.JasperReportService;
 
