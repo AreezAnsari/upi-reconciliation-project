@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import javax.sql.DataSource;
@@ -27,6 +28,7 @@ import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
+import com.jpb.reconciliation.reconciliation.entity.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.LoadMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
@@ -170,5 +172,46 @@ public class LoadMasterServiceImpl implements LoadMasterService {
 		// processList.add(process);
 
 		return process;
+	}
+
+	@Override
+	public ReconBatchProcessEntity extractionRunningStatusforGlFlagYNewV2(Long templateId,
+			Optional<ReconTmpltFieldDtls> reconTemplateFileDetails, ReconUser userData) {
+		logger.info("PROCESS ID ::::::::::::" + templateId);
+		ReconBatchProcessEntity process = new ReconBatchProcessEntity();
+		process.setTemplateId(templateId);
+		process.setProcessType("EXTRACTION");
+		process.setStartTime(LocalDateTime.now().format(dateTimeFormatter));
+		process.setEndTime(null);
+		process.setStatus("Running");
+		process.setFileName(reconTemplateFileDetails.get().getTemplate().getTemplateName());
+		process.setHeaderDetails(null);
+		process.setControlFileHeaderDetails(null);
+		process.setSeqHeaderDetails(null);
+		process.setInstCode(null);
+		process.setInsertUser(userData.getUserId());
+		process.setInsertDate(LocalDate.now());
+		process.setExtractionStatus("Running");
+		process.setFileDate(null);
+		process.setErrorDescription(null);
+		process.setExtractionProcedureStatus(null);
+		process.setSettleProcedureStatus(null);
+		process.setDataCount(null);
+		process.setReconStatus(null);
+		process.setReportStatus("Running");
+		process.setSegretionStatus("Running");
+		reconBatchProcessEntityRepository.save(process);
+		auditLogManagerService.extractionAudit(process, userData);
+		// processList.add(process);
+
+		return process;
+	}
+
+	@Override
+	public CompletableFuture<String> startDataLoadingNewV2(Long templateId,
+			Optional<ReconTmpltFieldDtls> reconTemplateFileDetails, ReconUser userData,
+			ReconBatchProcessEntity extractionStatus, LoadMasterEntity loadMasterEntity) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

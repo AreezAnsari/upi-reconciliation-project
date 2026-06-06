@@ -106,6 +106,9 @@ public class ReconFileTmpltMast {
 
     @Column(name = "xml_namespace", length = 200)
     private String xmlNamespace;
+    
+	@Column(name = "GL_FLAG")
+	private String glFlag;
 
     // Legacy columns — preserved for backward compatibility with old code paths
     @Column(name = "sub_template_id")               private Long   subTemplateId;

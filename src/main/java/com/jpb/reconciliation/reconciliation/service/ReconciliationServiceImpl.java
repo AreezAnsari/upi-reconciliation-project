@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -161,9 +162,31 @@ public class ReconciliationServiceImpl implements ReconciliationService {
 						process.setReconStatus("Completed");
 						process.setStatus("Completed");
 						process.setProcessId(processId);
-						process.setReconDataCount("8");
+//						process.setReconDataCount("8");
 						process.setEndTime(LocalDateTime.now().format(dateTimeFormatter));
 						process.setDataCount(null);
+						
+						  try {
+						        Long reconCount = jdbcTemplate.queryForObject(
+						            "SELECT RECON_COUNT FROM RECON_COUNT WHERE PROCESS_ID = ?",
+						            Long.class,
+						            processId
+						        );
+						        if (reconCount != null) {
+						            process.setReconDataCount(String.valueOf(reconCount));
+						            logger.info("ReconDataCount fetched for processId " + processId + " : " + reconCount);
+						        } else {
+						            process.setReconDataCount("0");
+						            logger.warn("RECON_COUNT is null for processId: " + processId + ". Defaulting to 0.");
+						        }
+						    } catch (EmptyResultDataAccessException ex) {
+						        process.setReconDataCount("0");
+						        logger.warn("No row found in RECON_COUNT for processId: " + processId + ". Defaulting to 0.");
+						    } catch (Exception ex) {
+						        process.setReconDataCount("0");
+						        logger.error("Failed to fetch RECON_COUNT for processId: " + processId, ex);
+						    }
+						
 						reconBatchProcessEntityRepository.save(process);
 						
 						reportGenerationService.generateReconciliationReport(reconProcessDefMaster, process);

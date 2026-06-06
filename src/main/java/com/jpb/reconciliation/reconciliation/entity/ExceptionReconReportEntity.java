@@ -25,6 +25,9 @@ public class ExceptionReconReportEntity {
 
 	@Column(name = "PROCESS_ID")
 	private Long processId;
+	
+	@Column(name = "TEMPLATE_ID")
+	private Long templateId;
 
 	@Column(name = "REPORT_KEY")
 	private String reportKey;
