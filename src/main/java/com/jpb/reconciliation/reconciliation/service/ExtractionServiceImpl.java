@@ -149,7 +149,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 		// Return a new CompletableFuture that completes with the message
 		// ONLY after all underlying tasks are done.
 		return allOfFuture.thenApply(v -> {
-			fileOpearationService.moveExtractedFiles(reconFileDetails);
+//			fileOpearationService.moveExtractedFiles(reconFileDetails);
 			if (reconFileDetails.getReconTemplateDetails().getSettlementFlag().equalsIgnoreCase("Y")) {
 				Boolean ntslSettleFlag = ntslSettlementService.ntslSettlementProcess(reconFileDetails);
 				logger.info("ntslSettleFlag" + ntslSettleFlag);
@@ -203,7 +203,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 					if (fileName.equalsIgnoreCase("FEBA SWITCH DB") || fileName.equalsIgnoreCase("EPIK_AEP_AEPS")
 							|| fileName.equalsIgnoreCase("CBS_AEPS")
 							|| fileName.equalsIgnoreCase("AEPS CREDIT ADJUSTMENT")
-							|| fileName.equalsIgnoreCase("ELMS_CBS") || fileName.equalsIgnoreCase("DEBITCARD_CBS")) {
+							|| fileName.equalsIgnoreCase("ELMS_CBS") || fileName.equalsIgnoreCase("DEBITCARD_CBS")
+							|| fileName.equalsIgnoreCase("NEFT SFMS")) {
 						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" ").append("\"TO_")
 								.append(filed.getRftFieldTypeDesc()).append("(:").append(filed.getRfmShortName())
 								.append(")\" ,\n");
@@ -262,6 +263,11 @@ public class ExtractionServiceImpl implements ExtractionService {
 					controlFileContent.append(" ").append(filed.getRfmShortName()).append(" POSITION(")
 							.append(filed.getReconFromPosn()).append(":").append(filed.getReconToPosn()).append(")")
 							.append(",\n");
+				} else if (fileName.equalsIgnoreCase("NEFT SFMS")
+						&& filed.getRfmShortName().equalsIgnoreCase("TRAN_SEQ_NUM")) {
+					controlFileContent.append(" ").append(filed.getRfmShortName())
+							.append(" \"REGEXP_REPLACE(REPLACE(:TRAN_SEQ_NUM, ' ', ''), '^/[^/]+/', '')\"")
+							.append(",\n");
 				}
 
 				else {
@@ -291,8 +297,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 		}
 
 		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
-				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
+				|| fileName.equalsIgnoreCase("DEBITCARD_CBS") || fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")
+				|| fileName.equalsIgnoreCase("NEFT CBS")) {
 			controlFileContent.append("DR_CR_FLAG").append(" \"CASE ")
 					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN 'D' ")
 					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN 'C' ").append("ELSE NULL END\" ")
@@ -300,8 +306,8 @@ public class ExtractionServiceImpl implements ExtractionService {
 		}
 
 		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
-				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
+				|| fileName.equalsIgnoreCase("DEBITCARD_CBS") || fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")
+				|| fileName.equalsIgnoreCase("NEFT CBS")) {
 			controlFileContent.append("TRAN_AMOUNT").append(" \"CASE ")
 					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN TO_NUMBER(:DEBIT_AMT) ")
 					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN TO_NUMBER(:CREDIT_AMT) ")
@@ -332,52 +338,50 @@ public class ExtractionServiceImpl implements ExtractionService {
 	}
 
 	private List<ReconFieldDetailsDto> getFiledDataByTemplateId(Long templateId) {
-	    List<ReconFieldDetailsDto> filedData = new ArrayList<>();
+		List<ReconFieldDetailsDto> filedData = new ArrayList<>();
 
-	    // Fetch all field details with type & format using JOIN FETCH
-	    List<ReconFieldDetailsMaster> reconFieldDetailsMaster =
-	            reconFieldDetailsMasterRepository.findFullFieldDetailsByTemplateId(templateId);
-	    logger.info("FILED DETAILS MASTER  =========> {}", reconFieldDetailsMaster);
-	    if (reconFieldDetailsMaster != null && !reconFieldDetailsMaster.isEmpty()) {
-	        for (ReconFieldDetailsMaster fieldDetailsMaster : reconFieldDetailsMaster) {
-	            ReconFieldDetailsDto fieldDetails = new ReconFieldDetailsDto();
-                 
-	            // Field details from master
-	            fieldDetails.setRfmColPosn(fieldDetailsMaster.getReconColumnPosn());
-	            fieldDetails.setRfmShortName(fieldDetailsMaster.getReconShortName());
-	            fieldDetails.setRfmColOffset(fieldDetailsMaster.getReconColumnOffset());
-	            fieldDetails.setReconFromPosn(fieldDetailsMaster.getReconFromPosn());
-	            fieldDetails.setReconToPosn(fieldDetailsMaster.getReconToPosn());
+		// Fetch all field details with type & format using JOIN FETCH
+		List<ReconFieldDetailsMaster> reconFieldDetailsMaster = reconFieldDetailsMasterRepository
+				.findFullFieldDetailsByTemplateId(templateId);
+		logger.info("FILED DETAILS MASTER  =========> {}", reconFieldDetailsMaster);
+		if (reconFieldDetailsMaster != null && !reconFieldDetailsMaster.isEmpty()) {
+			for (ReconFieldDetailsMaster fieldDetailsMaster : reconFieldDetailsMaster) {
+				ReconFieldDetailsDto fieldDetails = new ReconFieldDetailsDto();
 
-	            // Field Type (already fetched)
-	            if (fieldDetailsMaster.getReconFieldTypeMaster() != null) {
-	                fieldDetails.setRftFieldTypeDesc(
-	                        fieldDetailsMaster.getReconFieldTypeMaster().getFieldTypeDes());
-	            }
+				// Field details from master
+				fieldDetails.setRfmColPosn(fieldDetailsMaster.getReconColumnPosn());
+				fieldDetails.setRfmShortName(fieldDetailsMaster.getReconShortName());
+				fieldDetails.setRfmColOffset(fieldDetailsMaster.getReconColumnOffset());
+				fieldDetails.setReconFromPosn(fieldDetailsMaster.getReconFromPosn());
+				fieldDetails.setReconToPosn(fieldDetailsMaster.getReconToPosn());
 
-	            // Field Format (already fetched)
-	            if (fieldDetailsMaster.getReconFieldFormatMaster() != null) {
-	                fieldDetails.setRffFieldFormatDesc(
-	                        fieldDetailsMaster.getReconFieldFormatMaster().getReconFieldFormatDesc());
-	            }
+				// Field Type (already fetched)
+				if (fieldDetailsMaster.getReconFieldTypeMaster() != null) {
+					fieldDetails.setRftFieldTypeDesc(fieldDetailsMaster.getReconFieldTypeMaster().getFieldTypeDes());
+				}
 
-	            // Key Identify (still need to fetch from repository)
-	            List<ReconKeyIdentifyMaster> keyIdentify = reconKeyIdentifyMasterRepository
-	                    .findByKeyIdentityId(fieldDetailsMaster.getReconKeyIdentifier());
+				// Field Format (already fetched)
+				if (fieldDetailsMaster.getReconFieldFormatMaster() != null) {
+					fieldDetails.setRffFieldFormatDesc(
+							fieldDetailsMaster.getReconFieldFormatMaster().getReconFieldFormatDesc());
+				}
 
-	            if (keyIdentify != null && !keyIdentify.isEmpty()) {
-	                // Assuming only 1 key per field
-	                fieldDetails.setKeyName(keyIdentify.get(0).getKeyName());
-	            }
+				// Key Identify (still need to fetch from repository)
+				List<ReconKeyIdentifyMaster> keyIdentify = reconKeyIdentifyMasterRepository
+						.findByKeyIdentityId(fieldDetailsMaster.getReconKeyIdentifier());
 
-	            filedData.add(fieldDetails);
-	        }
-	    }
+				if (keyIdentify != null && !keyIdentify.isEmpty()) {
+					// Assuming only 1 key per field
+					fieldDetails.setKeyName(keyIdentify.get(0).getKeyName());
+				}
 
-	    logger.info("ALL COLUMNS NAME BY TEMPLATE => {}", filedData);
-	    return filedData;
+				filedData.add(fieldDetails);
+			}
+		}
+
+		logger.info("ALL COLUMNS NAME BY TEMPLATE => {}", filedData);
+		return filedData;
 	}
-
 
 	private String generateFilePath(String targetTableName, File fileLocation) {
 		String timestamp = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss").format(new Date());

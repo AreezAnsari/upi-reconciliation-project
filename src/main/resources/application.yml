@@ -1,23 +1,26 @@
-spring:
-  profiles:
-    active: SIT
+#spring:
+#  profiles:
+#    active: SIT
 
 jasypt:
   encryptor:
     password: jpbrecon@123
 
-#spring:
+spring:
   application:
     name: "flux-recon"
   datasource:
 #    primary:
 #      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/OracleDatabase/Wallet_RECONDB1
+#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb  AWS DB
+      url: jdbc:oracle:thin:@//80.225.233.60:1521/FREEPDB1
       driver-class-name: oracle.jdbc.OracleDriver
 #      username: recon_sit
-      username: kal_recon
+#      username: jpb_recon   AWS
+      userName: RECON_SIT
 #      password: recon_sit
-      password: Finrecon1234567
+#      password: Jpbrecon2026   AWS
+      password: RECON_SIT
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000
@@ -101,14 +104,14 @@ oracle:
     query-timeout-seconds: 900
 
 app:
-  uDrive: '/home/ec2-user/Utility'
-  ttumFile: '/home/ec2-user/ReconReport'
-  transactionFile: '/home/ec2-user/ReconReport'
-  targetFilePath: '/home/ec2-user/DCRFILES_COMPLETED'
-  aepsDataFile: '/home/ec2-user/ReconReport'
-  reconReport: '/home/ec2-user/ReconReport'
-  uploadFileDir: '/home/ec2-user/upload_files'
-  accountSplitPath: '/home/ec2-user/upload_files'
+  uDrive: '/home/reconapp/kalrecon/Utility'
+  ttumFile: '/home/reconapp/kalrecon/ReconReport'
+  transactionFile: '/home/reconapp/kalrecon/ReconReport'
+  targetFilePath: '/home/reconapp/kalrecon/DCRFILES_COMPLETED'
+  aepsDataFile: '/home/reconapp/kalrecon/ReconReport'
+  reconReport: '/home/reconapp/kalrecon/ReconReport'
+  uploadFileDir: '/home/reconapp/kalrecon/upload_files'
+  accountSplitPath: '/home/reconapp/kalrecon/upload_files'
 server:
   port: 8081
 
@@ -119,7 +122,8 @@ AUTH:
   PUBLIC_KEY: 'C:\Akshay_Ramani\Jio_Bank_Projects\JIOBANK_RECON_APPLICATION\jpb-recon-system-application\src\main\resources\publickey\publicKey.key'
 
 sqlldr:
-   url: '@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb'
-   secondUrl: '@//localhost:1521/orcl.lan'
+#   url: '@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb'
+   url: '@//80.225.233.60:1521/FREEPDB1'
+   secondUrl: '@//localhost:1521/orcl.lan' 
 
 

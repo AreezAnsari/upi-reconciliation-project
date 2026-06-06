@@ -109,6 +109,9 @@ public class ReconFileTmpltMast {
 
     @Column(name = "xml_namespace", length = 200)
     private String xmlNamespace;
+    
+	@Column(name = "GL_FLAG")
+	private String glFlag;
 
     // Reversal detail columns (conditional — populated when reversal_indicator = Y)
     @Column(name = "reversal_field_name", length = 100)
