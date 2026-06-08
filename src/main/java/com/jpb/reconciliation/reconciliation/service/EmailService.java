@@ -46,30 +46,30 @@ public interface EmailService {
      * Send block warning email to Institution's Super User when admin schedules permanent block.
      * Tells them: account will be permanently blocked in 24 hours, contact admin to cancel.
      */
-    void sendRetireWarning(String toEmail, String superUserName,
-                           String institutionName, String institutionCode,
-                           String blockAt);
+    void sendBlockWarning(String toEmail, String superUserName,
+                          String institutionName, String institutionCode,
+                          String blockAt);
 
     /**
      * Send block cancelled email to Institution's Super User when admin undoes block.
      */
-    void sendRetireCancelled(String toEmail, String superUserName,
-                             String institutionName, String institutionCode,
-                             String restoredStatus);
+    void sendBlockCancelled(String toEmail, String superUserName,
+                            String institutionName, String institutionCode,
+                            String restoredStatus);
 
     /**
      * Send block cancelled email to a Sub-Institute when parent's block is undone.
      */
-    void sendSubInstituteRetireCancelled(String toEmail, String contactName,
-                                         String subInstitutionName, String subInstitutionCode,
-                                         String parentInstitutionName, String parentInstitutionCode);
+    void sendSubInstituteBlockCancelled(String toEmail, String contactName,
+                                        String subInstitutionName, String subInstitutionCode,
+                                        String parentInstitutionName, String parentInstitutionCode);
 
     /**
      * Send block warning email to a Sub-Institute's primary contact.
      * Triggered at same time as parent institution block warning.
      */
-    void sendSubInstituteRetireWarning(String toEmail, String contactName,
-                                       String subInstitutionName, String subInstitutionCode,
-                                       String parentInstitutionName, String parentInstitutionCode,
-                                       String blockAt);
+    void sendSubInstituteBlockWarning(String toEmail, String contactName,
+                                      String subInstitutionName, String subInstitutionCode,
+                                      String parentInstitutionName, String parentInstitutionCode,
+                                      String blockAt);
 }

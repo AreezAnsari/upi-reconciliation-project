@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
+import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.MainAdminService;
@@ -37,6 +38,9 @@ public class OtpController {
 
     @Autowired
     private MainBankRepository mainBankRepository;
+
+    @Autowired
+    private BranchAdminRepository branchAdminRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -116,11 +120,18 @@ public class OtpController {
                 e.printStackTrace(); // ← ye add karo taaki full stack trace dikhe
             }
 
-            // ── Fetch institution code by primary email so frontend can store it ──
+            // ── Fetch institution code by email — try MainBank first, then BranchAdmin ──
+            // Use findFirstByPrimaryEmailAndStatusNot to skip BLOCKED old records
+            // (re-onboarding creates 2 rows with the same email — BLOCKED old + active new)
             String institutionCode = mainBankRepository
-                    .findByPrimaryEmail(email)
+                    .findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED")
                     .map(inst -> inst.getInstitutionCode())
-                    .orElse(null);
+                    .orElseGet(() ->
+                        branchAdminRepository.findFirstByEmail(email)
+                            .map(ba -> ba.getInstitutionCode())
+                            .orElse(null)
+                    );
+            logger.info("[OTP-VERIFY] institutionCode resolved for {}: {}", maskEmail(email), institutionCode);
 
             Map<String, Object> res = new HashMap<>();
             res.put("success",         true);

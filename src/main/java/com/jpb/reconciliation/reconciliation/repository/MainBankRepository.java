@@ -33,10 +33,19 @@ public interface MainBankRepository extends JpaRepository<MainBank, Long> {
 
     boolean existsByPrimaryEmail(String primaryEmail);
 
+    // Returns true only when a NON-BLOCKED institution already holds this email.
+    // Used by checkEmailExists and createInstitution so that a BLOCKED institution's
+    // email does NOT block re-onboarding with the same address.
+    boolean existsByPrimaryEmailAndStatusNot(String primaryEmail, String status);
+
     // Uniqueness check for institution name (case-sensitive exact match)
     boolean existsByInstitutionNameFull(String institutionNameFull);
 
-    Optional<MainBank> findByPrimaryEmail(String primaryEmail);
+    // All records sharing an email (may be >1 after BLOCKED re-onboarding)
+    List<MainBank> findAllByPrimaryEmail(String primaryEmail);
+
+    // Returns the first non-BLOCKED record for a given email — safe when duplicates exist
+    Optional<MainBank> findFirstByPrimaryEmailAndStatusNot(String primaryEmail, String status);
 
     // For auto-block scheduler — finds all BLOCK_PENDING whose window has passed
     List<MainBank> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);

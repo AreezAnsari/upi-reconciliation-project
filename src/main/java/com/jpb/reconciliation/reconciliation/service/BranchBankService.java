@@ -12,7 +12,7 @@ public interface BranchBankService {
             BranchBankDTO dto,
             String createdBy);
 
-    ResponseEntity<RestWithStatusList> getAllInstitutions();
+    ResponseEntity<RestWithStatusList> getAllInstitutions(String loggedInUsername);
 
     ResponseEntity<RestWithStatusList> getInstitutionById(Long institutionId);
 
@@ -26,7 +26,7 @@ public interface BranchBankService {
 
     ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader);
 
-    ResponseEntity<RestWithStatusList> verifyEmail(String token);
+    ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username);
 
     ResponseEntity<RestWithStatusList> checkEmailExists(String email);
 
@@ -43,4 +43,8 @@ public interface BranchBankService {
     ResponseEntity<RestWithStatusList> undoBlock(Long institutionId, String undoneBy);
 
     ResponseEntity<byte[]> getLogoImage(String institutionCode);
+
+    ResponseEntity<RestWithStatusList> getInstitutionByCode(String institutionCode);
+
+    ResponseEntity<RestWithStatusList> getInstitutionByEmail(String email);
 }

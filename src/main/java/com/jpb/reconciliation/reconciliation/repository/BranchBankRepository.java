@@ -40,6 +40,17 @@ public interface BranchBankRepository extends JpaRepository<BranchBank, Long> {
     );
     boolean existsByPrimaryEmail(String primaryEmail);
 
+    // Returns true only when a NON-BLOCKED branch bank already holds this email.
+    // Used by checkEmailExists and createInstitution so that a BLOCKED record's
+    // email does NOT block re-onboarding with the same address.
+    boolean existsByPrimaryEmailAndStatusNot(String primaryEmail, String status);
+
+    // All records sharing an email (may be >1 after BLOCKED re-onboarding)
+    List<BranchBank> findAllByPrimaryEmail(String primaryEmail);
+
+    // Returns the first non-BLOCKED record for a given email — safe when duplicates exist
+    Optional<BranchBank> findFirstByPrimaryEmailAndStatusNot(String primaryEmail, String status);
+
     boolean existsByInstitutionCode(String institutionCode);
 
     // Auto-block scheduler: find BLOCK_PENDING whose 30s window has passed

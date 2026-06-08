@@ -13,9 +13,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.CustomUserDetail;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
+import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 
@@ -29,6 +31,9 @@ public class CustomUserDetailService implements UserDetailsService {
 
 	@Autowired
 	private MainAdminRepository mainAdminRepository;
+
+	@Autowired
+	private BranchAdminRepository branchAdminRepository;
 
 	/**
 	 * Called by JwtAuthenticationFilter to validate every request's Bearer token.
@@ -74,6 +79,32 @@ public class CustomUserDetailService implements UserDetailsService {
 			MainAdmin su = superByUsername.get();
 			logger.debug("loadUserByUsername — super-user found by username: {}", username);
 			return buildSuperUserDetails(username, su);
+		}
+
+		// ── Step 5: Branch Admin — by email (OTP token uses email as subject) ──
+		Optional<BranchAdmin> branchAdminByEmail = branchAdminRepository.findFirstByEmail(username);
+		if (branchAdminByEmail.isPresent()) {
+			BranchAdmin ba = branchAdminByEmail.get();
+			logger.debug("loadUserByUsername — branch-admin found by email: {}", username);
+			return User.builder()
+					.username(username)
+					.password(ba.getPassword() != null ? ba.getPassword() : "")
+					.authorities(Collections.singletonList(
+							new SimpleGrantedAuthority("ROLE_BRANCH_ADMIN")))
+					.build();
+		}
+
+		// ── Step 6: Branch Admin — by username (fallback) ──
+		Optional<BranchAdmin> branchAdminByUsername = branchAdminRepository.findFirstByUsername(username);
+		if (branchAdminByUsername.isPresent()) {
+			BranchAdmin ba = branchAdminByUsername.get();
+			logger.debug("loadUserByUsername — branch-admin found by username: {}", username);
+			return User.builder()
+					.username(username)
+					.password(ba.getPassword() != null ? ba.getPassword() : "")
+					.authorities(Collections.singletonList(
+							new SimpleGrantedAuthority("ROLE_BRANCH_ADMIN")))
+					.build();
 		}
 
 		throw new UsernameNotFoundException("User not found: " + username);

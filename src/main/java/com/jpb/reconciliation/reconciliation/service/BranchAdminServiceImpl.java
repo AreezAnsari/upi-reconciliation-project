@@ -249,13 +249,15 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             optUser = branchAdminRepository.findByInstitutionCodeAndUsername(
                     dto.getInstitutionCode().trim(), dto.getUsername().trim());
 
-            // Bridge lookup via BranchBank if composite miss
+            // Bridge lookup via BranchBank if composite miss.
+            // Skip BLOCKED records so re-onboarded users with same email can log in.
             if (!optUser.isPresent()) {
                 Optional<BranchBank> instOpt = branchBankRepository
                         .findByInstitutionCodeAndSuperUserId(
                                 dto.getInstitutionCode().trim(), dto.getUsername().trim());
                 if (instOpt.isPresent() && instOpt.get().getPrimaryEmail() != null) {
-                    optUser = branchAdminRepository.findFirstByEmail(instOpt.get().getPrimaryEmail().trim());
+                    optUser = branchAdminRepository.findFirstByEmailAndStatusNot(
+                            instOpt.get().getPrimaryEmail().trim(), "BLOCKED");
                 }
             }
         }
@@ -318,10 +320,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         String maskedEmail = maskEmail(email);
         List<Object> data = new ArrayList<>();
-        data.add(maskedEmail);
+        data.add(email); // actual email needed for OTP verification; masked only for display in statusMsg
 
         return new ResponseEntity<>(
-                new RestWithStatusList("OTP_SENT", "OTP sent to " + maskedEmail, data),
+                new RestWithStatusList("SUCCESS", "OTP sent successfully.", data),
                 HttpStatus.OK);
     }
 
@@ -351,12 +353,14 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         Optional<BranchAdmin> optUser = branchAdminRepository
                 .findByInstitutionCodeAndUsername(enteredCode, enteredUser);
 
-        // Bridge via BranchBank if composite miss
+        // Bridge via BranchBank if composite miss.
+        // Skip BLOCKED records so re-onboarded users with same email can log in.
         if (!optUser.isPresent()) {
             Optional<BranchBank> instOpt = branchBankRepository
                     .findByInstitutionCodeAndSuperUserId(enteredCode, enteredUser);
             if (instOpt.isPresent() && instOpt.get().getPrimaryEmail() != null) {
-                optUser = branchAdminRepository.findFirstByEmail(instOpt.get().getPrimaryEmail().trim());
+                optUser = branchAdminRepository.findFirstByEmailAndStatusNot(
+                        instOpt.get().getPrimaryEmail().trim(), "BLOCKED");
             }
         }
 
@@ -441,8 +445,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         BranchAdmin user = null;
 
+        // Skip BLOCKED records so re-onboarded user can reset password
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
-            Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmail(request.getEmail().trim());
+            Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmailAndStatusNot(
+                    request.getEmail().trim(), "BLOCKED");
             if (byEmail.isPresent()) user = byEmail.get();
         }
 
@@ -566,7 +572,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> activateBranchAdmin(String email) {
-        Optional<BranchAdmin> optUser = branchAdminRepository.findFirstByEmailOrderByIdAsc(email);
+        // Find the active (non-BLOCKED) BranchAdmin by email — newest record first (highest ID).
+        // If the same email was re-onboarded after a BLOCK, OrderByIdAsc would wrongly return the
+        // old BLOCKED record and the new branch bank would never become ACTIVE after first login.
+        Optional<BranchAdmin> optUser = branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
 
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(
@@ -616,8 +625,9 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     }
 
     private BranchAdmin findUserByEmailOrUsername(String email, String username, String institutionCode) {
+        // Skip BLOCKED records — re-onboarded user with same email must not hit old BLOCKED record
         if (email != null && !email.trim().isEmpty()) {
-            Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmail(email.trim());
+            Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmailAndStatusNot(email.trim(), "BLOCKED");
             if (byEmail.isPresent()) return byEmail.get();
         }
         if (username != null && !username.trim().isEmpty() &&

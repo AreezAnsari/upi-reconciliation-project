@@ -26,6 +26,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // ── Catch-all — was missing @ExceptionHandler, so it NEVER fired before ──
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleGlobalException(Exception exception, WebRequest webRequest) {
+        // Browser aborts connection mid-response (e.g. page redirect while image loading) — not a real error
+        if (exception instanceof org.apache.catalina.connector.ClientAbortException
+                || (exception.getCause() instanceof java.io.IOException && exception.getMessage() != null
+                    && exception.getMessage().contains("aborted"))) {
+            log.debug("Client aborted connection at [{}]", webRequest.getDescription(false));
+            return null;
+        }
         log.error("Unhandled exception at [{}]: {}", webRequest.getDescription(false), exception.getMessage(), exception);
         ErrorResponseDto errorResponseDto = new ErrorResponseDto(
                 webRequest.getDescription(false),

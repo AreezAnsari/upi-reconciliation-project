@@ -201,7 +201,7 @@ public class EmailServiceImpl implements EmailService {
 
     // ─────────────────────────────────────────────────────────────────────
     // SEND STATUS CHANGE NOTIFICATION EMAIL
-    // Sent when Admin changes institution status: INACTIVE / BLOCKED / RETIRED / ACTIVE
+    // Sent when Admin changes institution status: INACTIVE / BLOCKED / ACTIVE
     // @Async — fire and forget, won't block API response
     // ─────────────────────────────────────────────────────────────────────
     @Override
@@ -251,14 +251,6 @@ public class EmailServiceImpl implements EmailService {
                 statusMessage = "Your institution account has been <strong>Blocked</strong> by KalInfotech Admin. "
                     + "Access to the ReconXpert.Ai platform has been restricted. "
                     + "Please contact KalInfotech Admin immediately for clarification.";
-                break;
-            case "RETIRED":
-                statusColor  = "#a855f7";
-                statusBg     = "rgba(168,85,247,0.1)";
-                statusIcon   = "🔒";
-                statusMessage = "Your institution account has been <strong>Retired</strong>. "
-                    + "This is a permanent action. Access to ReconXpert.Ai has been permanently closed. "
-                    + "Please contact KalInfotech Admin if you believe this is an error.";
                 break;
             case "ACTIVE":
                 statusColor  = "#22c55e";
@@ -382,21 +374,6 @@ public class EmailServiceImpl implements EmailService {
                     + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>. "
                     + "Please quote your Institution Code when contacting support.";
                 break;
-            case "RETIRED":
-                statusColor   = "#a855f7";
-                statusBg      = "rgba(168,85,247,0.08)";
-                statusIcon    = "🔒";
-                statusHeading = "Institution Permanently Decommissioned";
-                statusMessage = "We regret to inform you that your institution has been <strong>permanently "
-                    + "decommissioned</strong> from the <strong>ReconXpert.Ai</strong> platform, effective immediately. "
-                    + "This action has been taken in connection with the decommissioning of "
-                    + "<strong>" + sanitize(parentInstitutionName) + "</strong> from our platform network. "
-                    + "All platform access, data operations, and reconciliation services for your institution have been permanently closed.";
-                actionNote    = "If you believe this action has been taken in error, or if you require a formal "
-                    + "explanation, please contact KalInfotech Administration at "
-                    + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>. "
-                    + "Please note that this is a permanent action and cannot be reversed once confirmed.";
-                break;
             case "ACTIVE":
                 statusColor   = "#22c55e";
                 statusBg      = "rgba(34,197,94,0.08)";
@@ -496,23 +473,23 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // RETIRE WARNING — Institution Super User
+    // BLOCK WARNING — Institution Super User
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendRetireWarning(String toEmail, String superUserName,
-                                  String institutionName, String institutionCode,
-                                  String retireAt) {
+    public void sendBlockWarning(String toEmail, String superUserName,
+                                 String institutionName, String institutionCode,
+                                 String blockAt) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + institutionName);
-            helper.setText(buildRetireWarningHtml(superUserName, institutionName, institutionCode, retireAt), true);
+            helper.setText(buildBlockWarningHtml(superUserName, institutionName, institutionCode, blockAt), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Block warning — recipient: {} | institution: {} | blockAt: {}",
-                    toEmail, institutionCode, retireAt);
+                    toEmail, institutionCode, blockAt);
         } catch (MessagingException e) {
             logger.error("[EMAIL-DELIVERY-FAIL] Block warning — recipient: {} | institution: {} | reason: {}",
                     toEmail, institutionCode, e.getMessage());
@@ -527,21 +504,21 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendSubInstituteRetireWarning(String toEmail, String contactName,
-                                              String subInstitutionName, String subInstitutionCode,
-                                              String parentInstitutionName, String parentInstitutionCode,
-                                              String retireAt) {
+    public void sendSubInstituteBlockWarning(String toEmail, String contactName,
+                                             String subInstitutionName, String subInstitutionCode,
+                                             String parentInstitutionName, String parentInstitutionCode,
+                                             String blockAt) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + subInstitutionName);
-            helper.setText(buildSubRetireWarningHtml(contactName, subInstitutionName, subInstitutionCode,
-                    parentInstitutionName, parentInstitutionCode, retireAt), true);
+            helper.setText(buildSubBlockWarningHtml(contactName, subInstitutionName, subInstitutionCode,
+                    parentInstitutionName, parentInstitutionCode, blockAt), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Sub block warning — recipient: {} | sub: {} | parent: {} | blockAt: {}",
-                    toEmail, subInstitutionCode, parentInstitutionCode, retireAt);
+                    toEmail, subInstitutionCode, parentInstitutionCode, blockAt);
         } catch (MessagingException e) {
             logger.error("[EMAIL-DELIVERY-FAIL] Sub block warning — recipient: {} | sub: {} | reason: {}",
                     toEmail, subInstitutionCode, e.getMessage());
@@ -556,16 +533,16 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendRetireCancelled(String toEmail, String superUserName,
-                                    String institutionName, String institutionCode,
-                                    String restoredStatus) {
+    public void sendBlockCancelled(String toEmail, String superUserName,
+                                   String institutionName, String institutionCode,
+                                   String restoredStatus) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + institutionName);
-            helper.setText(buildRetireCancelledHtml(superUserName, institutionName, institutionCode, restoredStatus), true);
+            helper.setText(buildBlockCancelledHtml(superUserName, institutionName, institutionCode, restoredStatus), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Block cancelled — recipient: {} | institution: {}", toEmail, institutionCode);
         } catch (MessagingException e) {
@@ -582,16 +559,16 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendSubInstituteRetireCancelled(String toEmail, String contactName,
-                                                 String subInstitutionName, String subInstitutionCode,
-                                                 String parentInstitutionName, String parentInstitutionCode) {
+    public void sendSubInstituteBlockCancelled(String toEmail, String contactName,
+                                               String subInstitutionName, String subInstitutionCode,
+                                               String parentInstitutionName, String parentInstitutionCode) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + subInstitutionName);
-            helper.setText(buildSubRetireCancelledHtml(contactName, subInstitutionName, subInstitutionCode,
+            helper.setText(buildSubBlockCancelledHtml(contactName, subInstitutionName, subInstitutionCode,
                     parentInstitutionName, parentInstitutionCode), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Sub block cancelled — recipient: {} | sub: {} | parent: {}",
@@ -608,7 +585,7 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     // HTML TEMPLATE — Block Cancelled (Institution)
     // ─────────────────────────────────────────────────────────────────────
-    private String buildRetireCancelledHtml(String name, String institutionName,
+    private String buildBlockCancelledHtml(String name, String institutionName,
                                              String institutionCode, String restoredStatus) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
@@ -672,7 +649,7 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     // HTML TEMPLATE — Block Cancelled (Sub-Institute)
     // ─────────────────────────────────────────────────────────────────────
-    private String buildSubRetireCancelledHtml(String contactName,
+    private String buildSubBlockCancelledHtml(String contactName,
                                                 String subInstitutionName, String subInstitutionCode,
                                                 String parentInstitutionName, String parentInstitutionCode) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
@@ -689,8 +666,8 @@ public class EmailServiceImpl implements EmailService {
             // Success banner
             + "<tr><td style='background:rgba(34,197,94,0.1);border-bottom:3px solid #22c55e;padding:24px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:40px;'>✅</p>"
-            + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#15803d;'>Retirement Successfully Cancelled</p>"
-            + "<p style='margin:0;font-size:13px;color:#166534;'>Your account retirement has been called off — no action required</p>"
+            + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#15803d;'>Block Successfully Cancelled</p>"
+            + "<p style='margin:0;font-size:13px;color:#166534;'>Your account block has been called off — no action required</p>"
             + "</td></tr>"
 
             // Body
@@ -698,9 +675,9 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(contactName) + "</strong>,"
             + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(subInstitutionName) + "</span></p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
-            + "We are pleased to inform you that the scheduled retirement of your institution on "
+            + "We are pleased to inform you that the scheduled block of your institution on "
             + "<strong>ReconXpert.Ai</strong> has been <strong>successfully cancelled</strong>. "
-            + "This follows the cancellation of the retirement of your parent institution, "
+            + "This follows the cancellation of the block of your parent institution, "
             + "<strong>" + sanitize(parentInstitutionName) + "</strong>, by KalInfotech Administration. "
             + "Your platform access and all reconciliation services remain fully active."
             + "</p>"
@@ -739,10 +716,10 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // HTML TEMPLATE — Institution Retire Warning
+    // HTML TEMPLATE — Institution Block Warning
     // ─────────────────────────────────────────────────────────────────────
-    private String buildRetireWarningHtml(String name, String institutionName,
-                                          String institutionCode, String retireAt) {
+    private String buildBlockWarningHtml(String name, String institutionName,
+                                         String institutionCode, String blockAt) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
@@ -758,7 +735,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='background:rgba(239,68,68,0.08);border-bottom:3px solid #ef4444;padding:24px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:40px;'>🚫</p>"
             + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#991b1b;'>Account Block Scheduled</p>"
-            + "<p style='margin:0;font-size:13px;color:#7f1d1d;'>Your account will be permanently blocked on <strong>" + sanitize(retireAt) + "</strong></p>"
+            + "<p style='margin:0;font-size:13px;color:#7f1d1d;'>Your account will be permanently blocked on <strong>" + sanitize(blockAt) + "</strong></p>"
             + "</td></tr>"
 
             // Body
@@ -782,7 +759,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Scheduled By</td>"
             + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>KalInfotech Administration</td></tr>"
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Block Time</td>"
-            + "<td style='font-size:13px;font-weight:700;color:#dc2626;padding:5px 0;'>" + sanitize(retireAt) + "</td></tr>"
+            + "<td style='font-size:13px;font-weight:700;color:#dc2626;padding:5px 0;'>" + sanitize(blockAt) + "</td></tr>"
             + "</table></div>"
 
             // Urgent action
@@ -807,12 +784,12 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // HTML TEMPLATE — Sub-Institute Retire Warning
+    // HTML TEMPLATE — Sub-Institute Block Warning
     // ─────────────────────────────────────────────────────────────────────
-    private String buildSubRetireWarningHtml(String contactName,
-                                              String subInstitutionName, String subInstitutionCode,
-                                              String parentInstitutionName, String parentInstitutionCode,
-                                              String retireAt) {
+    private String buildSubBlockWarningHtml(String contactName,
+                                            String subInstitutionName, String subInstitutionCode,
+                                            String parentInstitutionName, String parentInstitutionCode,
+                                            String blockAt) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
@@ -828,7 +805,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='background:rgba(239,68,68,0.08);border-bottom:3px solid #ef4444;padding:24px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:40px;'>🚫</p>"
             + "<p style='margin:10px 0 4px;font-size:20px;font-weight:700;color:#991b1b;'>Account Block Scheduled</p>"
-            + "<p style='margin:0;font-size:13px;color:#7f1d1d;'>Your account will be permanently blocked on <strong>" + sanitize(retireAt) + "</strong></p>"
+            + "<p style='margin:0;font-size:13px;color:#7f1d1d;'>Your account will be permanently blocked on <strong>" + sanitize(blockAt) + "</strong></p>"
             + "</td></tr>"
 
             // Body
@@ -850,7 +827,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Your Code</td>"
             + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(subInstitutionCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Block Time</td>"
-            + "<td style='font-size:13px;font-weight:700;color:#dc2626;padding:5px 0;'>" + sanitize(retireAt) + "</td></tr>"
+            + "<td style='font-size:13px;font-weight:700;color:#dc2626;padding:5px 0;'>" + sanitize(blockAt) + "</td></tr>"
             + "</table></div>"
 
             // Issued by
@@ -869,7 +846,7 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='margin:0 0 6px;font-size:13px;color:#991b1b;font-weight:700;'>⚡ Immediate Action Required</p>"
             + "<p style='margin:0;font-size:13px;color:#991b1b;line-height:1.7;'>"
             + "If you wish to raise an objection or seek clarification, please contact KalInfotech Administration "
-            + "<strong>before</strong> the scheduled retirement time at "
+            + "<strong>before</strong> the scheduled block time at "
             + "<a href='mailto:support@kalinfotech.com' style='color:#dc2626;font-weight:600;'>support@kalinfotech.com</a>."
             + "</p></div>"
 

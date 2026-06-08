@@ -110,7 +110,9 @@ public class MainBankServiceImpl implements MainBankService {
         }
 
 
-        if (mainBankRepository.existsByPrimaryEmail(dto.getPrimaryEmail().trim())) {
+        // Allow re-onboarding when the existing record with this email is BLOCKED
+        // (BLOCKED = permanently blocked — effectively removed from active use).
+        if (mainBankRepository.existsByPrimaryEmailAndStatusNot(dto.getPrimaryEmail().trim(), "BLOCKED")) {
             return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
         }
 
@@ -771,20 +773,17 @@ public class MainBankServiceImpl implements MainBankService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // CHECK NAME EXISTS — Step 1 real-time uniqueness validation
+    // CHECK NAME EXISTS
+    // Institution name uniqueness is NOT enforced — different legal entities may
+    // share a name, and BLOCKED institutions should not block fresh onboarding.
+    // Always returns AVAILABLE so the form is never rejected on name alone.
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
         if (name == null || name.trim().isEmpty()) {
             return bad("Institution name is required.");
         }
-        boolean exists = mainBankRepository.existsByInstitutionNameFull(name.trim());
-        if (exists) {
-            return ResponseEntity.ok(
-                    new RestWithStatusList("EXISTS",
-                            "Institution name '" + name.trim() + "' is already registered.",
-                            new ArrayList<>()));
-        }
+        // Name uniqueness is intentionally not checked — always allow.
         return ResponseEntity.ok(
                 new RestWithStatusList("AVAILABLE",
                         "Institution name is available.",
@@ -793,14 +792,17 @@ public class MainBankServiceImpl implements MainBankService {
 
     // ─────────────────────────────────────────────────────────────────────────
     // CHECK EMAIL EXISTS
+    // Returns EXISTS only when a NON-BLOCKED institution already has this email.
+    // A BLOCKED institution's email is treated as free — the bank was permanently
+    // blocked and the admin should be allowed to re-onboard with the same address.
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<RestWithStatusList> checkEmailExists(String email) {
         if (email == null || email.trim().isEmpty()) {
             return bad("Email is required.");
         }
-        boolean exists = mainBankRepository.existsByPrimaryEmail(email.trim());
-        if (exists) {
+        boolean existsActive = mainBankRepository.existsByPrimaryEmailAndStatusNot(email.trim(), "BLOCKED");
+        if (existsActive) {
             return ResponseEntity.ok(
                     new RestWithStatusList("EXISTS",
                             "Email '" + email.trim() + "' is already registered.",

@@ -93,7 +93,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         // ── Send warning email to Institution Super User ──
         try {
             if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
-                emailService.sendRetireWarning(
+                emailService.sendBlockWarning(
                         inst.getPrimaryEmail(),
                         inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                         inst.getInstitutionNameFull(),
@@ -115,7 +115,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
 
     // ─────────────────────────────────────────────
     // UNDO BLOCK — Admin ne "Undo" kiya 24hrs ke andar
-    // Status → wapas preRetireStatus
+    // Status → wapas preBlockStatus
     // ─────────────────────────────────────────────
     @Override
     @Transactional
@@ -159,7 +159,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         // ── Send cancellation email to Institution Super User ──
         try {
             if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
-                emailService.sendRetireCancelled(
+                emailService.sendBlockCancelled(
                         inst.getPrimaryEmail(),
                         inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                         inst.getInstitutionNameFull(),

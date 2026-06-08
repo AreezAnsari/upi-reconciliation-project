@@ -317,7 +317,8 @@ public class MainAdminServiceImpl implements MainAdminService {
             optUser = mainAdminRepository.findByInstitutionCodeAndUsername(enteredCode, enteredUser);
 
             // Step 2: TEST_INSTITUTION bridge — handles stale/wrong institution_code in KAL_SUPER_USER
-            // TEST_INSTITUTION is authoritative; bridge via primary_email
+            // TEST_INSTITUTION is authoritative; bridge via primary_email.
+            // Skip BLOCKED records so re-onboarded users with the same email can log in.
             if (!optUser.isPresent()) {
                 logger.warn("login — composite miss, trying MainBank bridge for institutionCode={} username={}",
                         enteredCode, enteredUser);
@@ -326,7 +327,8 @@ public class MainAdminServiceImpl implements MainAdminService {
                 if (instOpt.isPresent()) {
                     String primaryEmail = instOpt.get().getPrimaryEmail();
                     if (primaryEmail != null && !primaryEmail.trim().isEmpty()) {
-                        optUser = mainAdminRepository.findFirstByEmail(primaryEmail.trim());
+                        // Prefer non-BLOCKED record — re-onboarding creates a 2nd record with same email
+                        optUser = mainAdminRepository.findFirstByEmailAndStatusNot(primaryEmail.trim(), "BLOCKED");
                         if (optUser.isPresent()) {
                             logger.info("login — MainBank bridge hit via email={} for username={}", primaryEmail, enteredUser);
                         } else {
@@ -469,6 +471,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                 enteredCode, enteredUser);
 
         // Step 2: TEST_INSTITUTION bridge — handles stale/wrong institution_code in KAL_SUPER_USER
+        // Skip BLOCKED records so re-onboarded users with the same email can log in.
         if (!optUser.isPresent()) {
             logger.warn("directLogin — composite miss, trying MainBank bridge for institutionCode={} username={}",
                     enteredCode, enteredUser);
@@ -477,7 +480,8 @@ public class MainAdminServiceImpl implements MainAdminService {
             if (instOpt.isPresent()) {
                 String primaryEmail = instOpt.get().getPrimaryEmail();
                 if (primaryEmail != null && !primaryEmail.trim().isEmpty()) {
-                    optUser = mainAdminRepository.findFirstByEmail(primaryEmail.trim());
+                    // Prefer non-BLOCKED record — re-onboarding creates a 2nd record with same email
+                    optUser = mainAdminRepository.findFirstByEmailAndStatusNot(primaryEmail.trim(), "BLOCKED");
                     if (optUser.isPresent()) {
                         logger.info("directLogin — MainBank bridge hit via email={} for username={}", primaryEmail, enteredUser);
                     }
@@ -590,10 +594,10 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         MainAdmin user = null;
 
-        // Strategy 1: Email se dhundho
+        // Strategy 1: Email se dhundho — skip BLOCKED so re-onboarded user can reset password
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
             Optional<MainAdmin> byEmail =
-                    mainAdminRepository.findFirstByEmail(request.getEmail().trim());
+                    mainAdminRepository.findFirstByEmailAndStatusNot(request.getEmail().trim(), "BLOCKED");
             if (byEmail.isPresent()) {
                 user = byEmail.get();
                 logger.info("forgotPassword — user found by email: {}", request.getEmail());
@@ -681,8 +685,9 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         MainAdmin user = null;
 
+        // Skip BLOCKED records so re-onboarded user can verify OTP
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
-            Optional<MainAdmin> byEmail = mainAdminRepository.findFirstByEmail(request.getEmail().trim());
+            Optional<MainAdmin> byEmail = mainAdminRepository.findFirstByEmailAndStatusNot(request.getEmail().trim(), "BLOCKED");
             if (byEmail.isPresent()) user = byEmail.get();
         }
 
@@ -748,10 +753,10 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         MainAdmin user = null;
 
-        // Email se dhundho
+        // Email se dhundho — skip BLOCKED so re-onboarded user can reset password
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
             Optional<MainAdmin> byEmail =
-                    mainAdminRepository.findFirstByEmail(request.getEmail().trim());
+                    mainAdminRepository.findFirstByEmailAndStatusNot(request.getEmail().trim(), "BLOCKED");
             if (byEmail.isPresent()) user = byEmail.get();
         }
 
@@ -822,8 +827,10 @@ public class MainAdminServiceImpl implements MainAdminService {
     @Override
     public ResponseEntity<RestWithStatusList> activateInstitution(String email) {
 
-        // Find MainAdmin by email — findFirst avoids NonUniqueResultException
-        Optional<MainAdmin> optUser = mainAdminRepository.findFirstByEmailOrderByIdAsc(email);
+        // Find the active (non-BLOCKED) MainAdmin by email — newest record first (highest ID).
+        // If the same email was re-onboarded after a BLOCK, OrderByIdAsc would wrongly return the
+        // old BLOCKED record and the new institution would never become ACTIVE after first login.
+        Optional<MainAdmin> optUser = mainAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
 
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(

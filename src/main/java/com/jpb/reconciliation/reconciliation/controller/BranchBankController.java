@@ -50,11 +50,13 @@ public class BranchBankController {
     }
 
     // GET /test/api/v1/subinstitution/get-all
-    @Operation(summary = "Get all branch banks")
+    @Operation(summary = "Get all branch banks for the logged-in SuperUser's parent institution")
     @GetMapping(value = "/get-all", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getAllInstitutions() {
-        logger.info("Fetch all branch banks");
-        return branchBankService.getAllInstitutions();
+    public ResponseEntity<RestWithStatusList> getAllInstitutions(Authentication authentication) {
+        String loggedInUsername = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Fetch branch banks for user: {}", loggedInUsername);
+        return branchBankService.getAllInstitutions(loggedInUsername);
     }
 
     // GET /test/api/v1/subinstitution/get/{institutionId}
@@ -116,10 +118,12 @@ public class BranchBankController {
         return branchBankService.uploadLogo(institutionId, file, userDetails.getUsername());
     }
 
-    // GET /test/api/v1/subinstitution/verify-email?token=xxx
+    // GET /test/api/v1/subinstitution/verify-email?institutionCode=...&username=...
     @GetMapping(value = "/verify-email", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> verifyEmail(@RequestParam String token) {
-        return branchBankService.verifyEmail(token);
+    public ResponseEntity<RestWithStatusList> verifyEmail(
+            @RequestParam String institutionCode,
+            @RequestParam String username) {
+        return branchBankService.verifyEmail(institutionCode, username);
     }
 
     // GET /test/api/v1/subinstitution/generate-code
@@ -192,6 +196,24 @@ public class BranchBankController {
     public ResponseEntity<byte[]> exportCsv() {
         logger.info("Export branch banks as CSV");
         return branchBankService.exportToCsv();
+    }
+
+    // GET /test/api/v1/subinstitution/get-by-code/{institutionCode}
+    // Used by BranchAdmin sidebar to display bank logo + short name
+    @Operation(summary = "Get sub-institution by institution code")
+    @GetMapping(value = "/get-by-code/{institutionCode}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getByCode(@PathVariable String institutionCode) {
+        logger.info("Get sub-institution by code: {}", institutionCode);
+        return branchBankService.getInstitutionByCode(institutionCode);
+    }
+
+    // GET /test/api/v1/subinstitution/get-by-email?email=...
+    // Used by BranchAdmin sidebar — email is always in sync with SUB_TEST_INSTITUTION.primary_email
+    @Operation(summary = "Get sub-institution by admin email")
+    @GetMapping(value = "/get-by-email", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getByEmail(@RequestParam String email) {
+        logger.info("Get sub-institution by email: {}", email);
+        return branchBankService.getInstitutionByEmail(email);
     }
 
     // GET /test/api/v1/subinstitution/logo/{institutionCode}

@@ -118,9 +118,10 @@ public class BranchBankServiceImpl implements BranchBankService {
             return bad("Primary contact mobile is required.");
         }
 
-        if (branchBankRepository.existsByInstitutionNameFull(dto.getInstitutionNameFull().trim())) {
-            logger.warn("Institution already exists: {}", dto.getInstitutionNameFull());
-            return bad("Institution with name '" + dto.getInstitutionNameFull() + "' already exists.");
+        // Allow re-onboarding when the existing record with this email is BLOCKED
+        // (BLOCKED = permanently blocked — effectively removed from active use).
+        if (branchBankRepository.existsByPrimaryEmailAndStatusNot(dto.getPrimaryEmail().trim(), "BLOCKED")) {
+            return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
         }
 
         // ── Sub-Institution Code ───────────────────────────────────────────────
@@ -148,13 +149,37 @@ public class BranchBankServiceImpl implements BranchBankService {
         // Map DTO → Entity
         BranchBank institution = BranchBankMapper.mapToEntity(dto, new BranchBank());
         institution.setInstitutionCode(institutionCode);
-        institution.setStatus("PENDING");
+        institution.setStatus("REQUEST");
         institution.setCreatedAt(LocalDateTime.now());
 
         // Save Super User credentials in institution record (BCrypt stored, plaintext in email)
         institution.setSuperUserId(superUserId);
         institution.setDefaultPassword(passwordEncoder.encode(defaultPassword));
         institution.setCreatedBy(createdBy);
+
+        // ── Resolve parentInstitutionId from the logged-in SuperUser ──
+        // Use StatusNot("BLOCKED") email fallback so a re-onboarded SuperUser's code resolves correctly.
+        try {
+            Optional<MainAdmin> suOpt = mainAdminRepository.findFirstByUsername(createdBy);
+            if (!suOpt.isPresent()) suOpt = mainAdminRepository.findFirstByEmailAndStatusNot(createdBy, "BLOCKED");
+            if (suOpt.isPresent()) {
+                MainAdmin su = suOpt.get();
+                Optional<MainBank> parentOpt = Optional.empty();
+                if (su.getInstitutionCode() != null && !su.getInstitutionCode().isEmpty()) {
+                    parentOpt = mainBankRepository.findByInstitutionCode(su.getInstitutionCode());
+                }
+                if (!parentOpt.isPresent()) {
+                    parentOpt = mainBankRepository.findFirstBySuperUserId(su.getUsername());
+                }
+                parentOpt.ifPresent(parent -> institution.setParentInstitutionId(parent.getInstitutionId()));
+                logger.info("parentInstitutionId resolved: {} for createdBy='{}'",
+                        institution.getParentInstitutionId(), createdBy);
+            } else {
+                logger.warn("createInstitution: Could not resolve parent for createdBy='{}'", createdBy);
+            }
+        } catch (Exception e) {
+            logger.warn("createInstitution: parentInstitutionId resolution failed: {}", e.getMessage());
+        }
 
         // Generate verification token — valid for 48 hours
         String token = UUID.randomUUID().toString();
@@ -208,11 +233,46 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     // GET ALL
     // ─────────────────────────────────────────────────────────────────────────
+    // GET ALL — scoped to the logged-in MainBank SuperUser's parent institution.
+    // Filter by parentInstitutionId (DB primary key) — unique even when username/email
+    // is reused after re-onboarding a BLOCKED institution.
+    // Resolution chain: username → MainAdmin → institutionCode → MainBank → institutionId
+    // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
+    public ResponseEntity<RestWithStatusList> getAllInstitutions(String loggedInUsername) {
 
-    public ResponseEntity<RestWithStatusList> getAllInstitutions() {
-        List<BranchBank> list = branchBankRepository.findAll();
+        // ── Resolve the parent institution's unique DB id ──
+        Long parentInstitutionId = null;
+        try {
+            // Step 1: find the logged-in MainAdmin (non-BLOCKED, newest)
+            Optional<MainAdmin> suOpt = mainAdminRepository.findFirstByUsername(loggedInUsername);
+            if (!suOpt.isPresent()) {
+                suOpt = mainAdminRepository.findFirstByEmailAndStatusNot(loggedInUsername, "BLOCKED");
+            }
+            if (suOpt.isPresent()) {
+                String institutionCode = suOpt.get().getInstitutionCode();
+                // Step 2: find the parent MainBank by its institution code (unique per institution)
+                Optional<MainBank> parentOpt = mainBankRepository.findByInstitutionCode(institutionCode);
+                if (parentOpt.isPresent()) {
+                    parentInstitutionId = parentOpt.get().getInstitutionId();
+                    logger.info("[GetAllBranchBanks] Resolved parentInstitutionId={} for user='{}'",
+                            parentInstitutionId, loggedInUsername);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("[GetAllBranchBanks] parentInstitutionId resolution failed for user='{}': {}",
+                    loggedInUsername, e.getMessage());
+        }
+
+        if (parentInstitutionId == null) {
+            logger.warn("[GetAllBranchBanks] Could not resolve parent institution for user='{}' — returning empty list",
+                    loggedInUsername);
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No institutions found.", new ArrayList<>()));
+        }
+
+        // ── Fetch only branch banks belonging to this parent institution ──
+        List<BranchBank> list = branchBankRepository.findByParentInstitutionId(parentInstitutionId);
 
         if (list.isEmpty()) {
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No institutions found.", new ArrayList<>()));
@@ -221,7 +281,7 @@ public class BranchBankServiceImpl implements BranchBankService {
         List<Object> data = list.stream()
                 .map(BranchBankMapper::mapToDTO)
                 .collect(Collectors.toList());
-        logger.info("Fetched {} institutions", list.size());
+        logger.info("[GetAllBranchBanks] Fetched {} branch bank(s) for parentId={}", list.size(), parentInstitutionId);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 list.size() + " institution(s) fetched successfully.", data));
@@ -342,9 +402,11 @@ public class BranchBankServiceImpl implements BranchBankService {
     @Transactional
     public ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status) {
 
-        List<String> validStatuses = Arrays.asList("ACTIVE", "INACTIVE", "PENDING", "BLOCKED", "BLOCK_PENDING");
+        List<String> validStatuses = Arrays.asList(
+            "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "BLOCK_PENDING"
+        );
         if (!validStatuses.contains(status.toUpperCase())) {
-            return bad("Invalid status. Allowed: ACTIVE, INACTIVE, PENDING, BLOCKED, BLOCK_PENDING.");
+            return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, BLOCK_PENDING.");
         }
 
         Optional<BranchBank> optional = branchBankRepository.findById(institutionId);
@@ -365,7 +427,7 @@ public class BranchBankServiceImpl implements BranchBankService {
         Map<String, List<String>> allowedTransitions = new HashMap<>();
         allowedTransitions.put("ACTIVE",        Arrays.asList("INACTIVE", "BLOCK_PENDING"));
         allowedTransitions.put("INACTIVE",       Arrays.asList("ACTIVE",   "BLOCK_PENDING"));
-        allowedTransitions.put("BLOCK_PENDING",  Arrays.asList("ACTIVE",   "INACTIVE"));
+        allowedTransitions.put("BLOCK_PENDING",  Arrays.asList("ACTIVE",   "INACTIVE",  "BLOCKED"));
         allowedTransitions.put("PENDING",        Arrays.asList("ACTIVE",   "INACTIVE", "BLOCK_PENDING"));
         allowedTransitions.put("VERIFIED",       Arrays.asList("ACTIVE",   "INACTIVE", "BLOCK_PENDING"));
 
@@ -417,10 +479,7 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         // ── Send email notification on meaningful status transitions ──
         try {
-            if (institution.getPrimaryEmail() != null && !institution.getPrimaryEmail().isEmpty()
-                    && !currentStatus.equals(newStatus)
-                    && !newStatus.equals("PENDING")
-                    && !newStatus.equals("BLOCK_PENDING")) {
+            if (institution.getPrimaryEmail() != null && !institution.getPrimaryEmail().isEmpty()) {
                 emailService.sendStatusChangeNotification(
                         institution.getPrimaryEmail(),
                         institution.getPrimaryFullName() != null ? institution.getPrimaryFullName() : "Super User",
@@ -549,11 +608,10 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> verifyEmail(String token) {
+    public ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username) {
         Optional<BranchBank> optional =
-            branchBankRepository.findByVerificationToken(token);
+            branchBankRepository.findByInstitutionCodeAndSuperUserId(institutionCode, username);
 
-        // Token nahi mila DB mein
         if (!optional.isPresent()) {
             return bad("Invalid or expired verification link.");
         }
@@ -566,27 +624,26 @@ public class BranchBankServiceImpl implements BranchBankService {
             return bad("Verification link has expired. Please contact KalInfotech Admin.");
         }
 
-        // ── Already ACTIVE hai — second time click ──
-        if ("ACTIVE".equals(institution.getStatus())) {
-            return ResponseEntity.ok(new RestWithStatusList(
-                "ALREADY_VERIFIED",
-                "Your email is already verified. Please proceed to login.",
-                new ArrayList<>()
-            ));
-        }
+        // Already set password → OLD_USER (go to login), first time → NEW_USER (set password)
+        String userStatus = ("VERIFIED".equals(institution.getStatus())
+                || "ACTIVE".equals(institution.getStatus()))
+                ? "OLD_USER" : "NEW_USER";
 
-        // ── First time — PENDING → ACTIVE ──
-        institution.setStatus("ACTIVE");
-        // Token DELETE MAT KARO — 48 hrs tak valid rahega
-        institution.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(institution);
+        logger.info("Email link clicked for branch bank {} — userStatus: {}",
+                institution.getInstitutionCode(), userStatus);
 
-        logger.info("Branch bank {} verified and ACTIVE", institution.getInstitutionCode());
+        Map<String, String> payload = new HashMap<>();
+        payload.put("userStatus",       userStatus);
+        payload.put("institutionCode",  institution.getInstitutionCode());
+        payload.put("username",         institution.getSuperUserId());
+
+        List<Object> data = new ArrayList<>();
+        data.add(payload);
 
         return ResponseEntity.ok(new RestWithStatusList(
             "SUCCESS",
-            "Email verified successfully! Please proceed to login.",
-            new ArrayList<>()
+            "Link is valid. Please proceed.",
+            data
         ));
     }
 
@@ -614,10 +671,11 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         logger.info("[BranchBankCode] Resolving parent prefix for createdBy='{}'", createdBy);
 
-        // JWT subject = username → try by username first, then email
+        // JWT subject = username → try by username first, then email.
+        // Use StatusNot("BLOCKED") email fallback so a re-onboarded SuperUser's code prefix resolves correctly.
         Optional<MainAdmin> superUserOpt = mainAdminRepository.findFirstByUsername(createdBy);
         if (!superUserOpt.isPresent()) {
-            superUserOpt = mainAdminRepository.findFirstByEmail(createdBy);
+            superUserOpt = mainAdminRepository.findFirstByEmailAndStatusNot(createdBy, "BLOCKED");
         }
 
         if (superUserOpt.isPresent()) {
@@ -720,19 +778,80 @@ public class BranchBankServiceImpl implements BranchBankService {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET BY CODE — used by BranchAdmin sidebar to fetch bank logo + short name
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<RestWithStatusList> getInstitutionByCode(String institutionCode) {
+        try {
+            Optional<BranchBank> optional = branchBankRepository.findByInstitutionCode(institutionCode);
+            if (!optional.isPresent()) {
+                logger.warn("getInstitutionByCode: No record found in SUB_TEST_INSTITUTION for code '{}'", institutionCode);
+                return bad("Sub-institution not found with code: " + institutionCode);
+            }
+            logger.info("getInstitutionByCode: Found '{}' for code '{}'", optional.get().getInstitutionNameFull(), institutionCode);
+            List<Object> data = new ArrayList<>();
+            data.add(BranchBankMapper.mapToDTO(optional.get()));
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-institution fetched.", data));
+        } catch (Exception e) {
+            logger.error("Error fetching sub-institution by code {}: {}", institutionCode, e.getMessage());
+            return bad("Error fetching sub-institution.");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET BY ADMIN EMAIL — used by BranchAdmin sidebar (email is always in sync)
+    // When multiple records share the same email (BLOCKED + active), the non-BLOCKED
+    // record is preferred so the active branch admin's sidebar works correctly.
+    // ─────────────────────────────────────────────────────────────────────────
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<RestWithStatusList> getInstitutionByEmail(String email) {
+        try {
+            // Prefer the first non-BLOCKED record — handles re-onboarding duplicates
+            Optional<BranchBank> optional =
+                    branchBankRepository.findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED");
+            if (!optional.isPresent()) {
+                // Fallback: all records for this email are BLOCKED — return the most recent one
+                // Use findAll + stream to safely handle multiple BLOCKED rows (re-onboarding edge case)
+                optional = branchBankRepository.findAllByPrimaryEmail(email)
+                        .stream().findFirst();
+            }
+            if (!optional.isPresent()) {
+                logger.warn("getInstitutionByEmail: No record found for email '{}'", email);
+                return bad("Sub-institution not found for email: " + email);
+            }
+            logger.info("getInstitutionByEmail: Found '{}' (status={}) for email '{}'",
+                    optional.get().getInstitutionNameFull(), optional.get().getStatus(), email);
+            List<Object> data = new ArrayList<>();
+            data.add(BranchBankMapper.mapToDTO(optional.get()));
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-institution fetched.", data));
+        } catch (Exception e) {
+            logger.error("Error fetching sub-institution by email {}: {}", email, e.getMessage());
+            return bad("Error fetching sub-institution.");
+        }
+    }
+
     /** Convenience — 400 Bad Request */
     private ResponseEntity<RestWithStatusList> bad(String message) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new RestWithStatusList("FAILURE", message, new ArrayList<>()));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHECK EMAIL EXISTS
+    // Returns EXISTS only when a NON-BLOCKED branch bank already has this email.
+    // A BLOCKED branch bank's email is treated as free — it was permanently
+    // blocked and the super user should be allowed to re-onboard with the same address.
+    // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<RestWithStatusList> checkEmailExists(String email) {
         if (email == null || email.trim().isEmpty()) {
             return bad("Email is required.");
         }
-        boolean exists = branchBankRepository.existsByPrimaryEmail(email.trim());
-        if (exists) {
+        boolean existsActive = branchBankRepository.existsByPrimaryEmailAndStatusNot(email.trim(), "BLOCKED");
+        if (existsActive) {
             return ResponseEntity.ok(
                     new RestWithStatusList("EXISTS",
                             "Email '" + email.trim() + "' is already registered.",
@@ -744,18 +863,18 @@ public class BranchBankServiceImpl implements BranchBankService {
                         new ArrayList<>()));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHECK NAME EXISTS
+    // Branch bank name uniqueness is NOT enforced — a BLOCKED branch bank's name
+    // should not prevent a fresh record from using the same name.
+    // Always returns AVAILABLE.
+    // ─────────────────────────────────────────────────────────────────────────
     @Override
     public ResponseEntity<RestWithStatusList> checkNameExists(String name) {
         if (name == null || name.trim().isEmpty()) {
             return bad("Name is required.");
         }
-        boolean exists = branchBankRepository.existsByInstitutionNameFull(name.trim());
-        if (exists) {
-            return ResponseEntity.ok(
-                    new RestWithStatusList("EXISTS",
-                            "Name '" + name.trim() + "' is already registered.",
-                            new ArrayList<>()));
-        }
+        // Name uniqueness is intentionally not checked — always allow.
         return ResponseEntity.ok(
                 new RestWithStatusList("AVAILABLE",
                         "Name is available.",
@@ -944,7 +1063,7 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         try {
             if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
-                emailService.sendRetireWarning(
+                emailService.sendBlockWarning(
                         inst.getPrimaryEmail(),
                         inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                         inst.getInstitutionNameFull(),
@@ -1006,7 +1125,7 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         try {
             if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
-                emailService.sendRetireCancelled(
+                emailService.sendBlockCancelled(
                         inst.getPrimaryEmail(),
                         inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
                         inst.getInstitutionNameFull(),
