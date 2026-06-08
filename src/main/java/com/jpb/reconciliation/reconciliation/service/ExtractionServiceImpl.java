@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.service;
+﻿package com.jpb.reconciliation.reconciliation.service;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -38,7 +38,7 @@ import com.jpb.reconciliation.reconciliation.entity.ReconFieldTypeMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconKeyIdentifyMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconTemplateDetails;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFieldDetailsMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFieldFormatMasterRepository;
@@ -46,7 +46,7 @@ import com.jpb.reconciliation.reconciliation.repository.ReconFieldTypeMasterRepo
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconKeyIdentifyMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessManagerRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.util.CommonReport;
 
 import net.sf.jasperreports.engine.JRException;
@@ -85,7 +85,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 	AuditLogManagerService auditLogManagerService;
 
 	@Autowired
-	ReconUserRepository reconUserRepository;
+	KalAdminRepository KalAdminRepository;
 
 	@Autowired
 	NTSLSettlementService ntslSettlementService;
@@ -111,7 +111,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
 	@Override
 	public CompletableFuture<String> startExtraction(ReconFileDetailsMaster reconFileDetails,
-			List<ReconBatchProcessEntity> extractionProcessList, List<File> fileList, ReconUser userDetails)
+			List<ReconBatchProcessEntity> extractionProcessList, List<File> fileList, KalAdmin userDetails)
 			throws IOException, InterruptedException, JRException {
 		ReconTemplateDetails templateDetails = reconFileDetails.getReconTemplateDetails();
 		truncateStageTable(templateDetails.getStageTabName());
@@ -443,7 +443,7 @@ public class ExtractionServiceImpl implements ExtractionService {
 
 	@Override
 	public List<ReconBatchProcessEntity> extractionRunningStatus(List<File> fileList,
-			ReconFileDetailsMaster reconFileDetails, ReconUser userData) {
+			ReconFileDetailsMaster reconFileDetails, KalAdmin userData) {
 		logger.info("FILE LIST ::::::::::::" + fileList);
 		List<ReconBatchProcessEntity> processList = new ArrayList<>();
 		if (!fileList.isEmpty()) {

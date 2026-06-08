@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.controller;
+﻿package com.jpb.reconciliation.reconciliation.controller;
 
 import java.time.LocalDateTime; 
 import java.util.Optional;
@@ -24,10 +24,10 @@ import com.jpb.reconciliation.reconciliation.dto.AuthResponse;
 import com.jpb.reconciliation.reconciliation.dto.LoginRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.TokenRefreshRequest;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.google.GoogleRequest;
 import com.jpb.reconciliation.reconciliation.google.GoogleService;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.security.TokenBlacklistService;
 import com.jpb.reconciliation.reconciliation.service.CustomUserDetailService;
@@ -57,7 +57,7 @@ public class AuthController {
 	TokenBlacklistService tokenBlacklistService;
 
 	@Autowired
-	ReconUserRepository reconUserRepository;
+	KalAdminRepository KalAdminRepository;
 
 	private Logger logger = LoggerFactory.getLogger(AuthController.class);
 
@@ -144,11 +144,11 @@ public class AuthController {
 		String userNameFromToken = jwtHelper.getUsernameFromToken(refreshToken);
 		logger.info("User name from refresh token::" + userNameFromToken);
 		if (!userNameFromToken.isEmpty()) {
-			Optional<ReconUser> user = reconUserRepository.findByUserName(userNameFromToken);
+			Optional<KalAdmin> user = KalAdminRepository.findByUserName(userNameFromToken);
 			if (user.isPresent()) {
-				ReconUser getUser = user.get();
+				KalAdmin getUser = user.get();
 				getUser.setLastLoginDateTime(LocalDateTime.now());
-				reconUserRepository.save(getUser);
+				KalAdminRepository.save(getUser);
 			} else {
 				logger.info("User is not found");
 			}

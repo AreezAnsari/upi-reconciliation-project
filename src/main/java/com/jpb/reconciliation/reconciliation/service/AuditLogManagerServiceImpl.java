@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import com.jpb.reconciliation.reconciliation.entity.AuditLogManager;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.Role;
 import com.jpb.reconciliation.reconciliation.repository.AuditLogManagerRepository;
 
@@ -23,7 +23,7 @@ public class AuditLogManagerServiceImpl implements AuditLogManagerService {
 	private AuditLogManagerRepository auditLogManagerRepository;
 
 	@Override
-	public void loginAudit(ReconUser user, String accessToken, String refreshToken) {
+	public void loginAudit(KalAdmin user, String accessToken, String refreshToken) {
 		AuditLogManager audit = new AuditLogManager();
 		Role role = user.getRole();
 		audit.setModule("User Login");
@@ -42,7 +42,7 @@ public class AuditLogManagerServiceImpl implements AuditLogManagerService {
 	}
 
 	@Override
-	public void extractionAudit(ReconBatchProcessEntity reconProcessManager, ReconUser userData) {
+	public void extractionAudit(ReconBatchProcessEntity reconProcessManager, KalAdmin userData) {
 		AuditLogManager audit = new AuditLogManager();
 		Role role = userData.getRole();
 		audit.setModule(reconProcessManager.getProcessType());
@@ -61,7 +61,7 @@ public class AuditLogManagerServiceImpl implements AuditLogManagerService {
 	}
 
 	@Override
-	public void commonAudit(ReconUser userData, String module, Object addNewMenu) {
+	public void commonAudit(KalAdmin userData, String module, Object addNewMenu) {
 		AuditLogManager audit = new AuditLogManager();
 		Role role = userData.getRole();
 

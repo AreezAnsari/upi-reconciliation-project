@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.google;
+﻿package com.jpb.reconciliation.reconciliation.google;
 
 import java.io.IOException;  
 import java.security.GeneralSecurityException;
@@ -27,8 +27,8 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.jpb.reconciliation.reconciliation.config.AppInitializer;
 import com.jpb.reconciliation.reconciliation.dto.AuthResponse;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.AuditLogManagerService;
 import com.jpb.reconciliation.reconciliation.service.CustomUserDetailService;
@@ -51,7 +51,7 @@ public class GoogleServiceImpl implements GoogleService {
 	JwtHelper helper;
 
 	@Autowired
-	ReconUserRepository reconUserRepository;
+	KalAdminRepository KalAdminRepository;
 
 	Logger logger = LoggerFactory.getLogger(GoogleServiceImpl.class);
 
@@ -104,25 +104,25 @@ public class GoogleServiceImpl implements GoogleService {
 			String username = userDetails.getUsername();
 			logger.info("jwtToken :::::::" + jwtToken);
 			logger.info("username :::::::" + username);
-			Optional<ReconUser> reconUserOptional = reconUserRepository.findByUserName(username);
-			logger.info("ReconUser :::::::" + reconUserOptional);
+			Optional<KalAdmin> reconUserOptional = KalAdminRepository.findByUserName(username);
+			logger.info("KalAdmin :::::::" + reconUserOptional);
 			if (!reconUserOptional.isPresent()) {
 				logger.error(
-						"User details found in Spring Security, but ReconUser not found in repository for username: {}",
+						"User details found in Spring Security, but KalAdmin not found in repository for username: {}",
 						username);
 				restWithStatusList = new RestWithStatusList("FAILURE", "User Not Found, Please Try Registered User",
 						userData);
 				return new ResponseEntity<>(restWithStatusList, HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 
-			ReconUser user = reconUserOptional.get();
+			KalAdmin user = reconUserOptional.get();
 
 //			if (user.getPasswordManager() == null) {
-//				user.setPasswordManager(new PasswordManager());
+//				user.setPasswordManager(new KalAdminPasswordManager());
 //			}
 			if ("Y".equals(user.getApprovedYn())) {
 				user.getPasswordManager().setToken(jwtToken);
-				reconUserRepository.save(user);
+				KalAdminRepository.save(user);
 
 				String refreshToken = helper.generateTokenForRefresh(username);
 				Cookie refreshCookie = new Cookie("refresh_token", refreshToken);

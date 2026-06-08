@@ -1,5 +1,8 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * EmailService — sends transactional emails from ReconXpert.Ai
  *
@@ -72,4 +75,15 @@ public interface EmailService {
                                       String subInstitutionName, String subInstitutionCode,
                                       String parentInstitutionName, String parentInstitutionCode,
                                       String blockAt);
+
+    /**
+     * Send profile update notification to the institution's primary contact
+     * whenever KalInfotech Admin updates the institution profile.
+     * changesBySections: section name → list of "Field: old → new" strings.
+     * Only sections that actually changed are included; empty map means no email is sent.
+     */
+    void sendInstitutionUpdateNotification(String toEmail, String contactName,
+                                           String institutionName, String institutionCode,
+                                           String updatedAt,
+                                           Map<String, List<String>> changesBySections);
 }

@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.service;
+﻿package com.jpb.reconciliation.reconciliation.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -14,10 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.KalAdminDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.entity.PasswordManager;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdminPasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.Role;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.RoleManageRepository;
 
 @Service
@@ -26,7 +26,7 @@ public class KalAdminServiceImpl implements KalAdminService {
     private Logger logger = LoggerFactory.getLogger(KalAdminServiceImpl.class);
 
     @Autowired
-    private ReconUserRepository reconUserRepository;
+    private KalAdminRepository KalAdminRepository;
 
     @Autowired
     private RoleManageRepository roleManageRepository;
@@ -72,12 +72,12 @@ public class KalAdminServiceImpl implements KalAdminService {
 
         // ── Duplicate checks (RCN_RECON_USER) ────────────────────
 
-        if (reconUserRepository.existsByUserName(dto.getUsername().trim().toLowerCase())) {
+        if (KalAdminRepository.existsByUserName(dto.getUsername().trim().toLowerCase())) {
             restWithStatusList = new RestWithStatusList("FAILURE",
                     "Username '" + dto.getUsername() + "' already exists.", null);
             return new ResponseEntity<>(restWithStatusList, HttpStatus.CONFLICT);
         }
-        if (reconUserRepository.existsByEmailId(dto.getEmail().trim().toLowerCase())) {
+        if (KalAdminRepository.existsByEmailId(dto.getEmail().trim().toLowerCase())) {
             restWithStatusList = new RestWithStatusList("FAILURE",
                     "Email '" + dto.getEmail() + "' is already registered.", null);
             return new ResponseEntity<>(restWithStatusList, HttpStatus.CONFLICT);
@@ -108,29 +108,29 @@ public class KalAdminServiceImpl implements KalAdminService {
             return new ResponseEntity<>(restWithStatusList, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        ReconUser reconUser = new ReconUser();
-        reconUser.setUserName(dto.getUsername().trim().toLowerCase());
-        reconUser.setEmailId(dto.getEmail().trim().toLowerCase());
-        reconUser.setMobileNumber(Long.parseLong(dto.getPhone().trim()));
-        reconUser.setDesignation(dto.getDesignation() != null ? dto.getDesignation() : "Admin");
-        reconUser.setInstitution("KalInfotech");
-        reconUser.setType("Internal");
-        reconUser.setUserStatus("ACTIVE");
-        reconUser.setApprovedYn("Y");              // Admin — no approval needed
-        reconUser.setRole(adminRole);
-        reconUser.setCreatedAt(LocalDateTime.now());
-        reconUser.setCreatedBy("SYSTEM");
+        KalAdmin KalAdmin = new KalAdmin();
+        KalAdmin.setUserName(dto.getUsername().trim().toLowerCase());
+        KalAdmin.setEmailId(dto.getEmail().trim().toLowerCase());
+        KalAdmin.setMobileNumber(Long.parseLong(dto.getPhone().trim()));
+        KalAdmin.setDesignation(dto.getDesignation() != null ? dto.getDesignation() : "Admin");
+        KalAdmin.setInstitution("KalInfotech");
+        KalAdmin.setType("Internal");
+        KalAdmin.setUserStatus("ACTIVE");
+        KalAdmin.setApprovedYn("Y");              // Admin — no approval needed
+        KalAdmin.setRole(adminRole);
+        KalAdmin.setCreatedAt(LocalDateTime.now());
+        KalAdmin.setCreatedBy("SYSTEM");
 
-        PasswordManager pwdManager = new PasswordManager();
+        KalAdminPasswordManager pwdManager = new KalAdminPasswordManager();
         pwdManager.setUserPassword(encodedPassword);
         pwdManager.setExpirationDate(LocalDateTime.now());
         pwdManager.setCreatedAt(LocalDateTime.now());
-        pwdManager.setReconUser(reconUser);
-        reconUser.setPasswordManager(pwdManager);
+        pwdManager.setKalAdmin(KalAdmin);
+        KalAdmin.setPasswordManager(pwdManager);
 
-        reconUserRepository.save(reconUser);
-        reconUserRepository.flush();
-        logger.info("ReconUser saved for login: {}", reconUser.getUserName());
+        KalAdminRepository.save(KalAdmin);
+        KalAdminRepository.flush();
+        logger.info("KalAdmin saved for login: {}", KalAdmin.getUserName());
 
         restWithStatusList = new RestWithStatusList("SUCCESS", "Employee Registered Successfully", new ArrayList<>());
         return new ResponseEntity<>(restWithStatusList, HttpStatus.CREATED);

@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.entity;
+﻿package com.jpb.reconciliation.reconciliation.entity;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -20,7 +20,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -49,9 +49,14 @@ public class Role {
 	private String roleCode;
 
 	@OneToMany(mappedBy = "role")
-	@JsonBackReference
-	private Set<ReconUser> reconUser;
-    
+	@JsonIgnore
+	private Set<KalAdmin> KalAdmin;
+
+	@JsonIgnore
+	public Set<KalAdmin> getKalAdmin() {
+		return KalAdmin;
+	}
+
 	@CreatedDate
 	@Column(updatable = false, name = "crated_at")
 	private LocalDateTime createdAt;

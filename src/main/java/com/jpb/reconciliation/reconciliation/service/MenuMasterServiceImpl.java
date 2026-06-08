@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.service;
+﻿package com.jpb.reconciliation.reconciliation.service;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -20,12 +20,12 @@ import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
 import com.jpb.reconciliation.reconciliation.mapper.ReconMenuMasterMapper;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 
 @Service
 public class MenuMasterServiceImpl implements MenuMasterService {
@@ -36,7 +36,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 	AuditLogManagerService auditLogManagerService;
 
 	@Autowired
-	ReconUserRepository reconUserRepository;
+	KalAdminRepository KalAdminRepository;
 
 	Logger logger = LoggerFactory.getLogger(MenuMasterServiceImpl.class);
 
@@ -140,7 +140,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 		try {
 		ReconMenuMaster menuWithName = menuMasterRepository.findByMenuNameAndRoleIdAndParentMenuCode(
 				menuRequest.getMenuName(), menuRequest.getRoleId(), menuRequest.getParentMenuCode());
-		ReconUser userData = reconUserRepository.findByUserName(userDetails.getUsername()).get();
+		KalAdmin userData = KalAdminRepository.findByUserName(userDetails.getUsername()).get();
 		ReconMenuMaster createdUser = null;
 		if (menuWithName == null) {
 			createdUser = createMenu(menuRequest);
@@ -245,8 +245,8 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
 	@Override
 	public Long getVerifiedRoleId(String username) {
-		Optional<ReconUser> user = reconUserRepository.findByUserName(username);
-		ReconUser reconUserData = user.get();
+		Optional<KalAdmin> user = KalAdminRepository.findByUserName(username);
+		KalAdmin reconUserData = user.get();
 		if (reconUserData == null || reconUserData.getRole() == null) {
 			throw new UsernameNotFoundException("User or role not found for: " + username);
 		}

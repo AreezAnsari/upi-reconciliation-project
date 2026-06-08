@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.service;
+﻿package com.jpb.reconciliation.reconciliation.service;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -15,11 +15,11 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.CustomUserDetail;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 
 @Service
 public class CustomUserDetailService implements UserDetailsService {
@@ -27,7 +27,7 @@ public class CustomUserDetailService implements UserDetailsService {
 	Logger logger = LoggerFactory.getLogger(CustomUserDetailService.class);
 
 	@Autowired
-	private ReconUserRepository reconUserRepository;
+	private KalAdminRepository KalAdminRepository;
 
 	@Autowired
 	private MainAdminRepository mainAdminRepository;
@@ -50,14 +50,14 @@ public class CustomUserDetailService implements UserDetailsService {
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
 		// ── Step 1: Regular user — by username ──
-		Optional<ReconUser> byUsername = reconUserRepository.findByUserName(username);
+		Optional<KalAdmin> byUsername = KalAdminRepository.findByUserName(username);
 		if (byUsername.isPresent()) {
 			return new CustomUserDetail(byUsername.get());
 		}
 
 		// ── Step 2: Regular user — by email (some tokens store email as subject) ──
 		try {
-			Optional<ReconUser> byEmail = reconUserRepository.findByEmailId(username);
+			Optional<KalAdmin> byEmail = KalAdminRepository.findByEmailId(username);
 			if (byEmail.isPresent()) {
 				return new CustomUserDetail(byEmail.get());
 			}
@@ -111,9 +111,9 @@ public class CustomUserDetailService implements UserDetailsService {
 	}
 
 	public UserDetails loadUserByUserEmail(String email) throws UsernameNotFoundException {
-		ReconUser reconUser = reconUserRepository.findByEmailId(email)
+		KalAdmin KalAdmin = KalAdminRepository.findByEmailId(email)
 				.orElseThrow(() -> new UsernameNotFoundException("User not found with given email " + email));
-		return new CustomUserDetail(reconUser);
+		return new CustomUserDetail(KalAdmin);
 	}
 
 	// ── Build a minimal UserDetails for super-user (no DB password needed for JWT) ──

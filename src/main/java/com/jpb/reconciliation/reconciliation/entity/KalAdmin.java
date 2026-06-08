@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.entity;
+﻿package com.jpb.reconciliation.reconciliation.entity;
 
 import java.time.LocalDateTime;
 
@@ -19,7 +19,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -31,7 +31,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ReconUser {
+public class KalAdmin {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_USER")
@@ -50,13 +50,12 @@ public class ReconUser {
 	@Column(name = "user_status")
 	private String userStatus;
 
-	@OneToOne(mappedBy = "reconUser", cascade = CascadeType.ALL)
-	@JsonManagedReference
-	private PasswordManager passwordManager;
+	@OneToOne(mappedBy = "KalAdmin", cascade = CascadeType.ALL)
+	@JsonIgnore
+	private KalAdminPasswordManager KalAdminPasswordManager;
 
 	@ManyToOne
 	@JoinColumn(name = "role_id", nullable = false)
-	@JsonManagedReference
 	private Role role;
 	
 	@Column(name = "user_name")
@@ -138,12 +137,13 @@ public class ReconUser {
 		this.userStatus = userStatus;
 	}
 
-	public PasswordManager getPasswordManager() {
-		return passwordManager;
+	@JsonIgnore
+	public KalAdminPasswordManager getPasswordManager() {
+		return KalAdminPasswordManager;
 	}
 
-	public void setPasswordManager(PasswordManager passwordManager) {
-		this.passwordManager = passwordManager;
+	public void setPasswordManager(KalAdminPasswordManager KalAdminPasswordManager) {
+		this.KalAdminPasswordManager = KalAdminPasswordManager;
 	}
 
 	public Role getRole() {

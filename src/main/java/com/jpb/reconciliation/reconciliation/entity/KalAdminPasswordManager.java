@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.entity;
+﻿package com.jpb.reconciliation.reconciliation.entity;
 
 import java.time.LocalDateTime;
 
@@ -17,7 +17,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -27,7 +27,7 @@ import lombok.Setter;
 @Getter
 @Table(name = "RCN_PASSWORD_MANAGER")
 //@ToString
-public class PasswordManager {
+public class KalAdminPasswordManager {
     
 	@Id
 	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_PASSWORD")
@@ -53,8 +53,13 @@ public class PasswordManager {
 
 	@OneToOne
 	@JoinColumn(name = "user_id") // Foreign key to MasterUserEntity
-	@JsonBackReference
-	private ReconUser reconUser; // Back-reference to MasterUserEntity
+	@JsonIgnore
+	private KalAdmin KalAdmin; // Back-reference to MasterUserEntity
+
+	@JsonIgnore
+	public KalAdmin getKalAdmin() {
+		return KalAdmin;
+	}
 
 	@CreatedDate
 	@Column(updatable = false, name = "crated_at")

@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.mapper;
+﻿package com.jpb.reconciliation.reconciliation.mapper;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -7,40 +7,40 @@ import java.util.List;
 import com.jpb.reconciliation.reconciliation.dto.ReconUserDto;
 import com.jpb.reconciliation.reconciliation.dto.ReconUserResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.RoleDto;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.Role;
 
 public class ReconUserMapper {
 
-	public static ReconUser mapToReconUser(ReconUserDto reconUserDto, ReconUser reconUser) {
-		reconUser.setUserName(reconUserDto.getUserName());
-		reconUser.setUserStatus("INACTIVE");
-		reconUser.setDesignation(reconUserDto.getDesignation());
-		reconUser.setEmailId(reconUserDto.getEmailId());
-		reconUser.setInstitution(reconUserDto.getInstitution());
-		reconUser.setMobileNumber(reconUserDto.getMobileNumber());
-		reconUser.setType(reconUserDto.getType());
-		reconUser.setCreatedAt(LocalDateTime.now());
-		reconUser.setCreatedBy(reconUserDto.getCreatedBy());
-		reconUser.setUpdatedAt(LocalDateTime.now());
-		reconUser.setUpdatedBy(reconUserDto.getUpdatedBy());
-		return reconUser;
+	public static KalAdmin mapToReconUser(ReconUserDto reconUserDto, KalAdmin KalAdmin) {
+		KalAdmin.setUserName(reconUserDto.getUserName());
+		KalAdmin.setUserStatus("INACTIVE");
+		KalAdmin.setDesignation(reconUserDto.getDesignation());
+		KalAdmin.setEmailId(reconUserDto.getEmailId());
+		KalAdmin.setInstitution(reconUserDto.getInstitution());
+		KalAdmin.setMobileNumber(reconUserDto.getMobileNumber());
+		KalAdmin.setType(reconUserDto.getType());
+		KalAdmin.setCreatedAt(LocalDateTime.now());
+		KalAdmin.setCreatedBy(reconUserDto.getCreatedBy());
+		KalAdmin.setUpdatedAt(LocalDateTime.now());
+		KalAdmin.setUpdatedBy(reconUserDto.getUpdatedBy());
+		return KalAdmin;
 	}
 
-	public static ReconUserResponseDto mapToReconUserResponseDto(ReconUser reconUser,
+	public static ReconUserResponseDto mapToReconUserResponseDto(KalAdmin KalAdmin,
 			ReconUserResponseDto reconUserResponseDto) {
-		reconUserResponseDto.setUserId(reconUser.getUserId());
-		reconUserResponseDto.setUserName(reconUser.getUserName());
-		reconUserResponseDto.setUserStatus(reconUser.getUserStatus());
-		reconUserResponseDto.setDesignation(reconUser.getDesignation());
-		reconUserResponseDto.setEmailId(reconUser.getEmailId());
-		reconUserResponseDto.setInstitution(reconUser.getInstitution());
-		reconUserResponseDto.setMobileNumber(reconUser.getMobileNumber());
-		reconUserResponseDto.setType(reconUser.getType());
+		reconUserResponseDto.setUserId(KalAdmin.getUserId());
+		reconUserResponseDto.setUserName(KalAdmin.getUserName());
+		reconUserResponseDto.setUserStatus(KalAdmin.getUserStatus());
+		reconUserResponseDto.setDesignation(KalAdmin.getDesignation());
+		reconUserResponseDto.setEmailId(KalAdmin.getEmailId());
+		reconUserResponseDto.setInstitution(KalAdmin.getInstitution());
+		reconUserResponseDto.setMobileNumber(KalAdmin.getMobileNumber());
+		reconUserResponseDto.setType(KalAdmin.getType());
 		reconUserResponseDto.setCreatedAt(LocalDateTime.now());
-		reconUserResponseDto.setCreatedBy(reconUser.getUserName());
+		reconUserResponseDto.setCreatedBy(KalAdmin.getUserName());
 
-		RoleDto roleDto = mapToRole(reconUser.getRole());
+		RoleDto roleDto = mapToRole(KalAdmin.getRole());
 		reconUserResponseDto.setRole(roleDto);
 		return reconUserResponseDto;
 	}
@@ -59,9 +59,9 @@ public class ReconUserMapper {
 		return roleDto;
 	}
 
-	public static List<ReconUserResponseDto> mapToReconUsersResponseDto(List<ReconUser> allUsersIsPresent) {
+	public static List<ReconUserResponseDto> mapToReconUsersResponseDto(List<KalAdmin> allUsersIsPresent) {
 		List<ReconUserResponseDto> userDataList = new ArrayList<>();
-		for (ReconUser user : allUsersIsPresent) {
+		for (KalAdmin user : allUsersIsPresent) {
 			ReconUserResponseDto mapUser = new ReconUserResponseDto();
 
 			mapUser.setUserId(user.getUserId());
@@ -84,27 +84,27 @@ public class ReconUserMapper {
 		return userDataList;
 	}
 
-	public static ReconUser mapToApproveRejectReconUser(ReconUserDto reconUserDto, ReconUser reconUser) {
-		reconUser.setApprovedYn(reconUserDto.getApprovedYn());
-		reconUser.setApprovedBy(reconUserDto.getApprovedBy());
-		reconUser.setUserStatus("ACTIVE");
-		return reconUser;
+	public static KalAdmin mapToApproveRejectReconUser(ReconUserDto reconUserDto, KalAdmin KalAdmin) {
+		KalAdmin.setApprovedYn(reconUserDto.getApprovedYn());
+		KalAdmin.setApprovedBy(reconUserDto.getApprovedBy());
+		KalAdmin.setUserStatus("ACTIVE");
+		return KalAdmin;
 	}
 
-	public static ReconUser mapToReconUserUpdate(ReconUserDto reconUserDto, ReconUser reconUser) {
-//		reconUser.setUserId(reconUserDto.getUserId());
-		reconUser.setUserName(reconUserDto.getUserName());
-		reconUser.setUserStatus(reconUserDto.getUserStatus());
-		reconUser.setDesignation(reconUserDto.getDesignation());
-		reconUser.setEmailId(reconUserDto.getEmailId());
-		reconUser.setInstitution(reconUserDto.getInstitution());
-		reconUser.setMobileNumber(reconUserDto.getMobileNumber());
-		reconUser.setType(reconUserDto.getType());
-		reconUser.setCreatedAt(LocalDateTime.now());
-		reconUser.setCreatedBy(reconUserDto.getCreatedBy());
-		reconUser.setUpdatedAt(LocalDateTime.now());
-		reconUser.setUpdatedBy(reconUserDto.getUpdatedBy());
-		return reconUser;
+	public static KalAdmin mapToReconUserUpdate(ReconUserDto reconUserDto, KalAdmin KalAdmin) {
+//		KalAdmin.setUserId(reconUserDto.getUserId());
+		KalAdmin.setUserName(reconUserDto.getUserName());
+		KalAdmin.setUserStatus(reconUserDto.getUserStatus());
+		KalAdmin.setDesignation(reconUserDto.getDesignation());
+		KalAdmin.setEmailId(reconUserDto.getEmailId());
+		KalAdmin.setInstitution(reconUserDto.getInstitution());
+		KalAdmin.setMobileNumber(reconUserDto.getMobileNumber());
+		KalAdmin.setType(reconUserDto.getType());
+		KalAdmin.setCreatedAt(LocalDateTime.now());
+		KalAdmin.setCreatedBy(reconUserDto.getCreatedBy());
+		KalAdmin.setUpdatedAt(LocalDateTime.now());
+		KalAdmin.setUpdatedBy(reconUserDto.getUpdatedBy());
+		return KalAdmin;
 	}
 
 }

@@ -11,14 +11,14 @@ import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 
 @Service
 public interface ReconciliationService{
 
-	List<ReconBatchProcessEntity> runReconciliation(Long processId, ReconProcessDefMaster reconProcessDefMaster, ReconUser userData);
+	List<ReconBatchProcessEntity> runReconciliation(Long processId, ReconProcessDefMaster reconProcessDefMaster, KalAdmin userData);
 
     ResponseEntity<RestWithStatusList> refreshReconciliation(List<RefreshRequestDto.ProcessManager> requestProcess);
 
-    CompletableFuture<String> startReconciliation(Long processId, List<ReconBatchProcessEntity> reconciliationStatus, ReconProcessDefMaster reconProcessDefMaster, ReconUser userData) throws IOException;
+    CompletableFuture<String> startReconciliation(Long processId, List<ReconBatchProcessEntity> reconciliationStatus, ReconProcessDefMaster reconProcessDefMaster, KalAdmin userData) throws IOException;
 }

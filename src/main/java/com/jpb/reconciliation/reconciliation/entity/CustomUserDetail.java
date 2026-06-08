@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.entity;
+﻿package com.jpb.reconciliation.reconciliation.entity;
 
 import java.util.Collection;
 
@@ -8,10 +8,10 @@ import org.springframework.security.core.userdetails.UserDetails;
 public class CustomUserDetail implements UserDetails {
 
 	private static final long serialVersionUID = 1L;
-	private ReconUser reconUser;
+	private KalAdmin KalAdmin;
 
-	public CustomUserDetail(ReconUser reconUser) {
-		this.reconUser = reconUser;
+	public CustomUserDetail(KalAdmin KalAdmin) {
+		this.KalAdmin = KalAdmin;
 	}
 
 	@Override
@@ -21,14 +21,14 @@ public class CustomUserDetail implements UserDetails {
 
 	@Override
 	public String getPassword() {
-		PasswordManager passwordManager = reconUser.getPasswordManager();
-		System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!-------------" + passwordManager.getUserPassword() );
-		return passwordManager.getUserPassword();
+		KalAdminPasswordManager KalAdminPasswordManager = KalAdmin.getPasswordManager();
+		System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!-------------" + KalAdminPasswordManager.getUserPassword() );
+		return KalAdminPasswordManager.getUserPassword();
 	}
 
 	@Override
 	public String getUsername() {
-		return reconUser.getUserName();
+		return KalAdmin.getUserName();
 	}
 
 	@Override

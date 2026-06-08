@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.controller;
+﻿package com.jpb.reconciliation.reconciliation.controller;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,10 +24,10 @@ import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessDefMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.service.ReconciliationService;
 
 @RestController
@@ -38,7 +38,7 @@ public class ReconciliationController {
 	ReconciliationService reconciliationService;
 
 	@Autowired
-	ReconUserRepository reconUserRepository;
+	KalAdminRepository KalAdminRepository;
 
 	@Autowired
 	ReconProcessDefMasterRepository reconProcessDefMasterRepository;
@@ -55,7 +55,7 @@ public class ReconciliationController {
 		List<Object> reconciliationData = new ArrayList<>();
 		ReconProcessDefMaster reconProcessDefMaster = reconProcessDefMasterRepository.findByReconProcessId(processId);
 		logger.info("Recon Process Def Master Data ::::::::::" + reconProcessDefMaster);
-		ReconUser userData = reconUserRepository.findByUserName(userDetails.getUsername()).get();
+		KalAdmin userData = KalAdminRepository.findByUserName(userDetails.getUsername()).get();
 		
 		List<ReconBatchProcessEntity> checkProcessIsRunning = reconBatchProcessEntityRepository
 				.findByProcessIdAndStatus(processId, "Running");

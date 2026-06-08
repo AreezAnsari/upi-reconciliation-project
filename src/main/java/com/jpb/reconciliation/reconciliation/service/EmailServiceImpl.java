@@ -1,5 +1,8 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import java.util.List;
+import java.util.Map;
+
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 
@@ -858,6 +861,154 @@ public class EmailServiceImpl implements EmailService {
             + "<td style='font-size:12px;color:#94a3b8;'>ReconXpert.Ai &nbsp;|&nbsp; KalInfotech</td>"
             + "<td style='font-size:12px;color:#94a3b8;text-align:right;'>This is a system-generated notification. Do not reply.</td>"
             + "</tr></table>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // INSTITUTION PROFILE UPDATE NOTIFICATION
+    // Sent to primary contact whenever Admin updates the institution profile.
+    // changesBySections maps section name → list of "Field: old → new" strings.
+    // Only called when the map is non-empty (i.e. something actually changed).
+    // @Async — fire and forget, update must NOT be blocked by email failure
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendInstitutionUpdateNotification(String toEmail, String contactName,
+                                                   String institutionName, String institutionCode,
+                                                   String updatedAt,
+                                                   Map<String, List<String>> changesBySections) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Institution Profile Updated: " + institutionName);
+            helper.setText(buildInstitutionUpdateHtml(contactName, institutionName, institutionCode,
+                    updatedAt, changesBySections), true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Institution update notification — recipient: {} | institution: {} | sections: {}",
+                    toEmail, institutionCode, changesBySections.keySet());
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Institution update — recipient: {} | institution: {} | reason: {}",
+                    toEmail, institutionCode, e.getMessage());
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Institution update — unexpected — recipient: {} | institution: {} | reason: {}",
+                    toEmail, institutionCode, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Institution Profile Update Notification
+    // Renders only the sections that actually changed, with before → after values
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildInstitutionUpdateHtml(String contactName, String institutionName,
+                                               String institutionCode, String updatedAt,
+                                               Map<String, List<String>> changesBySections) {
+
+        // Build the change-details block: one coloured card per section
+        StringBuilder changesHtml = new StringBuilder();
+        String[] sectionColors = { "#0d9488", "#6366f1", "#f59e0b", "#ef4444" };
+        String[] sectionBgs    = { "rgba(13,148,136,0.07)", "rgba(99,102,241,0.07)",
+                                    "rgba(245,158,11,0.07)", "rgba(239,68,68,0.07)" };
+        int colorIdx = 0;
+        for (Map.Entry<String, List<String>> section : changesBySections.entrySet()) {
+            String color = sectionColors[colorIdx % sectionColors.length];
+            String bg    = sectionBgs[colorIdx % sectionBgs.length];
+            colorIdx++;
+
+            changesHtml.append("<div style='background:").append(bg)
+                .append(";border:1px solid ").append(color)
+                .append("33;border-left:4px solid ").append(color)
+                .append(";border-radius:8px;padding:16px 20px;margin-bottom:14px;'>")
+                .append("<p style='margin:0 0 10px;font-size:12px;color:").append(color)
+                .append(";font-weight:700;text-transform:uppercase;letter-spacing:1px;'>")
+                .append(sanitize(section.getKey())).append("</p>");
+
+            for (String change : section.getValue()) {
+                // Split at " → " to bold the two sides
+                String sanitized = sanitize(change);
+                String formatted = sanitized.replace(" &#x2192; ", "</span>"
+                        + "<span style='color:#94a3b8;'> &#x2192; </span>"
+                        + "<span style='color:#1e293b;font-weight:600;'>");
+                // If it was a removal/addition line (starts with Added/Removed) give it a badge
+                String badge = "";
+                if (change.startsWith("Added:")) {
+                    badge = "<span style='background:#dcfce7;color:#166534;font-size:10px;font-weight:700;"
+                          + "padding:2px 7px;border-radius:20px;margin-right:8px;'>NEW</span>";
+                } else if (change.startsWith("Removed:")) {
+                    badge = "<span style='background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;"
+                          + "padding:2px 7px;border-radius:20px;margin-right:8px;'>REMOVED</span>";
+                }
+                changesHtml.append("<p style='margin:0 0 6px;font-size:13px;color:#475569;'>")
+                    .append(badge)
+                    .append("<span style='color:#475569;'>").append(formatted).append("</span>")
+                    .append("</p>");
+            }
+            changesHtml.append("</div>");
+        }
+
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Info banner
+            + "<tr><td style='background:rgba(13,148,136,0.08);border-bottom:3px solid #0d9488;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:32px;'>🔔</p>"
+            + "<p style='margin:8px 0 0;font-size:18px;font-weight:700;color:#0f766e;'>Institution Profile Updated</p>"
+            + "<p style='margin:6px 0 0;font-size:13px;color:#0d9488;'>The following changes have been applied to your account</p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
+            + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
+            + "We wish to inform you that the profile of <strong>" + sanitize(institutionName) + "</strong> "
+            + "on the <strong>ReconXpert.Ai</strong> platform has been updated by KalInfotech Administration. "
+            + "The specific changes are detailed below."
+            + "</p>"
+
+            // Institution meta card
+            + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #0d9488;border-radius:8px;padding:16px 20px;margin-bottom:24px;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:140px;'>Institution Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(institutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Institution Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:4px 0;letter-spacing:1px;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Updated On</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(updatedAt) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Updated By</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>KalInfotech Administration</td></tr>"
+            + "</table></div>"
+
+            // Change sections (dynamic)
+            + "<p style='font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px;'>Changes Made</p>"
+            + changesHtml.toString()
+
+            // Security note
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;margin-top:10px;'>"
+            + "<p style='margin:0 0 4px;font-size:12px;color:#92400e;font-weight:700;'>Important Notice</p>"
+            + "<p style='margin:0;font-size:13px;color:#92400e;line-height:1.7;'>"
+            + "If you were not informed of this update or believe it was made in error, "
+            + "please contact KalInfotech Administration immediately at "
+            + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;font-weight:600;'>support@kalinfotech.com</a> "
+            + "and quote your Institution Code: <strong>" + sanitize(institutionCode) + "</strong>."
+            + "</p></div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
             + "</td></tr>"
 
             + "</table></td></tr></table></body></html>";

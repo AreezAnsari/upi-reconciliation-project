@@ -1,4 +1,4 @@
-package com.jpb.reconciliation.reconciliation.service;
+﻿package com.jpb.reconciliation.reconciliation.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -32,14 +32,14 @@ import com.jpb.reconciliation.reconciliation.dto.ReconUserResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.UserPasswordChangeRequest;
-import com.jpb.reconciliation.reconciliation.entity.PasswordManager;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.KalAdminPasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.Role;
 import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
 import com.jpb.reconciliation.reconciliation.mapper.ReconUserMapper;
 import com.jpb.reconciliation.reconciliation.repository.PasswordManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.ProcessMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.RoleManageRepository;
 import com.jpb.reconciliation.reconciliation.repository.RoleRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
@@ -54,7 +54,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 	private final SchedulerConfig schedulerConfig;
 
 	@Autowired
-	ReconUserRepository reconUserRepository;
+	KalAdminRepository KalAdminRepository;
 
 	@Autowired
 	RoleRepository roleRepository;
@@ -91,7 +91,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 	public ResponseEntity<RestWithStatusList> createUser(ReconUserDto reconUserDto) {
 		RestWithStatusList restWithStatusList = null;
 
-		Boolean existsUser = reconUserRepository.existsByUserNameAndEmailId(reconUserDto.getUserName(),
+		Boolean existsUser = KalAdminRepository.existsByUserNameAndEmailId(reconUserDto.getUserName(),
 				reconUserDto.getEmailId());
 		logger.info("Check user present into records :::::::::" + existsUser);
 		if (existsUser) {
@@ -99,17 +99,17 @@ public class ReconUserServiceImpl implements ReconUserService {
 			return new ResponseEntity<>(restWithStatusList, HttpStatus.BAD_REQUEST);
 		} else {
 			Role userRole = roleManageRepository.findByRoleId(reconUserDto.getRoleId());
-			ReconUser reconUser = ReconUserMapper.mapToReconUser(reconUserDto, new ReconUser());
+			KalAdmin KalAdmin = ReconUserMapper.mapToReconUser(reconUserDto, new KalAdmin());
 //			Role role = saveUserRole(reconUserDto.getRoleName());
 //			roleRepository.save(role);
-			reconUser.setRole(userRole);
-			PasswordManager passwordManager = saveUserPasswordData(reconUserDto.getUserPassword());
-			passwordManager.setReconUser(reconUser);
-			reconUser.setPasswordManager(passwordManager);
-			logger.info("User data :::::::::" + reconUser.toString());
-			if (reconUser != null) {
-				reconUserRepository.save(reconUser);
-				reconUserRepository.flush();
+			KalAdmin.setRole(userRole);
+			KalAdminPasswordManager KalAdminPasswordManager = saveUserPasswordData(reconUserDto.getUserPassword());
+			KalAdminPasswordManager.setKalAdmin(KalAdmin);
+			KalAdmin.setPasswordManager(KalAdminPasswordManager);
+			logger.info("User data :::::::::" + KalAdmin.toString());
+			if (KalAdmin != null) {
+				KalAdminRepository.save(KalAdmin);
+				KalAdminRepository.flush();
 				restWithStatusList = new RestWithStatusList("SUCCESS", "User Created Succussfully", null);
 			}
 		}
@@ -134,12 +134,12 @@ public class ReconUserServiceImpl implements ReconUserService {
 //		return role;
 //	}
 
-	private PasswordManager saveUserPasswordData(String userPassword) {
-		PasswordManager passwordManager = new PasswordManager();
-		passwordManager.setUserPassword(passwordEncoder.encode(userPassword));
-		passwordManager.setExpirationDate(LocalDateTime.now());
-		passwordManager.setCreatedAt(LocalDateTime.now());
-		return passwordManager;
+	private KalAdminPasswordManager saveUserPasswordData(String userPassword) {
+		KalAdminPasswordManager KalAdminPasswordManager = new KalAdminPasswordManager();
+		KalAdminPasswordManager.setUserPassword(passwordEncoder.encode(userPassword));
+		KalAdminPasswordManager.setExpirationDate(LocalDateTime.now());
+		KalAdminPasswordManager.setCreatedAt(LocalDateTime.now());
+		return KalAdminPasswordManager;
 	}
 
 	@Override
@@ -147,13 +147,13 @@ public class ReconUserServiceImpl implements ReconUserService {
 		RestWithStatusList restWithStatusList;
 		List<Object> addReconUser = new ArrayList<>();
 
-		ReconUser reconUser = reconUserRepository.findByUserId(userId)
+		KalAdmin KalAdmin = KalAdminRepository.findByUserId(userId)
 				.orElseThrow(() -> new ResourceNotFoundException("USER NOT FOUND"));
 
-		ReconUserResponseDto reconUserResponseDto = ReconUserMapper.mapToReconUserResponseDto(reconUser,
+		ReconUserResponseDto reconUserResponseDto = ReconUserMapper.mapToReconUserResponseDto(KalAdmin,
 				new ReconUserResponseDto());
-		logger.info("User found in given user id :::" + userId + reconUser);
-		if (reconUser != null) {
+		logger.info("User found in given user id :::" + userId + KalAdmin);
+		if (KalAdmin != null) {
 			addReconUser.add(reconUserResponseDto);
 			restWithStatusList = new RestWithStatusList("SUCCESS", "User found", addReconUser);
 			return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
@@ -170,15 +170,15 @@ public class ReconUserServiceImpl implements ReconUserService {
 		System.out.println("Login User Details ::::::::::" + userDetails);
 
 		String token = this.helper.generateToken(userDetails);
-		Optional<ReconUser> reconUser = reconUserRepository.findByUserName(userDetails.getUsername());
-		System.out.println("User Details ::::::::::" + reconUser);
-		ReconUser user = reconUser.get();
+		Optional<KalAdmin> KalAdmin = KalAdminRepository.findByUserName(userDetails.getUsername());
+		System.out.println("User Details ::::::::::" + KalAdmin);
+		KalAdmin user = KalAdmin.get();
 
 		if ("Y".equals(user.getApprovedYn()) && user.getUserStatus().equalsIgnoreCase("active")) {
-			PasswordManager passwordManager = user.getPasswordManager();
-			passwordManager.setToken(token);
-			user.setPasswordManager(passwordManager);
-			reconUserRepository.save(user);
+			KalAdminPasswordManager KalAdminPasswordManager = user.getPasswordManager();
+			KalAdminPasswordManager.setToken(token);
+			user.setPasswordManager(KalAdminPasswordManager);
+			KalAdminRepository.save(user);
 
 			try {
 				String userName = helper.getUsernameFromToken(token);
@@ -220,13 +220,13 @@ public class ReconUserServiceImpl implements ReconUserService {
 		RestWithStatusList restWithStatusList;
 		List<Object> addReconUser = new ArrayList<>();
 
-		ReconUser reconUser = reconUserRepository.findByUserName(username)
+		KalAdmin KalAdmin = KalAdminRepository.findByUserName(username)
 				.orElseThrow(() -> new ResourceNotFoundException("USER NOT FOUND :" + username));
 
-		ReconUserResponseDto reconUserResponseDto = ReconUserMapper.mapToReconUserResponseDto(reconUser,
+		ReconUserResponseDto reconUserResponseDto = ReconUserMapper.mapToReconUserResponseDto(KalAdmin,
 				new ReconUserResponseDto());
 
-		logger.info("User found in given user id :::" + username + reconUser);
+		logger.info("User found in given user id :::" + username + KalAdmin);
 		addReconUser.add(reconUserResponseDto);
 		restWithStatusList = new RestWithStatusList("SUCCESS", "USER FOUND SUCCESSFULLY", addReconUser);
 		return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
@@ -234,9 +234,9 @@ public class ReconUserServiceImpl implements ReconUserService {
 
 	@Override
 	public ResponseEntity<ResponseDto> removeUser(Long userId) {
-		ReconUser reconUser = reconUserRepository.findByUserId(userId)
+		KalAdmin KalAdmin = KalAdminRepository.findByUserId(userId)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
-		reconUserRepository.deleteById(reconUser.getUserId());
+		KalAdminRepository.deleteById(KalAdmin.getUserId());
 		roleRepository.deleteById(userId);
 		return new ResponseEntity<>(new ResponseDto(UserConstants.STATUS_200, "User Successfully Deleted"),
 				HttpStatus.OK);
@@ -245,11 +245,11 @@ public class ReconUserServiceImpl implements ReconUserService {
 	@Override
 	public ResponseEntity<ResponseDto> changePassword(UserPasswordChangeRequest changePasswordRequest) {
 
-		Optional<ReconUser> findUser = reconUserRepository.findByUserId(changePasswordRequest.getUserId());
+		Optional<KalAdmin> findUser = KalAdminRepository.findByUserId(changePasswordRequest.getUserId());
 		logger.info("USER BY USER ID :::::::::::::::::::::::::::::::" + findUser.get());
-		ReconUser UserData = findUser.get();
+		KalAdmin UserData = findUser.get();
 
-		PasswordManager password = UserData.getPasswordManager();
+		KalAdminPasswordManager password = UserData.getPasswordManager();
 
 		if (password != null) {
 			logger.info("USER PASSWORD :::::::::" + password.getUserPassword());
@@ -266,7 +266,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 				password.setExpirationDate(LocalDateTime.now());
 				password.setCreatedAt(LocalDateTime.now());
 				UserData.setPasswordManager(password);
-				reconUserRepository.save(UserData);
+				KalAdminRepository.save(UserData);
 			} else {
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 						.body(new ResponseDto("400", "Please enter valid old password!!"));
@@ -278,15 +278,15 @@ public class ReconUserServiceImpl implements ReconUserService {
 	@Override
 	public ResponseEntity<RestWithStatusList> updateUser(ReconUserDto userUpdateRequest) {
 		RestWithStatusList restWithStatusList = null;
-		Optional<ReconUser> userDetails = reconUserRepository.findByUserId(userUpdateRequest.getUserId());
+		Optional<KalAdmin> userDetails = KalAdminRepository.findByUserId(userUpdateRequest.getUserId());
 
-		ReconUser user = userDetails.get();
+		KalAdmin user = userDetails.get();
 		if (user != null) {
-			ReconUser updatedUserDetails = ReconUserMapper.mapToReconUserUpdate(userUpdateRequest, user);
+			KalAdmin updatedUserDetails = ReconUserMapper.mapToReconUserUpdate(userUpdateRequest, user);
 			Optional<Role> getRole = roleRepository.findById(userUpdateRequest.getRoleId());
 			Role getRoleData = getRole.get();
 			updatedUserDetails.setRole(getRoleData);
-			reconUserRepository.save(updatedUserDetails);
+			KalAdminRepository.save(updatedUserDetails);
 			restWithStatusList = new RestWithStatusList("SUCCESS", "User Update Successfully", null);
 		} else {
 			restWithStatusList = new RestWithStatusList("FAILURE", "Please enter valid user details", null);
@@ -299,7 +299,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 	public ResponseEntity<RestWithStatusList> getApprovedUSers(String approvedYN) {
 		RestWithStatusList restWithStatusList = null;
 		List<Object> userDetailsList = new ArrayList<>();
-		List<ReconUser> allUsersIsPresent = reconUserRepository.findByApprovedYn(approvedYN);
+		List<KalAdmin> allUsersIsPresent = KalAdminRepository.findByApprovedYn(approvedYN);
 		logger.info("USer Details ::::::::" + allUsersIsPresent);
 		if (allUsersIsPresent.isEmpty()) {
 			restWithStatusList = new RestWithStatusList("FAILURE", "User Details Is Not Found", userDetailsList);
@@ -320,12 +320,12 @@ public class ReconUserServiceImpl implements ReconUserService {
 			restWithStatusList = new RestWithStatusList("FAILURE", "Please select user to approve", null);
 			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.BAD_REQUEST);
 		} else {
-			Optional<ReconUser> user = reconUserRepository.findByUserId(approveUserRequest.getUserId());
-			ReconUser getUser = user.get();
+			Optional<KalAdmin> user = KalAdminRepository.findByUserId(approveUserRequest.getUserId());
+			KalAdmin getUser = user.get();
 			approveUserRequest.setApprovedBy(userDetails.getUsername());
-			ReconUser approvedOrRejectUser = ReconUserMapper.mapToApproveRejectReconUser(approveUserRequest, getUser);
+			KalAdmin approvedOrRejectUser = ReconUserMapper.mapToApproveRejectReconUser(approveUserRequest, getUser);
 			logger.info("User approved or reject user :::::::::::" + approvedOrRejectUser);
-			reconUserRepository.save(approvedOrRejectUser);
+			KalAdminRepository.save(approvedOrRejectUser);
 			restWithStatusList = new RestWithStatusList("SUCCESS", "User Approved Successfully", null);
 		}
 		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
@@ -336,7 +336,7 @@ public class ReconUserServiceImpl implements ReconUserService {
 		RestWithStatusList restWithStatusList;
 		List<Object> userList = new ArrayList<>();
 
-		List<ReconUser> allUserExists = reconUserRepository.findAll();
+		List<KalAdmin> allUserExists = KalAdminRepository.findAll();
 		List<ReconUserResponseDto> users = ReconUserMapper.mapToReconUsersResponseDto(allUserExists);
 		if (!allUserExists.isEmpty()) {
 			userList.addAll(users);

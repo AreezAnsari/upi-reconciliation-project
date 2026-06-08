@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -309,6 +310,36 @@ public class MainBankServiceImpl implements MainBankService {
 
         MainBank institution = optional.get();
 
+        // ── Snapshot old values for change-detection (captured BEFORE any modification) ──
+        final String oldRegAddr1    = institution.getRegAddressLine1();
+        final String oldRegAddr2    = institution.getRegAddressLine2();
+        final String oldRegAddr3    = institution.getRegAddressLine3();
+        final String oldRegCity     = institution.getRegCity();
+        final String oldRegState    = institution.getRegState();
+        final String oldRegCountry  = institution.getRegCountry();
+        final String oldRegPhCode   = institution.getRegPhoneCode();
+        final String oldRegCityCode = institution.getRegCityCode();
+        final String oldRegPhone    = institution.getRegPhone();
+        final String oldSameAsReg   = institution.getSameAsRegistered();
+        final String oldCommAddr1   = institution.getCommAddressLine1();
+        final String oldCommAddr2   = institution.getCommAddressLine2();
+        final String oldCommAddr3   = institution.getCommAddressLine3();
+        final String oldCommCity    = institution.getCommCity();
+        final String oldCommState   = institution.getCommState();
+        final String oldCommCountry = institution.getCommCountry();
+        final String oldCommPhone   = institution.getCommPhone();
+        final String oldPrimaryName = institution.getPrimaryFullName();
+        final String oldPriAltCode  = institution.getPrimaryAltMobileCode();
+        final String oldPriAltMob   = institution.getPrimaryAltMobile();
+        final String oldSecName     = institution.getSecondaryFullName();
+        final String oldSecAltCode  = institution.getSecondaryAltMobileCode();
+        final String oldSecAltMob   = institution.getSecondaryAltMobile();
+        final String oldMfa         = institution.getEnableMfa();
+        final String oldHrms        = institution.getEnableHrms();
+        final String oldOtp         = institution.getEnableOtp();
+        // Load old products before saveProductDates wipes them
+        final List<MainBankProduct> oldProducts = mainBankProductRepository.findByInstitutionId(institutionId);
+
         // Preserve system-generated fields
         String existingCode             = institution.getInstitutionCode();
         String existingStatus           = institution.getStatus();
@@ -350,6 +381,69 @@ public class MainBankServiceImpl implements MainBankService {
 
         saveProductDates(institutionId, dto, institution.getCreatedBy());
         logger.info("Institution updated: {}", institutionId);
+
+        // ── Build per-section change map and send notification email (async, non-blocking) ──
+        try {
+            Map<String, List<String>> sections = new LinkedHashMap<>();
+
+            // Address
+            List<String> addrChg = new ArrayList<>();
+            diffF(addrChg, "Reg. Address Line 1", oldRegAddr1,   institution.getRegAddressLine1());
+            diffF(addrChg, "Reg. Address Line 2", oldRegAddr2,   institution.getRegAddressLine2());
+            diffF(addrChg, "Reg. Address Line 3", oldRegAddr3,   institution.getRegAddressLine3());
+            diffF(addrChg, "Reg. City",           oldRegCity,    institution.getRegCity());
+            diffF(addrChg, "Reg. State",          oldRegState,   institution.getRegState());
+            diffF(addrChg, "Reg. Country",        oldRegCountry, institution.getRegCountry());
+            diffF(addrChg, "Reg. Phone",          oldRegPhone,   institution.getRegPhone());
+            if (!"Y".equalsIgnoreCase(institution.getSameAsRegistered())) {
+                diffF(addrChg, "Comm. Address Line 1", oldCommAddr1,   institution.getCommAddressLine1());
+                diffF(addrChg, "Comm. Address Line 2", oldCommAddr2,   institution.getCommAddressLine2());
+                diffF(addrChg, "Comm. Address Line 3", oldCommAddr3,   institution.getCommAddressLine3());
+                diffF(addrChg, "Comm. City",           oldCommCity,    institution.getCommCity());
+                diffF(addrChg, "Comm. State",          oldCommState,   institution.getCommState());
+                diffF(addrChg, "Comm. Country",        oldCommCountry, institution.getCommCountry());
+                diffF(addrChg, "Comm. Phone",          oldCommPhone,   institution.getCommPhone());
+            }
+            if (!addrChg.isEmpty()) sections.put("Registered & Communication Address", addrChg);
+
+            // Contact
+            List<String> ctcChg = new ArrayList<>();
+            diffF(ctcChg, "Primary Contact Name", oldPrimaryName, institution.getPrimaryFullName());
+            diffF(ctcChg, "Primary Alternate Mobile",
+                (strV(oldPriAltCode) + " " + strV(oldPriAltMob)).trim(),
+                (strV(institution.getPrimaryAltMobileCode()) + " " + strV(institution.getPrimaryAltMobile())).trim());
+            diffF(ctcChg, "Secondary Contact Name", oldSecName, institution.getSecondaryFullName());
+            diffF(ctcChg, "Secondary Alternate Mobile",
+                (strV(oldSecAltCode) + " " + strV(oldSecAltMob)).trim(),
+                (strV(institution.getSecondaryAltMobileCode()) + " " + strV(institution.getSecondaryAltMobile())).trim());
+            if (!ctcChg.isEmpty()) sections.put("Contact Details", ctcChg);
+
+            // Security
+            List<String> secChg = new ArrayList<>();
+            diffB(secChg, "Multi-Factor Authentication (MFA)", oldMfa,  institution.getEnableMfa());
+            diffB(secChg, "HRMS Integration",                  oldHrms, institution.getEnableHrms());
+            diffB(secChg, "OTP Verification",                  oldOtp,  institution.getEnableOtp());
+            if (!secChg.isEmpty()) sections.put("Security & Compliance Settings", secChg);
+
+            // Products
+            List<String> prodChg = diffProducts(oldProducts, dto.getProductDates());
+            if (!prodChg.isEmpty()) sections.put("Product Subscriptions & Validity Dates", prodChg);
+
+            if (!sections.isEmpty()) {
+                String formattedAt = institution.getUpdatedAt()
+                    .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+                emailService.sendInstitutionUpdateNotification(
+                    institution.getPrimaryEmail(),
+                    institution.getPrimaryFullName(),
+                    institution.getInstitutionNameFull(),
+                    institution.getInstitutionCode(),
+                    formattedAt, sections
+                );
+            }
+        } catch (Exception e) {
+            logger.warn("updateInstitution: change-notification email failed for {}: {}",
+                    institution.getInstitutionCode(), e.getMessage());
+        }
 
         List<Object> data = new ArrayList<>();
         data.add(MainBankMapper.mapToDTO(institution));
@@ -981,6 +1075,73 @@ public class MainBankServiceImpl implements MainBankService {
         });
         mainBankProductRepository.saveAll(products);
         logger.info("Saved {} product date(s) for institution {}", products.size(), institutionId);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHANGE-DETECTION HELPERS (used by updateInstitution to build the diff map)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Compare two String fields; if different, append "Label: old → new" to the list. */
+    private void diffF(List<String> out, String label, String oldVal, String newVal) {
+        String o = oldVal == null ? "" : oldVal.trim();
+        String n = newVal == null ? "" : newVal.trim();
+        if (!o.equals(n)) out.add(label + ": " + (o.isEmpty() ? "—" : o) + " → " + (n.isEmpty() ? "—" : n));
+    }
+
+    /** Compare two Y/N boolean fields; if different, append "Label: Enabled/Disabled → Enabled/Disabled". */
+    private void diffB(List<String> out, String label, String oldYN, String newYN) {
+        String o = "Y".equalsIgnoreCase(oldYN) ? "Enabled" : "Disabled";
+        String n = "Y".equalsIgnoreCase(newYN) ? "Enabled" : "Disabled";
+        if (!o.equals(n)) out.add(label + ": " + o + " → " + n);
+    }
+
+    /** Null-safe trim. */
+    private String strV(String s) { return s == null ? "" : s.trim(); }
+
+    /** Format LocalDate as "dd MMM yyyy", or "—" if null. */
+    private String fmtD(java.time.LocalDate d) {
+        return d != null ? d.format(DateTimeFormatter.ofPattern("dd MMM yyyy")) : "—";
+    }
+
+    /**
+     * Compares old product rows from DB vs the new DTO product-date map.
+     * Returns human-readable change strings:
+     *   "Added: NEFT (Valid: 01 Jan 2025 to 31 Dec 2025)"
+     *   "Removed: UPI"
+     *   "RTGS Valid To: 30 Jun 2025 → 31 Dec 2025"
+     */
+    private List<String> diffProducts(List<MainBankProduct> oldProds,
+                                       Map<String, MainBankDTO.ProductDateEntry> newMap) {
+        List<String> changes = new ArrayList<>();
+        Map<String, MainBankProduct> oldMap = new LinkedHashMap<>();
+        for (MainBankProduct p : oldProds) oldMap.put(p.getProductName(), p);
+        if (newMap == null) newMap = new LinkedHashMap<>();
+
+        // Removed products
+        for (String name : oldMap.keySet()) {
+            if (!newMap.containsKey(name)) changes.add("Removed: " + name);
+        }
+        // Added products
+        for (Map.Entry<String, MainBankDTO.ProductDateEntry> e : newMap.entrySet()) {
+            if (!oldMap.containsKey(e.getKey())) {
+                MainBankDTO.ProductDateEntry d = e.getValue();
+                changes.add("Added: " + e.getKey()
+                    + " (Valid: " + fmtD(d.getValidFrom()) + " to " + fmtD(d.getValidTo()) + ")");
+            }
+        }
+        // Date changes on existing products
+        for (Map.Entry<String, MainBankDTO.ProductDateEntry> e : newMap.entrySet()) {
+            String name = e.getKey();
+            if (oldMap.containsKey(name)) {
+                MainBankProduct old = oldMap.get(name);
+                MainBankDTO.ProductDateEntry nd = e.getValue();
+                String oldFrom = fmtD(old.getValidFrom()), newFrom = fmtD(nd.getValidFrom());
+                String oldTo   = fmtD(old.getValidTo()),   newTo   = fmtD(nd.getValidTo());
+                if (!oldFrom.equals(newFrom)) changes.add(name + " Valid From: " + oldFrom + " → " + newFrom);
+                if (!oldTo.equals(newTo))     changes.add(name + " Valid To: "   + oldTo   + " → " + newTo);
+            }
+        }
+        return changes;
     }
 
     @Override
