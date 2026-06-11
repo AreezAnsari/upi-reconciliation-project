@@ -11,22 +11,22 @@ import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 public interface MainAdminRepository
         extends JpaRepository<MainAdmin, Long> {
 
-    // Primary lookup — institutionCode+username is the composite identity
-    Optional<MainAdmin> findByInstitutionCodeAndUsername(
-            String institutionCode,
+    // Primary lookup — bankCode+username is the composite identity
+    Optional<MainAdmin> findByBankCodeAndUsername(
+            String bankCode,
             String username
     );
 
-    // Uniqueness check during username generation (per-institution)
-    boolean existsByInstitutionCodeAndUsername(
-            String institutionCode,
+    // Uniqueness check during username generation (per-bank)
+    boolean existsByBankCodeAndUsername(
+            String bankCode,
             String username
     );
 
-    // Legacy fallback — only used for old records where institution_code is NULL
-    Optional<MainAdmin> findFirstByUsernameAndInstitutionCodeIsNull(String username);
+    // Legacy fallback — only used for old records where bank_code is NULL
+    Optional<MainAdmin> findFirstByUsernameAndBankCodeIsNull(String username);
 
-    // Email bridge — used when institutionCode in KAL_SUPER_USER is stale/wrong
+    // Email bridge — used when bankCode in BANK_ADMIN is stale/wrong
     Optional<MainAdmin> findFirstByEmail(String email);
     Optional<MainAdmin> findFirstByEmailOrderByIdAsc(String email);
 

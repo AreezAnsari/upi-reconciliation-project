@@ -8,18 +8,18 @@ import java.util.Map;
 public class MainBankDTO {
 
     // ─── System Generated ────────────────────────────────────────────────────
-    private Long institutionId;
-    private String institutionCode; // 8 chars: first 4 letters + 4 digits (e.g. STAT4821)
+    private Long bankId;
+    private String bankCode; // 8 chars: first 4 letters + 4 digits (e.g. STAT4821)
     private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED / BLOCK_PENDING
     private LocalDateTime createdAt;
     private String createdBy;
-    private Long parentInstitutionId; // null = parent institution; non-null = sub-institute
-    private LocalDateTime inactivatedAt;     // when institution was last set INACTIVE (for 30s cooldown)
+    private Long parentBankId; // null = parent bank; non-null = sub-bnkitute
+    private LocalDateTime inactivatedAt;     // when bank was last set INACTIVE (for 30s cooldown)
     private LocalDateTime blockScheduledAt;  // when block was scheduled (for countdown display)
 
-    // ─── Step 1: Institution Details ────────────────────────────────────────
-    private String institutionNameFull;   // required
-    private String institutionNameShort;  // optional
+    // ─── Step 1: Bank Details ────────────────────────────────────────
+    private String bankNameFull;   // required
+    private String bankNameShort;  // optional
     private List<String> bankType;        // ["Issuer","Acquirer","Settlement Bank"]
     private String logoPath;              // set after logo upload
 
@@ -87,14 +87,14 @@ public class MainBankDTO {
 
     // ─── Getters & Setters ───────────────────────────────────────────────────
 
-    public Long getInstitutionId() { return institutionId; }
-    public void setInstitutionId(Long institutionId) { this.institutionId = institutionId; }
+    public Long getBankId() { return bankId; }
+    public void setBankId(Long bankId) { this.bankId = bankId; }
 
-    public Long getParentInstitutionId() { return parentInstitutionId; }
-    public void setParentInstitutionId(Long parentInstitutionId) { this.parentInstitutionId = parentInstitutionId; }
+    public Long getParentBankId() { return parentBankId; }
+    public void setParentBankId(Long parentBankId) { this.parentBankId = parentBankId; }
 
-    public String getInstitutionCode() { return institutionCode; }
-    public void setInstitutionCode(String institutionCode) { this.institutionCode = institutionCode; }
+    public String getBankCode() { return bankCode; }
+    public void setBankCode(String bankCode) { this.bankCode = bankCode; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
@@ -108,11 +108,11 @@ public class MainBankDTO {
     public LocalDateTime getBlockScheduledAt() { return blockScheduledAt; }
     public void setBlockScheduledAt(LocalDateTime blockScheduledAt) { this.blockScheduledAt = blockScheduledAt; }
 
-    public String getInstitutionNameFull() { return institutionNameFull; }
-    public void setInstitutionNameFull(String institutionNameFull) { this.institutionNameFull = institutionNameFull; }
+    public String getBankNameFull() { return bankNameFull; }
+    public void setBankNameFull(String bankNameFull) { this.bankNameFull = bankNameFull; }
 
-    public String getInstitutionNameShort() { return institutionNameShort; }
-    public void setInstitutionNameShort(String institutionNameShort) { this.institutionNameShort = institutionNameShort; }
+    public String getBankNameShort() { return bankNameShort; }
+    public void setBankNameShort(String bankNameShort) { this.bankNameShort = bankNameShort; }
 
     public List<String> getBankType() { return bankType; }
     public void setBankType(List<String> bankType) { this.bankType = bankType; }

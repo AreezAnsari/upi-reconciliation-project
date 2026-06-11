@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class MainAdminVerifyDto {
 
-    private String institutionCode;
+    private String bankCode;
 
     // ✅ username field — frontend "User ID" se aata hai
     private String username;

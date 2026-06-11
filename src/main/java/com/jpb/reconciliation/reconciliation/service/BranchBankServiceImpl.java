@@ -62,7 +62,7 @@ public class BranchBankServiceImpl implements BranchBankService {
 
     private static final Logger logger = LoggerFactory.getLogger(BranchBankServiceImpl.class);
 
-    private static final String LOGO_UPLOAD_DIR = "/home/ec2-user/institution_logos/";
+    private static final String LOGO_UPLOAD_DIR = "/home/ec2-user/bank _logos/";
 
     private static final List<String> ALLOWED_TYPES = Arrays.asList(
             "image/jpeg", "image/jpg", "image/tiff", "image/tif"
@@ -98,10 +98,10 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> createInstitution(BranchBankDTO dto , String createdBy) {
+    public ResponseEntity<RestWithStatusList> createBank(BranchBankDTO dto , String createdBy) {
 
-        if (dto.getInstitutionNameFull() == null || dto.getInstitutionNameFull().trim().isEmpty()) {
-            return bad("Institution full name is required.");
+        if (dto.getBranchNameFull() == null || dto.getBranchNameFull().trim().isEmpty()) {
+            return bad("Bank full name is required.");
         }
         if (dto.getRegAddressLine1() == null || dto.getRegAddressLine1().trim().isEmpty()) {
             return bad("Registered address line 1 is required.");
@@ -122,98 +122,98 @@ public class BranchBankServiceImpl implements BranchBankService {
         // Allow re-onboarding when the existing record with this email is BLOCKED
         // (BLOCKED = permanently blocked — effectively removed from active use).
         if (branchBankRepository.existsByPrimaryEmailAndStatusNot(dto.getPrimaryEmail().trim(), "BLOCKED")) {
-            return bad("An institution with email '" + dto.getPrimaryEmail() + "' is already registered.");
+            return bad("A bank with email '" + dto.getPrimaryEmail() + "' is already registered.");
         }
 
-        // ── Sub-Institution Code ───────────────────────────────────────────────
-        String institutionCode;
-        String dtoCode = dto.getInstitutionCode();
+        // ── Branch Bank Code ───────────────────────────────────────────────
+        String bankCode;
+        String dtoCode = dto.getBranchCode();
         if (dtoCode != null && dtoCode.matches("\\d{8}")
-                && !branchBankRepository.existsByInstitutionCode(dtoCode)) {
-            institutionCode = dtoCode;
-            logger.info("[BranchBankCode] Using frontend pre-generated code: {}", institutionCode);
+                && !branchBankRepository.existsByBranchCode(dtoCode)) {
+            bankCode = dtoCode;
+            logger.info("[BranchBankCode] Using frontend pre-generated code: {}", bankCode);
         } else {
             // Fallback: generate fresh (covers missing / collided DTO code)
-            institutionCode = generateBranchBankCode(createdBy);
-            if (institutionCode == null) {
-                return bad("Failed to generate a unique institution code. Please try again.");
+            bankCode = generateBranchBankCode(createdBy);
+            if (bankCode == null) {
+                return bad("Failed to generate a unique bank code. Please try again.");
             }
         }
-        logger.info("Final branch bank code: {}", institutionCode);
+        logger.info("Final branch bank code: {}", bankCode);
 
-        // ── Generate Super User ID — rule: firstname.lastname all lowercase ──
-        String superUserId = generateSuperUserId(dto.getPrimaryFullName());
+        // ── Generate Branch Admin ID — rule: firstname.lastname all lowercase ──
+        String branchAdminId = generateBankAdmin(dto.getPrimaryFullName());
 
         // ── Generate default password ──
         String defaultPassword = generateDefaultPassword();
 
         // Map DTO → Entity
-        BranchBank institution = BranchBankMapper.mapToEntity(dto, new BranchBank());
-        institution.setInstitutionCode(institutionCode);
-        institution.setStatus("REQUEST");
-        institution.setCreatedAt(LocalDateTime.now());
+        BranchBank bank= BranchBankMapper.mapToEntity(dto, new BranchBank());
+        bank .setBranchCode(bankCode);
+        bank .setStatus("REQUEST");
+        bank .setCreatedAt(LocalDateTime.now());
 
-        // Save Super User credentials in institution record (BCrypt stored, plaintext in email)
-        institution.setSuperUserId(superUserId);
-        institution.setDefaultPassword(passwordEncoder.encode(defaultPassword));
-        institution.setCreatedBy(createdBy);
+        // Save Branch Admin credentials in bankrecord (BCrypt stored, plaintext in email)
+        bank .setBranchAdminId(branchAdminId);
+        bank .setDefaultPassword(passwordEncoder.encode(defaultPassword));
+        bank .setCreatedBy(createdBy);
 
-        // ── Resolve parentInstitutionId from the logged-in SuperUser ──
-        // Use StatusNot("BLOCKED") email fallback so a re-onboarded SuperUser's code resolves correctly.
+        // ── Resolve parentbankId from the logged-in BranchAdmin ──
+        // Use StatusNot("BLOCKED") email fallback so a re-onboarded BranchAdmin's code resolves correctly.
         try {
             Optional<MainAdmin> suOpt = mainAdminRepository.findFirstByUsername(createdBy);
             if (!suOpt.isPresent()) suOpt = mainAdminRepository.findFirstByEmailAndStatusNot(createdBy, "BLOCKED");
             if (suOpt.isPresent()) {
                 MainAdmin su = suOpt.get();
                 Optional<MainBank> parentOpt = Optional.empty();
-                if (su.getInstitutionCode() != null && !su.getInstitutionCode().isEmpty()) {
-                    parentOpt = mainBankRepository.findByInstitutionCode(su.getInstitutionCode());
+                if (su.getBankCode() != null && !su.getBankCode().isEmpty()) {
+                    parentOpt = mainBankRepository.findByBankCode(su.getBankCode());
                 }
                 if (!parentOpt.isPresent()) {
-                    parentOpt = mainBankRepository.findFirstBySuperUserId(su.getUsername());
+                    parentOpt = mainBankRepository.findFirstByBankAdminId(su.getUsername());
                 }
-                parentOpt.ifPresent(parent -> institution.setParentInstitutionId(parent.getInstitutionId()));
-                logger.info("parentInstitutionId resolved: {} for createdBy='{}'",
-                        institution.getParentInstitutionId(), createdBy);
+                parentOpt.ifPresent(parent -> bank .setParentBankId(parent.getBankId()));
+                logger.info("parentbankId resolved: {} for createdBy='{}'",
+                        bank .getParentBankId(), createdBy);
             } else {
-                logger.warn("createInstitution: Could not resolve parent for createdBy='{}'", createdBy);
+                logger.warn("createBank: Could not resolve parent for createdBy='{}'", createdBy);
             }
         } catch (Exception e) {
-            logger.warn("createInstitution: parentInstitutionId resolution failed: {}", e.getMessage());
+            logger.warn("createBank: parentbankId resolution failed: {}", e.getMessage());
         }
 
         // Generate verification token — valid for 48 hours
         String token = UUID.randomUUID().toString();
-        institution.setVerificationToken(token);
-        institution.setTokenExpiry(LocalDateTime.now().plusHours(48));
+        bank .setVerificationToken(token);
+        bank .setTokenExpiry(LocalDateTime.now().plusHours(48));
 
-        branchBankRepository.save(institution);
-        logger.info("Branch bank created: {} | Code: {} | SuperUserId: {}",
-                    dto.getInstitutionNameFull(), institutionCode, superUserId);
+        branchBankRepository.save(bank );
+        logger.info("Branch bank created: {} | Code: {} | BankAdmin: {}",
+                    dto.getBranchNameFull(), bankCode, branchAdminId);
 
         // ── Save product validity dates (delete-and-reinsert — same pattern as admin) ──
         try {
-            saveProductDates(institution.getInstitutionId(), dto, createdBy);
+            saveProductDates(bank .getBranchId(), dto, createdBy);
         } catch (Exception e) {
-            logger.warn("Product dates save failed for {}: {}", institutionCode, e.getMessage());
+            logger.warn("Product dates save failed for {}: {}", bankCode, e.getMessage());
         }
 
-        // ── Send welcome email with Institution Code, User ID, Default Password ──
-        // Branch Admin verify link — separate from Super User flow
-        String verifyLink = frontendUrl + "/branch-verify-email?institutionCode="
-                + institutionCode + "&username=" + superUserId;
+        // ── Send welcome email with Bank Code, User ID, Default Password ──
+        // Branch Admin verify link — separate from Branch Admin flow
+        String verifyLink = frontendUrl + "/branch-verify-email?bankCode="
+                + bankCode + "&username=" + branchAdminId;
         try {
-            emailService.sendSuperUserWelcome(
+            emailService.sendBankAdminWelcome(
                 dto.getPrimaryEmail(),
                 dto.getPrimaryFullName(),
-                dto.getInstitutionNameFull(),
-                institutionCode,
-                superUserId,
+                dto.getBranchNameFull(),
+                bankCode,
+                branchAdminId,
                 defaultPassword,
                 verifyLink
             );
-            logger.info("Welcome email dispatched to: {} | userId: {} | institution: {}",
-                        dto.getPrimaryEmail(), superUserId, dto.getInstitutionNameFull());
+            logger.info("Welcome email dispatched to: {} | userId: {} | bank : {}",
+                        dto.getPrimaryEmail(), branchAdminId, dto.getBranchNameFull());
         } catch (Exception e) {
             // Email failure should NOT rollback the onboarding — just log the warning
             logger.warn("BranchBank saved but welcome email failed for {}: {}",
@@ -221,30 +221,30 @@ public class BranchBankServiceImpl implements BranchBankService {
         }
 
         List<Object> data = new ArrayList<>();
-        BranchBankDTO responseDto = BranchBankMapper.mapToDTO(institution);
+        BranchBankDTO responseDto = BranchBankMapper.mapToDTO(bank );
         responseDto.setDefaultPassword("--"); // admin should not see the password — sent via email
         data.add(responseDto);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new RestWithStatusList("SUCCESS",
-                        "Institution '" + dto.getInstitutionNameFull() + "' onboarded successfully.", data));
+                        "Bank '" + dto.getBranchNameFull() + "' onboarded successfully.", data));
     }
 
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET ALL
     // ─────────────────────────────────────────────────────────────────────────
-    // GET ALL — scoped to the logged-in MainBank SuperUser's parent institution.
-    // Filter by parentInstitutionId (DB primary key) — unique even when username/email
-    // is reused after re-onboarding a BLOCKED institution.
-    // Resolution chain: username → MainAdmin → institutionCode → MainBank → institutionId
+    // GET ALL — scoped to the logged-in MainBank BranchAdmin's parent bank .
+    // Filter by parentbankId (DB primary key) — unique even when username/email
+    // is reused after re-onboarding a BLOCKED bank .
+    // Resolution chain: username → MainAdmin → bankCode → MainBank → bankId
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<RestWithStatusList> getAllInstitutions(String loggedInUsername) {
+    public ResponseEntity<RestWithStatusList> getAllBanks(String loggedInUsername) {
 
-        // ── Resolve the parent institution's unique DB id ──
-        Long parentInstitutionId = null;
+        // ── Resolve the parent bank 's unique DB id ──
+        Long parentbankId = null;
         try {
             // Step 1: find the logged-in MainAdmin (non-BLOCKED, newest)
             Optional<MainAdmin> suOpt = mainAdminRepository.findFirstByUsername(loggedInUsername);
@@ -252,40 +252,40 @@ public class BranchBankServiceImpl implements BranchBankService {
                 suOpt = mainAdminRepository.findFirstByEmailAndStatusNot(loggedInUsername, "BLOCKED");
             }
             if (suOpt.isPresent()) {
-                String institutionCode = suOpt.get().getInstitutionCode();
-                // Step 2: find the parent MainBank by its institution code (unique per institution)
-                Optional<MainBank> parentOpt = mainBankRepository.findByInstitutionCode(institutionCode);
+                String bankCode = suOpt.get().getBankCode();
+                // Step 2: find the parent MainBank by its bank code (unique per bank )
+                Optional<MainBank> parentOpt = mainBankRepository.findByBankCode(bankCode);
                 if (parentOpt.isPresent()) {
-                    parentInstitutionId = parentOpt.get().getInstitutionId();
-                    logger.info("[GetAllBranchBanks] Resolved parentInstitutionId={} for user='{}'",
-                            parentInstitutionId, loggedInUsername);
+                    parentbankId = parentOpt.get().getBankId();
+                    logger.info("[GetAllBranchBanks] Resolved parentbankId={} for user='{}'",
+                            parentbankId, loggedInUsername);
                 }
             }
         } catch (Exception e) {
-            logger.warn("[GetAllBranchBanks] parentInstitutionId resolution failed for user='{}': {}",
+            logger.warn("[GetAllBranchBanks] parentbankId resolution failed for user='{}': {}",
                     loggedInUsername, e.getMessage());
         }
 
-        if (parentInstitutionId == null) {
-            logger.warn("[GetAllBranchBanks] Could not resolve parent institution for user='{}' — returning empty list",
+        if (parentbankId == null) {
+            logger.warn("[GetAllBranchBanks] Could not resolve parent bank for user='{}' — returning empty list",
                     loggedInUsername);
-            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No institutions found.", new ArrayList<>()));
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No bank s found.", new ArrayList<>()));
         }
 
-        // ── Fetch only branch banks belonging to this parent institution ──
-        List<BranchBank> list = branchBankRepository.findByParentInstitutionId(parentInstitutionId);
+        // ── Fetch only branch banks belonging to this parent bank──
+        List<BranchBank> list = branchBankRepository.findByParentBankId(parentbankId);
 
         if (list.isEmpty()) {
-            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No institutions found.", new ArrayList<>()));
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No bank s found.", new ArrayList<>()));
         }
 
         List<Object> data = list.stream()
                 .map(BranchBankMapper::mapToDTO)
                 .collect(Collectors.toList());
-        logger.info("[GetAllBranchBanks] Fetched {} branch bank(s) for parentId={}", list.size(), parentInstitutionId);
+        logger.info("[GetAllBranchBanks] Fetched {} branch bank(s) for parentId={}", list.size(), parentbankId);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                list.size() + " institution(s) fetched successfully.", data));
+                list.size() + " bank (s) fetched successfully.", data));
     }
 
 
@@ -294,20 +294,20 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<RestWithStatusList> getInstitutionById(Long institutionId) {
-        Optional<BranchBank> optional = branchBankRepository.findByInstitutionId(institutionId);
+    public ResponseEntity<RestWithStatusList> getBankById(Long bankId) {
+        Optional<BranchBank> optional = branchBankRepository.findByBranchId(bankId);
 
         if (!optional.isPresent()) {
-            logger.warn("Institution not found: {}", institutionId);
-            return bad("Institution not found with ID: " + institutionId);
+            logger.warn("Bank not found: {}", bankId);
+            return bad("Bank not found with ID: " + bankId);
         }
 
         BranchBankDTO dto = BranchBankMapper.mapToDTO(optional.get());
 
-        // ── Load product validity dates (same pattern as admin getInstitutionById) ──
+        // ── Load product validity dates (same pattern as admin getBankById) ──
         try {
             java.util.List<BranchBankProduct> products =
-                    branchBankProductRepository.findByInstitutionId(institutionId);
+                    branchBankProductRepository.findByBranchId(bankId);
             if (!products.isEmpty()) {
                 java.util.Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
                 for (BranchBankProduct p : products) {
@@ -319,13 +319,13 @@ public class BranchBankServiceImpl implements BranchBankService {
                 dto.setProductDates(productDates);
             }
         } catch (Exception e) {
-            logger.warn("Could not load product dates for institution {}: {}", institutionId, e.getMessage());
+            logger.warn("Could not load product dates for bank{}: {}", bankId, e.getMessage());
         }
 
         List<Object> data = new ArrayList<>();
         data.add(dto);
 
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Institution fetched successfully.", data));
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank fetched successfully.", data));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -333,16 +333,16 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<RestWithStatusList> getInstitutionsByStatus(String status) {
+    public ResponseEntity<RestWithStatusList> getBanksByStatus(String status) {
         List<BranchBank> list = branchBankRepository.findByStatus(status.toUpperCase());
 
         List<Object> data = list.stream()
                 .map(BranchBankMapper::mapToDTO)
                 .collect(Collectors.toList());
-        logger.info("Fetched {} institutions with status: {}", list.size(), status);
+        logger.info("Fetched {} bank s with status: {}", list.size(), status);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                list.size() + " institution(s) with status '" + status + "' fetched.", data));
+                list.size() + " bank (s) with status '" + status + "' fetched.", data));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -350,113 +350,113 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> updateInstitution(Long institutionId, BranchBankDTO dto) {
-        Optional<BranchBank> optional = branchBankRepository.findByInstitutionId(institutionId);
+    public ResponseEntity<RestWithStatusList> updateBank(Long bankId, BranchBankDTO dto) {
+        Optional<BranchBank> optional = branchBankRepository.findByBranchId(bankId);
 
         if (!optional.isPresent()) {
-            return bad("Institution not found with ID: " + institutionId);
+            return bad("Bank not found with ID: " + bankId);
         }
 
-        BranchBank institution = optional.get();
+        BranchBank bank= optional.get();
 
         // ── Snapshot old values for change-detection (captured BEFORE any modification) ──
-        final String oldRegAddr1    = institution.getRegAddressLine1();
-        final String oldRegAddr2    = institution.getRegAddressLine2();
-        final String oldRegAddr3    = institution.getRegAddressLine3();
-        final String oldRegCity     = institution.getRegCity();
-        final String oldRegState    = institution.getRegState();
-        final String oldRegCountry  = institution.getRegCountry();
-        final String oldRegPhone    = institution.getRegPhone();
-        final String oldSameAsReg   = institution.getSameAsRegistered();
-        final String oldCommAddr1   = institution.getCommAddressLine1();
-        final String oldCommAddr2   = institution.getCommAddressLine2();
-        final String oldCommAddr3   = institution.getCommAddressLine3();
-        final String oldCommCity    = institution.getCommCity();
-        final String oldCommState   = institution.getCommState();
-        final String oldCommCountry = institution.getCommCountry();
-        final String oldCommPhone   = institution.getCommPhone();
-        final String oldPrimaryName = institution.getPrimaryFullName();
-        final String oldPriAltCode  = institution.getPrimaryAltMobileCode();
-        final String oldPriAltMob   = institution.getPrimaryAltMobile();
-        final String oldSecName     = institution.getSecondaryFullName();
-        final String oldSecAltCode  = institution.getSecondaryAltMobileCode();
-        final String oldSecAltMob   = institution.getSecondaryAltMobile();
-        final String oldMfa         = institution.getEnableMfa();
-        final String oldHrms        = institution.getEnableHrms();
-        final String oldOtp         = institution.getEnableOtp();
+        final String oldRegAddr1    = bank .getRegAddressLine1();
+        final String oldRegAddr2    = bank .getRegAddressLine2();
+        final String oldRegAddr3    = bank .getRegAddressLine3();
+        final String oldRegCity     = bank .getRegCity();
+        final String oldRegState    = bank .getRegState();
+        final String oldRegCountry  = bank .getRegCountry();
+        final String oldRegPhone    = bank .getRegPhone();
+        final String oldSameAsReg   = bank .getSameAsRegistered();
+        final String oldCommAddr1   = bank .getCommAddressLine1();
+        final String oldCommAddr2   = bank .getCommAddressLine2();
+        final String oldCommAddr3   = bank .getCommAddressLine3();
+        final String oldCommCity    = bank .getCommCity();
+        final String oldCommState   = bank .getCommState();
+        final String oldCommCountry = bank .getCommCountry();
+        final String oldCommPhone   = bank .getCommPhone();
+        final String oldPrimaryName = bank .getPrimaryFullName();
+        final String oldPriAltCode  = bank .getPrimaryAltMobileCode();
+        final String oldPriAltMob   = bank .getPrimaryAltMobile();
+        final String oldSecName     = bank .getSecondaryFullName();
+        final String oldSecAltCode  = bank .getSecondaryAltMobileCode();
+        final String oldSecAltMob   = bank .getSecondaryAltMobile();
+        final String oldMfa         = bank .getEnableMfa();
+        final String oldHrms        = bank .getEnableHrms();
+        final String oldOtp         = bank .getEnableOtp();
         // Load old products before saveProductDates wipes them
-        final List<BranchBankProduct> oldProducts = branchBankProductRepository.findByInstitutionId(institutionId);
+        final List<BranchBankProduct> oldProducts = branchBankProductRepository.findByBranchId(bankId);
 
         // Preserve system-generated fields
-        String existingCode             = institution.getInstitutionCode();
-        String existingStatus           = institution.getStatus();
-        String existingLogo             = institution.getLogoPath();
-        String existingSuperUserId      = institution.getSuperUserId();
-        String existingDefaultPassword  = institution.getDefaultPassword();
-        LocalDateTime existingCreatedAt = institution.getCreatedAt();
-        String existingCreatedBy        = institution.getCreatedBy();
+        String existingCode             = bank .getBranchCode();
+        String existingStatus           = bank .getStatus();
+        String existingLogo             = bank .getLogoPath();
+        String existingBankAdmin      = bank .getBranchAdminId();
+        String existingDefaultPassword  = bank .getDefaultPassword();
+        LocalDateTime existingCreatedAt = bank .getCreatedAt();
+        String existingCreatedBy        = bank .getCreatedBy();
 
-        BranchBankMapper.mapToEntity(dto, institution);
+        BranchBankMapper.mapToEntity(dto, bank );
 
         // Restore protected fields
-        institution.setInstitutionCode(existingCode);
-        institution.setStatus(existingStatus);
-        institution.setLogoPath(existingLogo);
-        institution.setSuperUserId(existingSuperUserId);
-        institution.setDefaultPassword(existingDefaultPassword);
-        institution.setCreatedAt(existingCreatedAt);
-        institution.setCreatedBy(existingCreatedBy);
-        institution.setUpdatedAt(LocalDateTime.now());
+        bank .setBranchCode(existingCode);
+        bank .setStatus(existingStatus);
+        bank .setLogoPath(existingLogo);
+        bank .setBranchAdminId(existingBankAdmin);
+        bank .setDefaultPassword(existingDefaultPassword);
+        bank .setCreatedAt(existingCreatedAt);
+        bank .setCreatedBy(existingCreatedBy);
+        bank .setUpdatedAt(LocalDateTime.now());
 
-        branchBankRepository.save(institution);
-        logger.info("Institution updated: {}", institutionId);
+        branchBankRepository.save(bank );
+        logger.info("Bank updated: {}", bankId);
 
         // ── Update product validity dates (delete-and-reinsert) ──
         try {
-            saveProductDates(institutionId, dto, institution.getCreatedBy());
+            saveProductDates(bankId, dto, bank .getCreatedBy());
         } catch (Exception e) {
-            logger.warn("Product dates update failed for institution {}: {}", institutionId, e.getMessage());
+            logger.warn("Product dates update failed for bank{}: {}", bankId, e.getMessage());
         }
 
         // ── Build per-section change map and send notification email (async, non-blocking) ──
         try {
-            String newSameAsReg = institution.getSameAsRegistered();
-            String newMfa  = institution.getEnableMfa();
-            String newHrms = institution.getEnableHrms();
-            String newOtp  = institution.getEnableOtp();
+            String newSameAsReg = bank .getSameAsRegistered();
+            String newMfa  = bank .getEnableMfa();
+            String newHrms = bank .getEnableHrms();
+            String newOtp  = bank .getEnableOtp();
 
             Map<String, List<String>> sections = new LinkedHashMap<>();
 
             // Address
             List<String> addrChg = new ArrayList<>();
-            bDiffF(addrChg, "Reg. Address Line 1", oldRegAddr1,   institution.getRegAddressLine1());
-            bDiffF(addrChg, "Reg. Address Line 2", oldRegAddr2,   institution.getRegAddressLine2());
-            bDiffF(addrChg, "Reg. Address Line 3", oldRegAddr3,   institution.getRegAddressLine3());
-            bDiffF(addrChg, "Reg. City",           oldRegCity,    institution.getRegCity());
-            bDiffF(addrChg, "Reg. State",          oldRegState,   institution.getRegState());
-            bDiffF(addrChg, "Reg. Country",        oldRegCountry, institution.getRegCountry());
-            bDiffF(addrChg, "Reg. Phone",          oldRegPhone,   institution.getRegPhone());
+            bDiffF(addrChg, "Reg. Address Line 1", oldRegAddr1,   bank .getRegAddressLine1());
+            bDiffF(addrChg, "Reg. Address Line 2", oldRegAddr2,   bank .getRegAddressLine2());
+            bDiffF(addrChg, "Reg. Address Line 3", oldRegAddr3,   bank .getRegAddressLine3());
+            bDiffF(addrChg, "Reg. City",           oldRegCity,    bank .getRegCity());
+            bDiffF(addrChg, "Reg. State",          oldRegState,   bank .getRegState());
+            bDiffF(addrChg, "Reg. Country",        oldRegCountry, bank .getRegCountry());
+            bDiffF(addrChg, "Reg. Phone",          oldRegPhone,   bank .getRegPhone());
             if (!"Y".equalsIgnoreCase(newSameAsReg)) {
-                bDiffF(addrChg, "Comm. Address Line 1", oldCommAddr1,   institution.getCommAddressLine1());
-                bDiffF(addrChg, "Comm. Address Line 2", oldCommAddr2,   institution.getCommAddressLine2());
-                bDiffF(addrChg, "Comm. Address Line 3", oldCommAddr3,   institution.getCommAddressLine3());
-                bDiffF(addrChg, "Comm. City",           oldCommCity,    institution.getCommCity());
-                bDiffF(addrChg, "Comm. State",          oldCommState,   institution.getCommState());
-                bDiffF(addrChg, "Comm. Country",        oldCommCountry, institution.getCommCountry());
-                bDiffF(addrChg, "Comm. Phone",          oldCommPhone,   institution.getCommPhone());
+                bDiffF(addrChg, "Comm. Address Line 1", oldCommAddr1,   bank .getCommAddressLine1());
+                bDiffF(addrChg, "Comm. Address Line 2", oldCommAddr2,   bank .getCommAddressLine2());
+                bDiffF(addrChg, "Comm. Address Line 3", oldCommAddr3,   bank .getCommAddressLine3());
+                bDiffF(addrChg, "Comm. City",           oldCommCity,    bank .getCommCity());
+                bDiffF(addrChg, "Comm. State",          oldCommState,   bank .getCommState());
+                bDiffF(addrChg, "Comm. Country",        oldCommCountry, bank .getCommCountry());
+                bDiffF(addrChg, "Comm. Phone",          oldCommPhone,   bank .getCommPhone());
             }
             if (!addrChg.isEmpty()) sections.put("Registered & Communication Address", addrChg);
 
             // Contact
             List<String> ctcChg = new ArrayList<>();
-            bDiffF(ctcChg, "Primary Contact Name", oldPrimaryName, institution.getPrimaryFullName());
+            bDiffF(ctcChg, "Primary Contact Name", oldPrimaryName, bank .getPrimaryFullName());
             bDiffF(ctcChg, "Primary Alternate Mobile",
                 (bStrV(oldPriAltCode) + " " + bStrV(oldPriAltMob)).trim(),
-                (bStrV(institution.getPrimaryAltMobileCode()) + " " + bStrV(institution.getPrimaryAltMobile())).trim());
-            bDiffF(ctcChg, "Secondary Contact Name", oldSecName, institution.getSecondaryFullName());
+                (bStrV(bank .getPrimaryAltMobileCode()) + " " + bStrV(bank .getPrimaryAltMobile())).trim());
+            bDiffF(ctcChg, "Secondary Contact Name", oldSecName, bank .getSecondaryFullName());
             bDiffF(ctcChg, "Secondary Alternate Mobile",
                 (bStrV(oldSecAltCode) + " " + bStrV(oldSecAltMob)).trim(),
-                (bStrV(institution.getSecondaryAltMobileCode()) + " " + bStrV(institution.getSecondaryAltMobile())).trim());
+                (bStrV(bank .getSecondaryAltMobileCode()) + " " + bStrV(bank .getSecondaryAltMobile())).trim());
             if (!ctcChg.isEmpty()) sections.put("Contact Details", ctcChg);
 
             // Security
@@ -471,25 +471,25 @@ public class BranchBankServiceImpl implements BranchBankService {
             if (!prodChg.isEmpty()) sections.put("Product Subscriptions & Validity Dates", prodChg);
 
             if (!sections.isEmpty()) {
-                String formattedAt = institution.getUpdatedAt()
+                String formattedAt = bank .getUpdatedAt()
                     .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
-                emailService.sendInstitutionUpdateNotification(
-                    institution.getPrimaryEmail(),
-                    institution.getPrimaryFullName(),
-                    institution.getInstitutionNameFull(),
-                    institution.getInstitutionCode(),
+                emailService.sendBankUpdateNotification(
+                    bank .getPrimaryEmail(),
+                    bank .getPrimaryFullName(),
+                    bank .getBranchNameFull(),
+                    bank .getBranchCode(),
                     formattedAt, sections
                 );
             }
         } catch (Exception e) {
-            logger.warn("updateInstitution: change-notification email failed for {}: {}",
-                    institution.getInstitutionCode(), e.getMessage());
+            logger.warn("updateBank: change-notification email failed for {}: {}",
+                    bank .getBranchCode(), e.getMessage());
         }
 
         List<Object> data = new ArrayList<>();
-        data.add(BranchBankMapper.mapToDTO(institution));
+        data.add(BranchBankMapper.mapToDTO(bank ));
 
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Institution updated successfully.", data));
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank updated successfully.", data));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -497,7 +497,7 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status) {
+    public ResponseEntity<RestWithStatusList> updateStatus(Long bankId, String status) {
 
         List<String> validStatuses = Arrays.asList(
             "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED", "BLOCK_PENDING"
@@ -506,13 +506,13 @@ public class BranchBankServiceImpl implements BranchBankService {
             return bad("Invalid status. Allowed: REQUEST, VERIFIED, ACTIVE, INACTIVE, BLOCKED, BLOCK_PENDING.");
         }
 
-        Optional<BranchBank> optional = branchBankRepository.findById(institutionId);
+        Optional<BranchBank> optional = branchBankRepository.findById(bankId);
         if (!optional.isPresent()) {
-            return bad("Branch bank not found with ID: " + institutionId);
+            return bad("Branch bank not found with ID: " + bankId);
         }
 
-        BranchBank institution = optional.get();
-        String currentStatus = institution.getStatus();
+        BranchBank bank= optional.get();
+        String currentStatus = bank .getStatus();
         String newStatus = status.toUpperCase();
 
         // ── BLOCKED is permanent ──
@@ -536,12 +536,12 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         // ── INACTIVE → ACTIVE: 30s cooldown (DEMO — change to 30 mins in production) ──
         if ("ACTIVE".equals(newStatus) && "INACTIVE".equals(currentStatus)) {
-            LocalDateTime inactivatedAt = institution.getInactivatedAt();
+            LocalDateTime inactivatedAt = bank .getInactivatedAt();
             if (inactivatedAt != null) {
                 LocalDateTime allowedAfter = inactivatedAt.plusSeconds(30);
                 if (LocalDateTime.now().isBefore(allowedAfter)) {
                     long secsLeft = java.time.Duration.between(LocalDateTime.now(), allowedAfter).getSeconds();
-                    logger.warn("[ACTIVE-BLOCK] Branch bank {} — only {}s since inactivation (need 30s)", institutionId, secsLeft);
+                    logger.warn("[ACTIVE-BLOCK] Branch bank {} — only {}s since inactivation (need 30s)", bankId, secsLeft);
                     return bad("Cannot mark Active yet. Branch bank was recently made Inactive. Please wait "
                             + secsLeft + " more second(s).");
                 }
@@ -550,18 +550,18 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         // ── Set inactivatedAt when going INACTIVE ──
         if ("INACTIVE".equals(newStatus)) {
-            institution.setInactivatedAt(LocalDateTime.now());
+            bank .setInactivatedAt(LocalDateTime.now());
         }
 
-        institution.setStatus(newStatus);
-        institution.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(institution);
+        bank .setStatus(newStatus);
+        bank .setUpdatedAt(LocalDateTime.now());
+        branchBankRepository.save(bank );
 
         // Sync status to BRANCH_ADMIN
         String updatedByUser = getCurrentUsername();
         try {
-            branchAdminRepository.findByInstitutionCodeAndUsername(
-                    institution.getInstitutionCode(), institution.getSuperUserId())
+            branchAdminRepository.findByBranchCodeAndUsername(
+                    bank .getBranchCode(), bank .getBranchAdminId())
                 .ifPresent(ba -> {
                     ba.setStatus(newStatus);
                     ba.setUpdatedAt(LocalDateTime.now());
@@ -569,28 +569,28 @@ public class BranchBankServiceImpl implements BranchBankService {
                     branchAdminRepository.save(ba);
                 });
         } catch (Exception e) {
-            logger.warn("updateStatus: BRANCH_ADMIN sync failed for {}: {}", institution.getInstitutionCode(), e.getMessage());
+            logger.warn("updateStatus: BRANCH_ADMIN sync failed for {}: {}", bank .getBranchCode(), e.getMessage());
         }
 
-        logger.info("Branch bank {} status updated: {} → {}", institutionId, currentStatus, newStatus);
+        logger.info("Branch bank {} status updated: {} → {}", bankId, currentStatus, newStatus);
 
         // ── Send email notification on meaningful status transitions ──
         try {
-            if (institution.getPrimaryEmail() != null && !institution.getPrimaryEmail().isEmpty()) {
+            if (bank .getPrimaryEmail() != null && !bank .getPrimaryEmail().isEmpty()) {
                 emailService.sendStatusChangeNotification(
-                        institution.getPrimaryEmail(),
-                        institution.getPrimaryFullName() != null ? institution.getPrimaryFullName() : "Super User",
-                        institution.getInstitutionNameFull(),
-                        institution.getInstitutionCode(),
+                        bank .getPrimaryEmail(),
+                        bank .getPrimaryFullName() != null ? bank .getPrimaryFullName() : "Branch Admin",
+                        bank .getBranchNameFull(),
+                        bank .getBranchCode(),
                         currentStatus,
                         newStatus
                 );
                 logger.info("[EMAIL] Status change notification sent to {} for branch bank {}",
-                        institution.getPrimaryEmail(), institution.getInstitutionCode());
+                        bank .getPrimaryEmail(), bank .getBranchCode());
             }
         } catch (Exception e) {
             logger.warn("[EMAIL] Status change notification failed for branch bank {}: {}",
-                    institution.getInstitutionCode(), e.getMessage());
+                    bank .getBranchCode(), e.getMessage());
         }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
@@ -602,23 +602,23 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> deleteInstitution(Long institutionId) {
-        Optional<BranchBank> optional = branchBankRepository.findByInstitutionId(institutionId);
+    public ResponseEntity<RestWithStatusList> deleteBank(Long bankId) {
+        Optional<BranchBank> optional = branchBankRepository.findByBranchId(bankId);
 
         if (!optional.isPresent()) {
-            return bad("Institution not found with ID: " + institutionId);
+            return bad("Bank not found with ID: " + bankId);
         }
 
-        BranchBank institution = optional.get();
-        institution.setStatus("INACTIVE");
-        institution.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(institution);
+        BranchBank bank= optional.get();
+        bank .setStatus("INACTIVE");
+        bank .setUpdatedAt(LocalDateTime.now());
+        branchBankRepository.save(bank );
 
         // Sync INACTIVE to BRANCH_ADMIN
         String deletedByUser = getCurrentUsername();
         try {
-            branchAdminRepository.findByInstitutionCodeAndUsername(
-                    institution.getInstitutionCode(), institution.getSuperUserId())
+            branchAdminRepository.findByBranchCodeAndUsername(
+                    bank .getBranchCode(), bank .getBranchAdminId())
                 .ifPresent(ba -> {
                     ba.setStatus("INACTIVE");
                     ba.setUpdatedAt(LocalDateTime.now());
@@ -626,13 +626,13 @@ public class BranchBankServiceImpl implements BranchBankService {
                     branchAdminRepository.save(ba);
                 });
         } catch (Exception e) {
-            logger.warn("delete: BRANCH_ADMIN sync failed for {}: {}", institution.getInstitutionCode(), e.getMessage());
+            logger.warn("delete: BRANCH_ADMIN sync failed for {}: {}", bank .getBranchCode(), e.getMessage());
         }
 
-        logger.info("Institution {} soft-deleted (status → INACTIVE)", institutionId);
+        logger.info("Bank {} soft-deleted (status → INACTIVE)", bankId);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Institution deactivated successfully.", new ArrayList<>()));
+                "Bank deactivated successfully.", new ArrayList<>()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -640,11 +640,11 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader) {
+    public ResponseEntity<RestWithStatusList> uploadLogo(Long bankId, MultipartFile file, String logoUploader) {
 
-        Optional<BranchBank> optional = branchBankRepository.findByInstitutionId(institutionId);
+        Optional<BranchBank> optional = branchBankRepository.findByBranchId(bankId);
         if (!optional.isPresent()) {
-            return bad("Institution not found with ID: " + institutionId);
+            return bad("Bank not found with ID: " + bankId);
         }
 
         if (file == null || file.isEmpty()) {
@@ -663,38 +663,38 @@ public class BranchBankServiceImpl implements BranchBankService {
                 uploadDir.mkdirs();
             }
 
-            BranchBank institution = optional.get();
+            BranchBank bank= optional.get();
             String originalFilename = file.getOriginalFilename();
             String extension = originalFilename != null && originalFilename.contains(".")
                     ? originalFilename.substring(originalFilename.lastIndexOf("."))
                     : ".jpg";
-            String savedFilename = institution.getInstitutionCode() + "_logo" + extension;
+            String savedFilename = bank .getBranchCode() + "_logo" + extension;
 
             Path filePath = Paths.get(LOGO_UPLOAD_DIR + savedFilename);
             Files.write(filePath, file.getBytes());
 
-            institution.setLogoPath(filePath.toString());
-            institution.setUpdatedAt(LocalDateTime.now());
-            institution.setUpdatedBy(logoUploader);
+            bank .setLogoPath(filePath.toString());
+            bank .setUpdatedAt(LocalDateTime.now());
+            bank .setUpdatedBy(logoUploader);
 
             System.out.println("Original File Name: " + originalFilename);
             System.out.println("Saved File Name: " + savedFilename);
             System.out.println("File Path: " + filePath.toString());
 
-            branchBankRepository.save(institution);
+            branchBankRepository.save(bank );
 
-            System.out.println("DB Logo Path: " + institution.getLogoPath());
+            System.out.println("DB Logo Path: " + bank .getLogoPath());
 
-            logger.info("Logo uploaded for institution {}: {}", institutionId, filePath);
+            logger.info("Logo uploaded for bank{}: {}", bankId, filePath);
 
             List<Object> data = new ArrayList<>();
-            data.add(BranchBankMapper.mapToDTO(institution));
+            data.add(BranchBankMapper.mapToDTO(bank ));
 
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                     "Logo uploaded successfully.", data));
 
         } catch (IOException e) {
-            logger.error("Logo upload failed for institution {}: {}", institutionId, e.getMessage());
+            logger.error("Logo upload failed for bank{}: {}", bankId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new RestWithStatusList("FAILURE", "Logo upload failed. Please try again.", new ArrayList<>()));
         }
@@ -705,34 +705,34 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username) {
+    public ResponseEntity<RestWithStatusList> verifyEmail(String branchCode, String username) {
         Optional<BranchBank> optional =
-            branchBankRepository.findByInstitutionCodeAndSuperUserId(institutionCode, username);
+            branchBankRepository.findByBranchCodeAndBranchAdminId(branchCode, username);
 
         if (!optional.isPresent()) {
             return bad("Invalid or expired verification link.");
         }
 
-        BranchBank institution = optional.get();
+        BranchBank bank= optional.get();
 
         // Token expiry check — 48 hrs baad expire
-        if (institution.getTokenExpiry() != null &&
-            LocalDateTime.now().isAfter(institution.getTokenExpiry())) {
+        if (bank .getTokenExpiry() != null &&
+            LocalDateTime.now().isAfter(bank .getTokenExpiry())) {
             return bad("Verification link has expired. Please contact KalInfotech Admin.");
         }
 
         // Already set password → OLD_USER (go to login), first time → NEW_USER (set password)
-        String userStatus = ("VERIFIED".equals(institution.getStatus())
-                || "ACTIVE".equals(institution.getStatus()))
+        String userStatus = ("VERIFIED".equals(bank .getStatus())
+                || "ACTIVE".equals(bank .getStatus()))
                 ? "OLD_USER" : "NEW_USER";
 
         logger.info("Email link clicked for branch bank {} — userStatus: {}",
-                institution.getInstitutionCode(), userStatus);
+                bank .getBranchCode(), userStatus);
 
         Map<String, String> payload = new HashMap<>();
-        payload.put("userStatus",       userStatus);
-        payload.put("institutionCode",  institution.getInstitutionCode());
-        payload.put("username",         institution.getSuperUserId());
+        payload.put("userStatus",  userStatus);
+        payload.put("branchCode",  bank .getBranchCode());
+        payload.put("username",    bank .getBranchAdminId());
 
         List<Object> data = new ArrayList<>();
         data.add(payload);
@@ -769,43 +769,43 @@ public class BranchBankServiceImpl implements BranchBankService {
         logger.info("[BranchBankCode] Resolving parent prefix for createdBy='{}'", createdBy);
 
         // JWT subject = username → try by username first, then email.
-        // Use StatusNot("BLOCKED") email fallback so a re-onboarded SuperUser's code prefix resolves correctly.
-        Optional<MainAdmin> superUserOpt = mainAdminRepository.findFirstByUsername(createdBy);
-        if (!superUserOpt.isPresent()) {
-            superUserOpt = mainAdminRepository.findFirstByEmailAndStatusNot(createdBy, "BLOCKED");
+        // Use StatusNot("BLOCKED") email fallback so a re-onboarded BranchAdmin's code prefix resolves correctly.
+        Optional<MainAdmin> branchAdminOpt = mainAdminRepository.findFirstByUsername(createdBy);
+        if (!branchAdminOpt.isPresent()) {
+            branchAdminOpt = mainAdminRepository.findFirstByEmailAndStatusNot(createdBy, "BLOCKED");
         }
 
-        if (superUserOpt.isPresent()) {
-            MainAdmin su = superUserOpt.get();
-            logger.info("[BranchBankCode] MainAdmin found — username='{}' institutionCode='{}'",
-                    su.getUsername(), su.getInstitutionCode());
+        if (branchAdminOpt.isPresent()) {
+            MainAdmin su = branchAdminOpt.get();
+            logger.info("[BranchBankCode] MainAdmin found — username='{}' bankCode='{}'",
+                    su.getUsername(), su.getBankCode());
 
-            if (su.getInstitutionCode() != null && su.getInstitutionCode().length() >= 4) {
+            if (su.getBankCode() != null && su.getBankCode().length() >= 4) {
                 // Strategy 1
-                parentPrefix = su.getInstitutionCode().substring(0, 4);
+                parentPrefix = su.getBankCode().substring(0, 4);
                 logger.info("[BranchBankCode] Strategy 1 HIT — prefix='{}'", parentPrefix);
             } else {
                 // Strategy 2
                 logger.warn("[BranchBankCode] Strategy 1 MISS — trying Strategy 2...");
                 Optional<MainBank> parentInst =
-                        mainBankRepository.findFirstBySuperUserId(su.getUsername());
-                if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
-                        && parentInst.get().getInstitutionCode().length() >= 4) {
-                    parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
-                    logger.info("[BranchBankCode] Strategy 2 HIT — instCode='{}' prefix='{}'",
-                            parentInst.get().getInstitutionCode(), parentPrefix);
+                        mainBankRepository.findFirstByBankAdminId(su.getUsername());
+                if (parentInst.isPresent() && parentInst.get().getBankCode() != null
+                        && parentInst.get().getBankCode().length() >= 4) {
+                    parentPrefix = parentInst.get().getBankCode().substring(0, 4);
+                    logger.info("[BranchBankCode] Strategy 2 HIT — bankCode='{}' prefix='{}'",
+                            parentInst.get().getBankCode(), parentPrefix);
                 } else {
-                    logger.warn("[BranchBankCode] Strategy 2 MISS for superUserId='{}'", su.getUsername());
+                    logger.warn("[BranchBankCode] Strategy 2 MISS for branchAdminId='{}'", su.getUsername());
                 }
             }
         } else {
             // Strategy 3
             logger.warn("[BranchBankCode] MainAdmin not found, trying Strategy 3...");
             Optional<MainBank> parentInst =
-                    mainBankRepository.findFirstBySuperUserId(createdBy);
-            if (parentInst.isPresent() && parentInst.get().getInstitutionCode() != null
-                    && parentInst.get().getInstitutionCode().length() >= 4) {
-                parentPrefix = parentInst.get().getInstitutionCode().substring(0, 4);
+                    mainBankRepository.findFirstByBankAdminId(createdBy);
+            if (parentInst.isPresent() && parentInst.get().getBankCode() != null
+                    && parentInst.get().getBankCode().length() >= 4) {
+                parentPrefix = parentInst.get().getBankCode().substring(0, 4);
                 logger.info("[BranchBankCode] Strategy 3 HIT — prefix='{}'", parentPrefix);
             } else {
                 logger.error("[BranchBankCode] ALL STRATEGIES FAILED for createdBy='{}' — using '0000'", createdBy);
@@ -817,7 +817,7 @@ public class BranchBankServiceImpl implements BranchBankService {
             String epochStr = String.valueOf(System.currentTimeMillis() + attempt);
             String suffix   = epochStr.substring(epochStr.length() - 4);
             String candidate = parentPrefix + suffix;
-            if (!branchBankRepository.existsByInstitutionCode(candidate)) {
+            if (!branchBankRepository.existsByBranchCode(candidate)) {
                 return candidate;
             }
             logger.warn("[BranchBankCode] Collision on attempt {}: {}", attempt + 1, candidate);
@@ -825,8 +825,8 @@ public class BranchBankServiceImpl implements BranchBankService {
         return null; // caller handles null
     }
 
-    // Super User ID: firstname.lastname all lowercase
-    private String generateSuperUserId(String fullName) {
+    // Branch Admin ID: firstname.lastname all lowercase
+    private String generateBankAdmin(String fullName) {
         if (fullName == null || fullName.trim().isEmpty()) return "user";
         String[] parts = fullName.trim().toLowerCase().split("\\s+");
         if (parts.length == 1) return parts[0];
@@ -842,16 +842,16 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     // SAVE PRODUCT DATES — delete-and-reinsert (same pattern as admin)
     // ─────────────────────────────────────────────────────────────────────────
-    private void saveProductDates(Long institutionId, BranchBankDTO dto, String savedBy) {
+    private void saveProductDates(Long bankId, BranchBankDTO dto, String savedBy) {
         // Delete existing entries first
-        branchBankProductRepository.deleteByInstitutionId(institutionId);
+        branchBankProductRepository.deleteByBranchId(bankId);
 
         if (dto.getProductDates() == null || dto.getProductDates().isEmpty()) return;
 
         List<BranchBankProduct> products = new ArrayList<>();
         dto.getProductDates().forEach((productName, entry) -> {
             BranchBankProduct p = new BranchBankProduct();
-            p.setInstitutionId(institutionId);
+            p.setBranchId(bankId);
             p.setProductName(productName);
             p.setValidFrom(entry.getValidFrom());
             p.setValidTo(entry.getValidTo());
@@ -862,12 +862,12 @@ public class BranchBankServiceImpl implements BranchBankService {
         });
 
         branchBankProductRepository.saveAll(products);
-        logger.info("[PRODUCT-DATES] Saved {} product date entries for institution {}",
-                products.size(), institutionId);
+        logger.info("[PRODUCT-DATES] Saved {} product date entries for bank{}",
+                products.size(), bankId);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // CHANGE-DETECTION HELPERS (used by updateInstitution to build the diff map)
+    // CHANGE-DETECTION HELPERS (used by updateBank to build the diff map)
     // Prefixed "b" to avoid name clash with any future shared utility class.
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -948,20 +948,20 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<RestWithStatusList> getInstitutionByCode(String institutionCode) {
+    public ResponseEntity<RestWithStatusList> getBankByCode(String branchCode) {
         try {
-            Optional<BranchBank> optional = branchBankRepository.findByInstitutionCode(institutionCode);
+            Optional<BranchBank> optional = branchBankRepository.findByBranchCode(branchCode);
             if (!optional.isPresent()) {
-                logger.warn("getInstitutionByCode: No record found in SUB_TEST_INSTITUTION for code '{}'", institutionCode);
-                return bad("Sub-institution not found with code: " + institutionCode);
+                logger.warn("getBankByCode: No record found in BRANCH_BANK for code '{}'", branchCode);
+                return bad("Sub-banknot found with code: " + branchCode);
             }
-            logger.info("getInstitutionByCode: Found '{}' for code '{}'", optional.get().getInstitutionNameFull(), institutionCode);
+            logger.info("getBankByCode: Found '{}' for code '{}'", optional.get().getBranchNameFull(), branchCode);
             List<Object> data = new ArrayList<>();
             data.add(BranchBankMapper.mapToDTO(optional.get()));
-            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-institution fetched.", data));
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-bankfetched.", data));
         } catch (Exception e) {
-            logger.error("Error fetching sub-institution by code {}: {}", institutionCode, e.getMessage());
-            return bad("Error fetching sub-institution.");
+            logger.error("Error fetching sub-bankby code {}: {}", branchCode, e.getMessage());
+            return bad("Error fetching sub-bank .");
         }
     }
 
@@ -972,7 +972,7 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<RestWithStatusList> getInstitutionByEmail(String email) {
+    public ResponseEntity<RestWithStatusList> getBankByEmail(String email) {
         try {
             // Prefer the first non-BLOCKED record — handles re-onboarding duplicates
             Optional<BranchBank> optional =
@@ -984,17 +984,17 @@ public class BranchBankServiceImpl implements BranchBankService {
                         .stream().findFirst();
             }
             if (!optional.isPresent()) {
-                logger.warn("getInstitutionByEmail: No record found for email '{}'", email);
-                return bad("Sub-institution not found for email: " + email);
+                logger.warn("getBankByEmail: No record found for email '{}'", email);
+                return bad("Sub-banknot found for email: " + email);
             }
-            logger.info("getInstitutionByEmail: Found '{}' (status={}) for email '{}'",
-                    optional.get().getInstitutionNameFull(), optional.get().getStatus(), email);
+            logger.info("getBankByEmail: Found '{}' (status={}) for email '{}'",
+                    optional.get().getBranchNameFull(), optional.get().getStatus(), email);
             List<Object> data = new ArrayList<>();
             data.add(BranchBankMapper.mapToDTO(optional.get()));
-            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-institution fetched.", data));
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-bankfetched.", data));
         } catch (Exception e) {
-            logger.error("Error fetching sub-institution by email {}: {}", email, e.getMessage());
-            return bad("Error fetching sub-institution.");
+            logger.error("Error fetching sub-bankby email {}: {}", email, e.getMessage());
+            return bad("Error fetching sub-bank .");
         }
     }
 
@@ -1052,7 +1052,7 @@ public class BranchBankServiceImpl implements BranchBankService {
     @Override
     public ResponseEntity<byte[]> exportToExcel() throws java.io.IOException {
 
-        List<BranchBank> institutions = branchBankRepository.findAll();
+        List<BranchBank> banks = branchBankRepository.findAll();
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
 
         try (XSSFWorkbook workbook = new XSSFWorkbook();
@@ -1081,7 +1081,7 @@ public class BranchBankServiceImpl implements BranchBankService {
 
             String[] headers = {
                 "S.No", "Branch Bank Code", "Branch Bank Name (Full)",
-                "Branch Bank Name (Short)", "Bank Type", "Super User ID",
+                "Branch Bank Name (Short)", "Bank Type", "Branch Admin ID",
                 "Primary Email", "Primary Mobile", "Status", "Created At"
             };
 
@@ -1093,20 +1093,20 @@ public class BranchBankServiceImpl implements BranchBankService {
             }
 
             int rowNum = 1;
-            for (BranchBank inst : institutions) {
+            for (BranchBank bnk : banks) {
                 Row row = sheet.createRow(rowNum);
                 CellStyle style = (rowNum % 2 == 0) ? altStyle : dataStyle;
                 setCell(row, 0, String.valueOf(rowNum), style);
-                setCell(row, 1, inst.getInstitutionCode(), style);
-                setCell(row, 2, inst.getInstitutionNameFull(), style);
-                setCell(row, 3, inst.getInstitutionNameShort(), style);
-                setCell(row, 4, inst.getBankType() != null ? inst.getBankType() : "", style);
-                setCell(row, 5, inst.getSuperUserId(), style);
-                setCell(row, 6, inst.getPrimaryEmail(), style);
-                setCell(row, 7, inst.getPrimaryMobile(), style);
-                setCell(row, 8, inst.getStatus(), style);
-                setCell(row, 9, inst.getCreatedAt() != null
-                        ? inst.getCreatedAt().format(fmt) : "", style);
+                setCell(row, 1, bnk.getBranchCode(), style);
+                setCell(row, 2, bnk.getBranchNameFull(), style);
+                setCell(row, 3, bnk.getBranchNameShort(), style);
+                setCell(row, 4, bnk.getBankType() != null ? bnk.getBankType() : "", style);
+                setCell(row, 5, bnk.getBranchAdminId(), style);
+                setCell(row, 6, bnk.getPrimaryEmail(), style);
+                setCell(row, 7, bnk.getPrimaryMobile(), style);
+                setCell(row, 8, bnk.getStatus(), style);
+                setCell(row, 9, bnk.getCreatedAt() != null
+                        ? bnk.getCreatedAt().format(fmt) : "", style);
                 rowNum++;
             }
 
@@ -1136,26 +1136,26 @@ public class BranchBankServiceImpl implements BranchBankService {
     @Override
     public ResponseEntity<byte[]> exportToCsv() {
 
-        List<BranchBank> institutions = branchBankRepository.findAll();
+        List<BranchBank> banks = branchBankRepository.findAll();
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
 
         StringBuilder csv = new StringBuilder();
-        csv.append("S.No,Institution Code,Institution Name (Full),Institution Name (Short),")
-           .append("Bank Type,Super User ID,Primary Email,Primary Mobile,Status,Created At\n");
+        csv.append("S.No,Bank Code,Bank Name (Full),Bank Name (Short),")
+           .append("Bank Type,Branch Admin ID,Primary Email,Primary Mobile,Status,Created At\n");
 
         int sno = 1;
-        for (BranchBank inst : institutions) {
+        for (BranchBank bnk : banks) {
             csv.append(sno++).append(",")
-               .append(safeCsv(inst.getInstitutionCode())).append(",")
-               .append(safeCsv(inst.getInstitutionNameFull())).append(",")
-               .append(safeCsv(inst.getInstitutionNameShort())).append(",")
-               .append(safeCsv(inst.getBankType())).append(",")
-               .append(safeCsv(inst.getSuperUserId())).append(",")
-               .append(safeCsv(inst.getPrimaryEmail())).append(",")
-               .append(safeCsv(inst.getPrimaryMobile())).append(",")
-               .append(safeCsv(inst.getStatus())).append(",")
-               .append(safeCsv(inst.getCreatedAt() != null
-                       ? inst.getCreatedAt().format(fmt) : ""))
+               .append(safeCsv(bnk.getBranchCode())).append(",")
+               .append(safeCsv(bnk.getBranchNameFull())).append(",")
+               .append(safeCsv(bnk.getBranchNameShort())).append(",")
+               .append(safeCsv(bnk.getBankType())).append(",")
+               .append(safeCsv(bnk.getBranchAdminId())).append(",")
+               .append(safeCsv(bnk.getPrimaryEmail())).append(",")
+               .append(safeCsv(bnk.getPrimaryMobile())).append(",")
+               .append(safeCsv(bnk.getStatus())).append(",")
+               .append(safeCsv(bnk.getCreatedAt() != null
+                       ? bnk.getCreatedAt().format(fmt) : ""))
                .append("\n");
         }
 
@@ -1188,57 +1188,57 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlock(Long institutionId, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy) {
 
-        Optional<BranchBank> opt = branchBankRepository.findById(institutionId);
+        Optional<BranchBank> opt = branchBankRepository.findById(bankId);
         if (!opt.isPresent()) {
-            return bad("Branch bank not found with ID: " + institutionId);
+            return bad("Branch bank not found with ID: " + bankId);
         }
 
-        BranchBank inst = opt.get();
+        BranchBank bnk = opt.get();
 
-        if ("BLOCKED".equals(inst.getStatus())) {
+        if ("BLOCKED".equals(bnk.getStatus())) {
             return bad("This branch bank is already permanently BLOCKED.");
         }
-        if ("BLOCK_PENDING".equals(inst.getStatus())) {
+        if ("BLOCK_PENDING".equals(bnk.getStatus())) {
             return bad("Block is already scheduled for this branch bank.");
         }
 
-        inst.setPreBlockStatus(inst.getStatus());
-        inst.setStatus("BLOCK_PENDING");
-        inst.setBlockScheduledAt(LocalDateTime.now());
-        inst.setBlockScheduledBy(scheduledBy);
-        inst.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(inst);
+        bnk.setPreBlockStatus(bnk.getStatus());
+        bnk.setStatus("BLOCK_PENDING");
+        bnk.setBlockScheduledAt(LocalDateTime.now());
+        bnk.setBlockScheduledBy(scheduledBy);
+        bnk.setUpdatedAt(LocalDateTime.now());
+        branchBankRepository.save(bnk);
 
         // Sync BLOCK_PENDING to BRANCH_ADMIN
         try {
-            branchAdminRepository.findByInstitutionCodeAndUsername(inst.getInstitutionCode(), inst.getSuperUserId())
+            branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
                 .ifPresent(ba -> { ba.setStatus("BLOCK_PENDING"); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(scheduledBy); branchAdminRepository.save(ba); });
         } catch (Exception e) {
-            logger.warn("scheduleBlock: BRANCH_ADMIN sync failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+            logger.warn("scheduleBlock: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
         }
 
         logger.info("Block scheduled for branch bank {} by {} at {}",
-                institutionId, scheduledBy, inst.getBlockScheduledAt());
+                bankId, scheduledBy, bnk.getBlockScheduledAt());
 
-        String blockAtFormatted = inst.getBlockScheduledAt()
+        String blockAtFormatted = bnk.getBlockScheduledAt()
                 .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
                 .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
 
         try {
-            if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
+            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
                 emailService.sendBlockWarning(
-                        inst.getPrimaryEmail(),
-                        inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
-                        inst.getInstitutionNameFull(),
-                        inst.getInstitutionCode(),
+                        bnk.getPrimaryEmail(),
+                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
+                        bnk.getBranchNameFull(),
+                        bnk.getBranchCode(),
                         blockAtFormatted
                 );
-                logger.info("[BLOCK-WARN] Warning email sent to branch bank super user: {}", inst.getPrimaryEmail());
+                logger.info("[BLOCK-WARN] Warning email sent to branch bank super user: {}", bnk.getPrimaryEmail());
             }
         } catch (Exception e) {
-            logger.warn("[BLOCK-WARN] Warning email failed for branch bank {}: {}", inst.getInstitutionCode(), e.getMessage());
+            logger.warn("[BLOCK-WARN] Warning email failed for branch bank {}: {}", bnk.getBranchCode(), e.getMessage());
         }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
@@ -1251,56 +1251,56 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> undoBlock(Long institutionId, String undoneBy) {
+    public ResponseEntity<RestWithStatusList> undoBlock(Long bankId, String undoneBy) {
 
-        Optional<BranchBank> opt = branchBankRepository.findById(institutionId);
+        Optional<BranchBank> opt = branchBankRepository.findById(bankId);
         if (!opt.isPresent()) {
-            return bad("Branch bank not found with ID: " + institutionId);
+            return bad("Branch bank not found with ID: " + bankId);
         }
 
-        BranchBank inst = opt.get();
+        BranchBank bnk = opt.get();
 
-        if (!"BLOCK_PENDING".equals(inst.getStatus())) {
+        if (!"BLOCK_PENDING".equals(bnk.getStatus())) {
             return bad("No scheduled block found for this branch bank.");
         }
 
-        if (inst.getBlockScheduledAt() != null &&
-                LocalDateTime.now().isAfter(inst.getBlockScheduledAt().plusSeconds(30))) {   // DEMO: 30s
+        if (bnk.getBlockScheduledAt() != null &&
+                LocalDateTime.now().isAfter(bnk.getBlockScheduledAt().plusSeconds(30))) {   // DEMO: 30s
             return bad("Undo period has expired (30 seconds). Branch bank has been permanently blocked.");
         }
 
-        String restoredStatus = inst.getPreBlockStatus() != null ? inst.getPreBlockStatus() : "INACTIVE";
-        inst.setStatus(restoredStatus);
-        inst.setBlockScheduledAt(null);
-        inst.setBlockScheduledBy(null);
-        inst.setPreBlockStatus(null);
-        inst.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(inst);
+        String restoredStatus = bnk.getPreBlockStatus() != null ? bnk.getPreBlockStatus() : "INACTIVE";
+        bnk.setStatus(restoredStatus);
+        bnk.setBlockScheduledAt(null);
+        bnk.setBlockScheduledBy(null);
+        bnk.setPreBlockStatus(null);
+        bnk.setUpdatedAt(LocalDateTime.now());
+        branchBankRepository.save(bnk);
 
         // Sync restored status to BRANCH_ADMIN
         final String finalRestored = restoredStatus;
         try {
-            branchAdminRepository.findByInstitutionCodeAndUsername(inst.getInstitutionCode(), inst.getSuperUserId())
+            branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
                 .ifPresent(ba -> { ba.setStatus(finalRestored); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(undoneBy); branchAdminRepository.save(ba); });
         } catch (Exception e) {
-            logger.warn("undoBlock: BRANCH_ADMIN sync failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+            logger.warn("undoBlock: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
         }
 
-        logger.info("Block undone for branch bank {} by {}. Restored to {}", institutionId, undoneBy, restoredStatus);
+        logger.info("Block undone for branch bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);
 
         try {
-            if (inst.getPrimaryEmail() != null && !inst.getPrimaryEmail().isEmpty()) {
+            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
                 emailService.sendBlockCancelled(
-                        inst.getPrimaryEmail(),
-                        inst.getPrimaryFullName() != null ? inst.getPrimaryFullName() : "Super User",
-                        inst.getInstitutionNameFull(),
-                        inst.getInstitutionCode(),
+                        bnk.getPrimaryEmail(),
+                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
+                        bnk.getBranchNameFull(),
+                        bnk.getBranchCode(),
                         restoredStatus
                 );
-                logger.info("[UNDO-BLOCK] Cancellation email sent to: {}", inst.getPrimaryEmail());
+                logger.info("[UNDO-BLOCK] Cancellation email sent to: {}", bnk.getPrimaryEmail());
             }
         } catch (Exception e) {
-            logger.warn("[UNDO-BLOCK] Cancellation email failed for {}: {}", inst.getInstitutionCode(), e.getMessage());
+            logger.warn("[UNDO-BLOCK] Cancellation email failed for {}: {}", bnk.getBranchCode(), e.getMessage());
         }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
@@ -1312,8 +1312,8 @@ public class BranchBankServiceImpl implements BranchBankService {
     // LOGO IMAGE SERVE
     // ─────────────────────────────────────────────────────────────────────────
     @Override
-    public ResponseEntity<byte[]> getLogoImage(String institutionCode) {
-        Optional<BranchBank> optional = branchBankRepository.findByInstitutionCode(institutionCode);
+    public ResponseEntity<byte[]> getLogoImage(String branchCode) {
+        Optional<BranchBank> optional = branchBankRepository.findByBranchCode(branchCode);
         if (!optional.isPresent()) {
             return ResponseEntity.notFound().build();
         }
@@ -1328,7 +1328,7 @@ public class BranchBankServiceImpl implements BranchBankService {
             }
             Path path = Paths.get(cleanPath);
             if (!Files.exists(path)) {
-                logger.warn("Logo file not found on disk for branch bank {}: {}", institutionCode, cleanPath);
+                logger.warn("Logo file not found on disk for branch bank {}: {}", branchCode, cleanPath);
                 return ResponseEntity.notFound().build();
             }
             byte[] imageBytes = Files.readAllBytes(path);
@@ -1339,7 +1339,7 @@ public class BranchBankServiceImpl implements BranchBankService {
                     .header(HttpHeaders.CACHE_CONTROL, "max-age=3600")
                     .body(imageBytes);
         } catch (IOException e) {
-            logger.error("Failed to serve logo for branch bank {}: {}", institutionCode, e.getMessage());
+            logger.error("Failed to serve logo for branch bank {}: {}", branchCode, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

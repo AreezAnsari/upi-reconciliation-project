@@ -24,7 +24,7 @@ public class AddUserResponse{
     private String userType;        // "INTERNAL" | "EXTERNAL"
     private String role;            // "MAKER" | "CHECKER"
     private String status;          // "ACTIVE" | "INACTIVE"
-    private String institutionCode;
+    private String bankCode;
     private String createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

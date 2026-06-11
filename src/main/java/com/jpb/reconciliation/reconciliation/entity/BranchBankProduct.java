@@ -16,25 +16,25 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Product date entries for branch banks (sub-institutions).
+ * Product date entries for branch banks (Branch Bank).
  * Same pattern as MainBankProduct — stores validFrom / validTo per product.
  * Uses delete-and-reinsert strategy on save (same as admin).
  */
 @Entity
-@Table(name = "SUB_TEST_INST_PRODUCT")
+@Table(name = "BRANCH_BANK_PRODUCT")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class BranchBankProduct {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_SUB_INST_PRODUCT")
-    @SequenceGenerator(name = "SEQ_SUB_INST_PRODUCT", sequenceName = "SEQ_SUB_INST_PRODUCT", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_BRANCH_BANK_PRODUCT")
+    @SequenceGenerator(name = "SEQ_BRANCH_BANK_PRODUCT", sequenceName = "SEQ_BRANCH_BANK_PRODUCT", allocationSize = 1)
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "institution_id", nullable = false)
-    private Long institutionId;
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
 
     @Column(name = "product_name", nullable = false, length = 100)
     private String productName;

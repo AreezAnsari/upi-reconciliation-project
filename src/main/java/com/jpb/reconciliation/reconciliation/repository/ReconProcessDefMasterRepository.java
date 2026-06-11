@@ -12,7 +12,7 @@ import org.springframework.stereotype.Repository;
 public interface ReconProcessDefMasterRepository extends JpaRepository<ReconProcessDefMaster, Long> {
     ReconProcessDefMaster findByReconProcessId(Long processId);
 
-	List<ReconProcessDefMaster> findByReconInsertCode(Long instCode);
+	List<ReconProcessDefMaster> findByReconInsertCode(Long bnkCode);
 
 	Optional<ReconProcessDefMaster> findByReconProcessName(String processName);
 }

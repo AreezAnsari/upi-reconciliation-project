@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class BranchAdminSetPasswordDto {
-    private String institutionCode;
+    private String branchCode;
     private String username;
     private String newPassword;
 }

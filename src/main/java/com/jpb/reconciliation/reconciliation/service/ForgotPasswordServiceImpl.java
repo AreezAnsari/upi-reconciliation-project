@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequest;
+import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.entity.KalAdminPasswordManager;
@@ -39,7 +39,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     // STEP 1 — Generate OTP and send email
     // ─────────────────────────────────────────────────────────────────────────
     @Override
-    public ResponseEntity<ForgotPasswordResponseDto> forgotPassword(ForgotPasswordRequest request) {
+    public ResponseEntity<ForgotPasswordResponseDto> forgotPassword(ForgotPasswordRequestDto request) {
         // Null check — agar frontend ne galat field name bheja to NPE ki jagah clear error
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
             logger.warn("Forgot password called with null/empty email");

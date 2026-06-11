@@ -12,34 +12,34 @@ import com.jpb.reconciliation.reconciliation.entity.MainBank;
 @Repository
 public interface MainBankRepository extends JpaRepository<MainBank, Long> {
 
-    Optional<MainBank> findByInstitutionId(Long institutionId);
+    Optional<MainBank> findByBankId(Long bankId);
 
-    Optional<MainBank> findByInstitutionCode(String institutionCode);
+    Optional<MainBank> findByBankCode(String bankCode);
 
     // Filter by status: ACTIVE / INACTIVE / PENDING / BLOCKED
     List<MainBank> findByStatus(String status);
 
-    // For docx dashboard — show only active institutions
+    // For docx dashboard — show only active banks
     List<MainBank> findByStatusNot(String status);
 
     Optional<MainBank> findByVerificationToken(String verificationToken);
 
 
     //SuperUser
-    Optional<MainBank> findByInstitutionCodeAndSuperUserId(
-            String institutionCode,
+    Optional<MainBank> findByBankCodeAndBankAdminId(
+            String bankCode,
             String superUserId
     );
 
     boolean existsByPrimaryEmail(String primaryEmail);
 
-    // Returns true only when a NON-BLOCKED institution already holds this email.
-    // Used by checkEmailExists and createInstitution so that a BLOCKED institution's
+    // Returns true only when a NON-BLOCKED bank already holds this email.
+    // Used by checkEmailExists and createbank so that a BLOCKED bank's
     // email does NOT block re-onboarding with the same address.
     boolean existsByPrimaryEmailAndStatusNot(String primaryEmail, String status);
 
-    // Uniqueness check for institution name (case-sensitive exact match)
-    boolean existsByInstitutionNameFull(String institutionNameFull);
+    // Uniqueness check for bank name (case-sensitive exact match)
+    boolean existsByBankNameFull(String bankNameFull);
 
     // All records sharing an email (may be >1 after BLOCKED re-onboarding)
     List<MainBank> findAllByPrimaryEmail(String primaryEmail);
@@ -52,6 +52,6 @@ public interface MainBankRepository extends JpaRepository<MainBank, Long> {
 
     List<MainBank> findByCreatedBy(String createdBy);
 
-    // Sub-institution code generation — find parent institution by superUserId
-    Optional<MainBank> findFirstBySuperUserId(String superUserId);
+    // Branch bank code generation — find parent bank by superUserId
+    Optional<MainBank> findFirstByBankAdminId(String superUserId);
 }

@@ -49,7 +49,7 @@ public class ReconProcessRequest {
 	private List<MatchingFieldMapping> matchingFields;
 
 	// Additional fields
-	private Long instCode;
+	private Long bankCode;
 	private Long insUser;
 	private Long inchgPosition;
 	private Long interchangeId;
@@ -109,4 +109,5 @@ public class ReconProcessRequest {
 		@Size(min = 1, message = "At least one matching field must be selected")
 		private List<String> selectedFields;
 	}
+
 }

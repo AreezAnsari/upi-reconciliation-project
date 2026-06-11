@@ -5,7 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
-import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequest;
+import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.service.ForgotPasswordService;
@@ -19,7 +19,7 @@ public class ForgotPasswordController {
 
     @PostMapping(value = "/forgot-password", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<ForgotPasswordResponseDto> forgotPassword(
-            @RequestBody ForgotPasswordRequest request) {
+            @RequestBody ForgotPasswordRequestDto request) {
 
         return forgotPasswordService.forgotPassword(request);
     }

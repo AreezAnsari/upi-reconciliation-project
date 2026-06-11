@@ -135,7 +135,7 @@ public class OtpService {
         }
     }
 
-    // Java 8 compatible — plain string concatenation instead of text blocks
+    // Java 8 compatible — plain string concatenation bnkead of text blocks
     private String buildEmailHtml(String otp) {
         return "<div style='font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 8px;'>"
              + "  <div style='text-align: center; margin-bottom: 24px;'>"

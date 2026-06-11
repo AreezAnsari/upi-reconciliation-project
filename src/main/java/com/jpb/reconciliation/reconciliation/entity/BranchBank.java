@@ -16,7 +16,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "SUB_TEST_INSTITUTION")
+@Table(name = "BRANCH_BANK")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -24,27 +24,27 @@ public class BranchBank {
 
     // ─── Primary Key ──────────────────────────────────────────────────────────
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_TEST_INSTITUTION")
-    @SequenceGenerator(name = "SEQ_TEST_INSTITUTION", sequenceName = "SEQ_TEST_INSTITUTION", allocationSize = 1)
-    @Column(name = "institution_id")
-    private Long institutionId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_BRANCH_BANK")
+    @SequenceGenerator(name = "SEQ_BRANCH_BANK", sequenceName = "SEQ_BRANCH_BANK", allocationSize = 1)
+    @Column(name = "branch_id")
+    private Long branchId;
 
-    // Docx: "Institution id will be system generated (Total 8 Character —
+    // Docx: "Bank id will be system generated (Total 8 Character —
     //        bank spell and 4 chars are unique mathematical numbers)"
     // e.g.  "STAT4821" for State Bank of India
-    @Column(name = "institution_code", length = 8, unique = true)
-    private String institutionCode;
+    @Column(name = "branch_code", length = 8, unique = true)
+    private String branchCode;
 
-    // Parent institution ID — links sub-institution to its parent (TEST_INSTITUTION)
-    @Column(name = "parent_institution_id")
-    private Long parentInstitutionId;
+    // Parent bank ID — links branch to its parent MAIN_BANK
+    @Column(name = "parent_bank_id")
+    private Long parentBankId;
 
-    // ─── Step 1: Institution Details ──────────────────────────────────────────
-    @Column(name = "institution_name_full", nullable = false, length = 150)
-    private String institutionNameFull;
+    // ─── Step 1: Bank Details ──────────────────────────────────────────
+    @Column(name = "branch_name_full", nullable = false, length = 150)
+    private String branchNameFull;
 
-    @Column(name = "institution_name_short", length = 20)
-    private String institutionNameShort;
+    @Column(name = "branch_name_short", length = 20)
+    private String branchNameShort;
 
     // Stored as comma-separated: "Issuer,Acquirer"
     @Column(name = "bank_type", length = 100)
@@ -193,8 +193,8 @@ public class BranchBank {
     private LocalDateTime tokenExpiry;
 
     // ── Super User Credentials ────────────────────────────────────────────────
-    @Column(name = "super_user_id", length = 100)
-    private String superUserId;
+    @Column(name = "branch_admin_id", length = 100)
+    private String branchAdminId;
 
     @Column(name = "default_password", length = 100)
     private String defaultPassword;

@@ -36,7 +36,7 @@ public class ReconProcessResponse {
 	private List<MatchingFieldInfo> matchingFields;
 
 	// Audit Fields
-	private Long instCode;
+	private Long bnkCode;
 	private LocalDateTime insDate;
 	private Long insUser;
 	private LocalDateTime lupdDate;

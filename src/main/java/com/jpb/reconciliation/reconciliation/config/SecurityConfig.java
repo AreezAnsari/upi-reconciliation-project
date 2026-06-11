@@ -63,40 +63,40 @@ public class SecurityConfig {
                 // H2
                 .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
 
-                // SUPER USER APIs
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-email")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-credentials")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/set-password")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/login")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/direct-login")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/forgot-password")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/verify-forgot-otp")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/reset-password")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-user-status")).permitAll()
+                // Bank Admin APIs
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/verify-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/verify-credentials")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/set-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/direct-login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/forgot-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/verify-forgot-otp")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/reset-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/check-user-status")).permitAll()
 
-                // Institution + SubInstitution logo images + get-by-code — public (brand logos, no sensitive data)
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/logo/**")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/get-by-code/**")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/logo/**")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/get-by-code/**")).permitAll()
+                // Bank + Branch logo images + get-by-code — public (brand logos, no sensitive data)
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/logo/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/get-by-code/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/logo/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/get-by-code/**")).permitAll()
 
-                // Institution uniqueness check APIs — non-critical, fail-open on frontend
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-email")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/institution/check-name")).permitAll()
+                // Bank uniqueness check APIs — non-critical, fail-open on frontend
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/check-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/check-name")).permitAll()
 
-                // SubInstitution — public onboarding + uniqueness check APIs
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/verify-email")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/verify-credentials")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/set-password")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/login")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/direct-login")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/forgot-password")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/verify-forgot-otp")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/reset-password")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/check-user-status")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/activate")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/check-email")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/subinstitution/check-name")).permitAll()
+                // Branch — public onboarding + uniqueness check APIs
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/verify-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/verify-credentials")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/set-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/direct-login")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/forgot-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/verify-forgot-otp")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/reset-password")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/check-user-status")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/activate")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/check-email")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/check-name")).permitAll()
 
                 // ✅ IMPORTANT FIX FOR OTP VERIFY
                 .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()

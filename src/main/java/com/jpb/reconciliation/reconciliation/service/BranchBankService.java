@@ -8,25 +8,25 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 
 public interface BranchBankService {
 
-    ResponseEntity<RestWithStatusList> createInstitution(
+    ResponseEntity<RestWithStatusList> createBank(
             BranchBankDTO dto,
             String createdBy);
 
-    ResponseEntity<RestWithStatusList> getAllInstitutions(String loggedInUsername);
+    ResponseEntity<RestWithStatusList> getAllBanks(String loggedInUsername);
 
-    ResponseEntity<RestWithStatusList> getInstitutionById(Long institutionId);
+    ResponseEntity<RestWithStatusList> getBankById(Long bankId);
 
-    ResponseEntity<RestWithStatusList> getInstitutionsByStatus(String status);
+    ResponseEntity<RestWithStatusList> getBanksByStatus(String status);
 
-    ResponseEntity<RestWithStatusList> updateInstitution(Long institutionId, BranchBankDTO dto);
+    ResponseEntity<RestWithStatusList> updateBank(Long bankId, BranchBankDTO dto);
 
-    ResponseEntity<RestWithStatusList> updateStatus(Long institutionId, String status);
+    ResponseEntity<RestWithStatusList> updateStatus(Long bankId, String status);
 
-    ResponseEntity<RestWithStatusList> deleteInstitution(Long institutionId);
+    ResponseEntity<RestWithStatusList> deleteBank(Long bankId);
 
-    ResponseEntity<RestWithStatusList> uploadLogo(Long institutionId, MultipartFile file, String logoUploader);
+    ResponseEntity<RestWithStatusList> uploadLogo(Long bankId, MultipartFile file, String logoUploader);
 
-    ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username);
+    ResponseEntity<RestWithStatusList> verifyEmail(String bankCode, String username);
 
     ResponseEntity<RestWithStatusList> checkEmailExists(String email);
 
@@ -38,13 +38,13 @@ public interface BranchBankService {
 
     ResponseEntity<byte[]> exportToCsv();
 
-    ResponseEntity<RestWithStatusList> scheduleBlock(Long institutionId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy);
 
-    ResponseEntity<RestWithStatusList> undoBlock(Long institutionId, String undoneBy);
+    ResponseEntity<RestWithStatusList> undoBlock(Long bankId, String undoneBy);
 
-    ResponseEntity<byte[]> getLogoImage(String institutionCode);
+    ResponseEntity<byte[]> getLogoImage(String bankCode);
 
-    ResponseEntity<RestWithStatusList> getInstitutionByCode(String institutionCode);
+    ResponseEntity<RestWithStatusList> getBankByCode(String bankCode);
 
-    ResponseEntity<RestWithStatusList> getInstitutionByEmail(String email);
+    ResponseEntity<RestWithStatusList> getBankByEmail(String email);
 }

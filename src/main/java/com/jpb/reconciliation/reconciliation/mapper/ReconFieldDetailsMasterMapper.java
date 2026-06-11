@@ -11,7 +11,7 @@ import com.jpb.reconciliation.reconciliation.entity.ReconFieldDetailsMaster;
 public class ReconFieldDetailsMasterMapper {
     
     private ReconFieldDetailsMasterMapper() {
-        // Private constructor to prevent instantiation
+        // Private constructor to prevent bnkantiation
     }
     
     public static ReconFieldDetailsMasterDTO toDTO(ReconFieldDetailsMaster entity) {

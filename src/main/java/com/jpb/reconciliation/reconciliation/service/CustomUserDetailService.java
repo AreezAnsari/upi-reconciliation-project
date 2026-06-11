@@ -41,8 +41,8 @@ public class CustomUserDetailService implements UserDetailsService {
 	 * Strategy:
 	 * 1. Try regular-user table by username
 	 * 2. Try regular-user table by email (some tokens use email as subject)
-	 * 3. Try KAL_SUPER_USER table by email (super-user OTP tokens use email as subject)
-	 * 4. Try KAL_SUPER_USER table by username
+	 * 3. Try BANK_ADMIN table by email (super-user OTP tokens use email as subject)
+	 * 4. Try BANK_ADMIN table by username
 	 *
 	 * If none found → UsernameNotFoundException → 401
 	 */

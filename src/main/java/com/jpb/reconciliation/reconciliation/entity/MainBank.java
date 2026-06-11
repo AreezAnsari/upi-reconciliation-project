@@ -20,7 +20,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "TEST_INSTITUTION")
+@Table(name = "MAIN_BANK")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -28,23 +28,23 @@ public class MainBank {
 
     // ─── Primary Key ──────────────────────────────────────────────────────────
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_TEST_INSTITUTION")
-    @SequenceGenerator(name = "SEQ_TEST_INSTITUTION", sequenceName = "SEQ_TEST_INSTITUTION", allocationSize = 1)
-    @Column(name = "institution_id")
-    private Long institutionId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_MAIN_BANK")
+    @SequenceGenerator(name = "SEQ_MAIN_BANK", sequenceName = "SEQ_MAIN_BANK", allocationSize = 1)
+    @Column(name = "bank_id")
+    private Long bankId;
 
-    // Docx: "Institution id will be system generated (Total 8 Character —
+    // Docx: "Bank id will be system generated (Total 8 Character —
     //        bank spell and 4 chars are unique mathematical numbers)"
     // e.g.  "STAT4821" for State Bank of India
-    @Column(name = "institution_code", length = 8, unique = true)
-    private String institutionCode;
+    @Column(name = "bank_code", length = 8, unique = true)
+    private String bankCode;
 
-    // ─── Step 1: Institution Details ──────────────────────────────────────────
-    @Column(name = "institution_name_full", nullable = false, length = 150)
-    private String institutionNameFull;
+    // ─── Step 1: Bank Details ─────────────────────────────────────────────────
+    @Column(name = "bank_name_full", nullable = false, length = 150)
+    private String bankNameFull;
 
-    @Column(name = "institution_name_short", length = 20)
-    private String institutionNameShort;
+    @Column(name = "bank_name_short", length = 20)
+    private String bankNameShort;
 
     // Stored as comma-separated: "Issuer,Acquirer"
     @Column(name = "bank_type", length = 100)
@@ -178,8 +178,8 @@ public class MainBank {
     private LocalDateTime tokenExpiry;
 
     // ── Super User Credentials ────────────────────────────────────────────────
-    @Column(name = "super_user_id", length = 100)
-    private String superUserId;
+    @Column(name = "bank_admin_id", length = 100)
+    private String bankAdminId;
 
     @Column(name = "default_password", length = 100)
     private String defaultPassword;
@@ -201,7 +201,7 @@ public class MainBank {
     @Column(insertable = false, name = "updated_by")
     private String updatedBy;
 
-    // Inactivated at — timestamp when institution was last set to INACTIVE
+    // Inactivated at — timestamp when Bank was last set to INACTIVE
     // Used to enforce: cannot go ACTIVE within 30s/30mins of becoming INACTIVE
     @Column(name = "activated_at")
     private LocalDateTime inactivatedAt;

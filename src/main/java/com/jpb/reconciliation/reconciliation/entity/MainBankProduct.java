@@ -16,20 +16,20 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "TEST_INST_PRODUCT")
+@Table(name = "MAIN_BANK_PRODUCT")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class MainBankProduct {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_INST_PRODUCT")
-    @SequenceGenerator(name = "SEQ_INST_PRODUCT", sequenceName = "SEQ_INST_PRODUCT", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_MAIN_BANK_PRODUCT")
+    @SequenceGenerator(name = "SEQ_MAIN_BANK_PRODUCT", sequenceName = "SEQ_MAIN_BANK_PRODUCT", allocationSize = 1)
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "institution_id", nullable = false)
-    private Long institutionId;
+    @Column(name = "bank_id", nullable = false)
+    private Long bankId;
 
     @Column(name = "product_name", nullable = false, length = 100)
     private String productName;

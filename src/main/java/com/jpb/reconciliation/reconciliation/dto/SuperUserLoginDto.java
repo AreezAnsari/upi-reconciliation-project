@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class SuperUserLoginDto {
 
-    private String institutionCode;
+    private String bankCode;
 
     private String superUserId;
 

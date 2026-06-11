@@ -58,8 +58,8 @@ public class ReconProcessService {
 		return entities.stream().map(this::mapEntityToResponseWithFullDetails).collect(Collectors.toList());
 	}
 
-	public List<ReconProcessResponse> getReconProcessesByInstitution(Long instCode) {
-		List<ReconProcessDefMaster> entities = reconProcessRepository.findByReconInsertCode(instCode);
+	public List<ReconProcessResponse> getReconProcessesByBank(Long bnkCode) {
+		List<ReconProcessDefMaster> entities = reconProcessRepository.findByReconInsertCode(bnkCode);
 		return entities.stream().map(this::mapEntityToResponseWithFullDetails).collect(Collectors.toList());
 	}
 
@@ -105,7 +105,7 @@ public class ReconProcessService {
 		entity.setReconMatchigFlag(request.getIdenticalMatching());
 
 		// Additional fields
-		entity.setReconInsertCode(request.getInstCode());
+		entity.setReconInsertCode(request.getBankCode());
 		entity.setReconInterChangePosition(request.getInchgPosition());
 		entity.setReconInterChnageId(request.getInterchangeId());
 		entity.setReconIssAcqFlag(request.getIssAcqFlag());
@@ -123,7 +123,7 @@ public class ReconProcessService {
 			if (processMaster.isPresent()) {
 				entity.setProcessmaster(processMaster.get());
 			} else {
-				// Option 2: Create new instance with just ID
+				// Option 2: Create new bnkance with just ID
 				ProcessMasterEntity pm = new ProcessMasterEntity();
 				pm.setProcessMastId(request.getProcessMastId());
 				entity.setProcessmaster(pm);
@@ -261,7 +261,7 @@ public class ReconProcessService {
 		entity.setReconMatchigFlag(request.getIdenticalMatching());
 
 		// Update additional fields
-		entity.setReconInsertCode(request.getInstCode());
+		entity.setReconInsertCode(request.getBankCode());
 		entity.setReconInterChangePosition(request.getInchgPosition());
 		entity.setReconInterChnageId(request.getInterchangeId());
 		entity.setReconIssAcqFlag(request.getIssAcqFlag());
@@ -350,7 +350,7 @@ public class ReconProcessService {
 				.processName(entity.getReconProcessName()).inputCount(entity.getReconInputCount())
 				.retentionPeriod(entity.getReconRetentionPeriod()).retentionVolume(entity.getReconRetentionVolume())
 				.matchingType(entity.getReconMatchingType()).jpsRpsl(entity.getReconProcessJPBRPSL())
-				.identicalMatching(entity.getReconMatchigFlag()).instCode(entity.getReconInsertCode())
+				.identicalMatching(entity.getReconMatchigFlag()).bnkCode(entity.getReconInsertCode())
 				.insDate(entity.getReconInsertDate()).insUser(entity.getReconInsertUser())
 				.lupdDate(entity.getReconLastUpdatedDate()).lupdUser(entity.getReconLastUpdatedUser())
 				.inchgPosition(entity.getReconInterChangePosition()).interchangeId(entity.getReconInterChnageId())

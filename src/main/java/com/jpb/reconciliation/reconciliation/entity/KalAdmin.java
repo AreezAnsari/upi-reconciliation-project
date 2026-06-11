@@ -39,7 +39,8 @@ public class KalAdmin {
 	@Column(name = "user_id")
 	private Long userId;
 	
-	private String institution;
+	@Column(name = "bank")
+	private String bank;
 	private String designation;
 
 	@Column(name = "email_id")
@@ -65,7 +66,7 @@ public class KalAdmin {
 	private Long mobileNumber;
 
 	@CreatedDate
-	@Column(updatable = false, name = "crated_at")
+	@Column(updatable = false, name = "created_at")
 	private LocalDateTime createdAt;
 
 	@CreatedBy
@@ -97,12 +98,12 @@ public class KalAdmin {
 		this.userId = userId;
 	}
 
-	public String getInstitution() {
-		return institution;
+	public String getBank() {
+		return bank;
 	}
 
-	public void setInstitution(String institution) {
-		this.institution = institution;
+	public void setBank(String bank) {
+		this.bank = bank;
 	}
 
 	public String getDesignation() {

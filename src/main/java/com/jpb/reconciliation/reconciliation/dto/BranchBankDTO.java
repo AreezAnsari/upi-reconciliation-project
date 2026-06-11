@@ -8,16 +8,16 @@ import java.util.Map;
 public class BranchBankDTO {
 
     // ─── System Generated ────────────────────────────────────────────────────
-    private Long institutionId;
-    private String institutionCode; // 8 chars: first 4 letters + 4 digits
+    private Long branchId;
+    private String branchCode; // 8 chars: first 4 letters + 4 digits
     private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED / BLOCK_PENDING
     private LocalDateTime createdAt;
     private LocalDateTime inactivatedAt;     // when last set INACTIVE (for 30s cooldown display)
     private LocalDateTime blockScheduledAt;  // when block was scheduled (for countdown display)
 
-    // ─── Step 1: Institution Details ────────────────────────────────────────
-    private String institutionNameFull;   // required
-    private String institutionNameShort;  // optional
+    // ─── Step 1: Bank Details ────────────────────────────────────────
+    private String branchNameFull;   // required
+    private String branchNameShort;  // optional
     private List<String> bankType;        // ["Issuer","Acquirer","Settlement Bank"]
     private String logoPath;              // set after logo upload
 
@@ -75,11 +75,11 @@ public class BranchBankDTO {
 
     // ─── Getters & Setters ───────────────────────────────────────────────────
 
-    public Long getInstitutionId() { return institutionId; }
-    public void setInstitutionId(Long institutionId) { this.institutionId = institutionId; }
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(long branchId) { this.branchId = branchId; }
 
-    public String getInstitutionCode() { return institutionCode; }
-    public void setInstitutionCode(String institutionCode) { this.institutionCode = institutionCode; }
+    public String getBranchCode() { return branchCode; }
+    public void setBranchCode(String branchCode) { this.branchCode = branchCode; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
@@ -93,11 +93,11 @@ public class BranchBankDTO {
     public LocalDateTime getBlockScheduledAt() { return blockScheduledAt; }
     public void setBlockScheduledAt(LocalDateTime blockScheduledAt) { this.blockScheduledAt = blockScheduledAt; }
 
-    public String getInstitutionNameFull() { return institutionNameFull; }
-    public void setInstitutionNameFull(String institutionNameFull) { this.institutionNameFull = institutionNameFull; }
+    public String getBranchNameFull() { return branchNameFull; }
+    public void setBranchNameFull(String branchNameFull) { this.branchNameFull = branchNameFull; }
 
-    public String getInstitutionNameShort() { return institutionNameShort; }
-    public void setInstitutionNameShort(String institutionNameShort) { this.institutionNameShort = institutionNameShort; }
+    public String getBranchNameShort() { return branchNameShort; }
+    public void setBranchNameShort(String branchNameShort) { this.branchNameShort = branchNameShort; }
 
     public List<String> getBankType() { return bankType; }
     public void setBankType(List<String> bankType) { this.bankType = bankType; }

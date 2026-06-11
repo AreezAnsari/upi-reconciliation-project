@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class ResetPasswordRequest {
 
-    private String institutionCode;
+    private String bankCode;
 
     private String username;
 

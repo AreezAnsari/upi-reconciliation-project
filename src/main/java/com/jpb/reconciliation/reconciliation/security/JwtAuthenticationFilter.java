@@ -69,33 +69,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // User APIs
                 || path.startsWith("/api/v1/user/create-user")
 
-                // Institution APIs
-                || path.startsWith("/test/api/v1/institution/verify-credentials")
-                || path.startsWith("/test/api/v1/institution/set-password")
-                || path.startsWith("/test/api/v1/institution/login")
-                || path.startsWith("/test/api/v1/institution/verify-email")
-                || path.startsWith("/test/api/v1/institution/check-user-status")
-                || path.startsWith("/test/api/v1/institution/forgot-password")
-                || path.startsWith("/test/api/v1/institution/reset-password")
-                || path.startsWith("/test/api/v1/institution/check-email")
-                || path.startsWith("/test/api/v1/institution/check-name")
+                // Bank APIs
+                || path.startsWith("/test/api/v1/bank/verify-credentials")
+                || path.startsWith("/test/api/v1/bank/set-password")
+                || path.startsWith("/test/api/v1/bank/login")
+                || path.startsWith("/test/api/v1/bank/verify-email")
+                || path.startsWith("/test/api/v1/bank/check-user-status")
+                || path.startsWith("/test/api/v1/bank/forgot-password")
+                || path.startsWith("/test/api/v1/bank/reset-password")
+                || path.startsWith("/test/api/v1/bank/check-email")
+                || path.startsWith("/test/api/v1/bank/check-name")
 
                 // Logo images — public (brand logos, no sensitive data)
-                || path.startsWith("/test/api/v1/institution/logo/")
+                || path.startsWith("/test/api/v1/bank/logo/")
 
-                // SubInstitution APIs
-                || path.startsWith("/test/api/v1/subinstitution/verify-email")
-                || path.startsWith("/test/api/v1/subinstitution/verify-credentials")
-                || path.startsWith("/test/api/v1/subinstitution/set-password")
-                || path.startsWith("/test/api/v1/subinstitution/login")
-                || path.startsWith("/test/api/v1/subinstitution/direct-login")
-                || path.startsWith("/test/api/v1/subinstitution/forgot-password")
-                || path.startsWith("/test/api/v1/subinstitution/verify-forgot-otp")
-                || path.startsWith("/test/api/v1/subinstitution/reset-password")
-                || path.startsWith("/test/api/v1/subinstitution/check-user-status")
-                || path.startsWith("/test/api/v1/subinstitution/activate")
-                || path.startsWith("/test/api/v1/subinstitution/check-email")
-                || path.startsWith("/test/api/v1/subinstitution/check-name")
+                // Bank APIs (additional public endpoints)
+                || path.startsWith("/test/api/v1/bank/direct-login")
+                || path.startsWith("/test/api/v1/bank/verify-forgot-otp")
+
+                // Branch Bank APIs
+                || path.startsWith("/test/api/v1/branch/verify-email")
+                || path.startsWith("/test/api/v1/branch/verify-credentials")
+                || path.startsWith("/test/api/v1/branch/set-password")
+                || path.startsWith("/test/api/v1/branch/login")
+                || path.startsWith("/test/api/v1/branch/direct-login")
+                || path.startsWith("/test/api/v1/branch/forgot-password")
+                || path.startsWith("/test/api/v1/branch/verify-forgot-otp")
+                || path.startsWith("/test/api/v1/branch/reset-password")
+                || path.startsWith("/test/api/v1/branch/check-user-status")
+                || path.startsWith("/test/api/v1/branch/activate")
+                || path.startsWith("/test/api/v1/branch/check-email")
+                || path.startsWith("/test/api/v1/branch/check-name")
+                || path.startsWith("/test/api/v1/branch/logo/")
 
                 // OTP APIs
                 || path.startsWith("/api/otp/verify");

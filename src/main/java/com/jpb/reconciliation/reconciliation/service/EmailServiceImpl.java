@@ -60,13 +60,13 @@ public class EmailServiceImpl implements EmailService {
 
     // ─────────────────────────────────────────────────────────────────────
     // SEND SUPER USER WELCOME EMAIL
-    // Includes: Institution Code, User ID, Default Password, Verify Link
+    // Includes: Bank Code, User ID, Default Password, Verify Link
     // @Async — runs in background, won't block the API response
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendSuperUserWelcome(String toEmail, String superUserName,
-                                     String institutionName, String institutionCode,
+    public void sendBankAdminWelcome(String toEmail, String superUserName,
+                                     String bankName, String bankCode,
                                      String superUserId, String defaultPassword,
                                      String verifyLink) {
         try {
@@ -74,14 +74,14 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — You have been added as Super User of " + institutionName);
+            helper.setSubject("ReconXpert.Ai — You have been added as Super User of " + bankName);
             helper.setText(buildSuperUserWelcomeHtml(
-                superUserName, institutionName, institutionCode,
+                superUserName, bankName, bankCode,
                 superUserId, defaultPassword, verifyLink), true);
             mailSender.send(message);
             logger.info("SuperUser welcome email sent to: {} | userId: {}", toEmail, superUserId);
         } catch (MessagingException e) {
-            // @Async — exception won't reach caller; institution must NOT be rolled back on email failure
+            // @Async — exception won't reach caller; bankmust NOT be rolled back on email failure
             logger.error("[EMAIL-DELIVERY-FAIL] SuperUser welcome — recipient: {} | userId: {} | reason: {}", toEmail, superUserId, e.getMessage());
         } catch (Exception e) {
             logger.error("[EMAIL-DELIVERY-FAIL] SuperUser welcome — unexpected error — recipient: {} | reason: {}", toEmail, e.getMessage());
@@ -131,10 +131,10 @@ public class EmailServiceImpl implements EmailService {
 
     // ─────────────────────────────────────────────────────────────────────
     // HTML TEMPLATE — Super User Welcome Email
-    // Contains: Institution Code, User ID, Default Password, Verify button
+    // Contains: Bank Code, User ID, Default Password, Verify button
     // ─────────────────────────────────────────────────────────────────────
-    private String buildSuperUserWelcomeHtml(String name, String institutionName,
-                                              String institutionCode, String superUserId,
+    private String buildSuperUserWelcomeHtml(String name, String bankName,
+                                              String bankCode, String superUserId,
                                               String defaultPassword, String verifyLink) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
@@ -154,14 +154,14 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
             + "You have been added as the <strong>Super User</strong> of "
-            + "<strong>" + sanitize(institutionName) + "</strong> on ReconXpert.Ai by KalInfotech Admin."
+            + "<strong>" + sanitize(bankName) + "</strong> on ReconXpert.Ai by KalInfotech Admin."
             + "</p>"
 
-            // Credentials box — Institution Code, User ID, Default Password
+            // Credentials box — Bank Code, User ID, Default Password
             + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
             + "<p style='margin:0 0 4px;font-size:13px;color:#166534;font-weight:bold;'>Your Login Credentials</p>"
-            + "<p style='margin:10px 0 4px;font-size:13px;color:#166534;'><strong>Institution Code:</strong> "
-            + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + sanitize(institutionCode) + "</span></p>"
+            + "<p style='margin:10px 0 4px;font-size:13px;color:#166534;'><strong>Bank Code:</strong> "
+            + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + sanitize(bankCode) + "</span></p>"
             + "<p style='margin:0 0 4px;font-size:13px;color:#166534;'><strong>User ID:</strong> "
             + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + sanitize(superUserId) + "</span></p>"
             + "<p style='margin:0;font-size:13px;color:#166534;'><strong>Default Password:</strong> "
@@ -177,7 +177,7 @@ public class EmailServiceImpl implements EmailService {
             // Steps
             + "<p style='font-size:13px;color:#64748b;margin:0 0 8px;'>After clicking the link, on the login page:</p>"
             + "<ol style='font-size:13px;color:#64748b;margin:0 0 20px;padding-left:20px;line-height:1.8;'>"
-            + "<li>Enter your <strong>Institution Code:</strong> " + sanitize(institutionCode) + "</li>"
+            + "<li>Enter your <strong>Bank Code:</strong> " + sanitize(bankCode) + "</li>"
             + "<li>Enter your <strong>User ID:</strong> " + sanitize(superUserId) + "</li>"
             + "<li>Enter your <strong>Default Password:</strong> " + sanitize(defaultPassword) + "</li>"
             + "<li>Set a new password to activate your account</li>"
@@ -204,36 +204,36 @@ public class EmailServiceImpl implements EmailService {
 
     // ─────────────────────────────────────────────────────────────────────
     // SEND STATUS CHANGE NOTIFICATION EMAIL
-    // Sent when Admin changes institution status: INACTIVE / BLOCKED / ACTIVE
+    // Sent when Admin changes bank status: INACTIVE / BLOCKED / ACTIVE
     // @Async — fire and forget, won't block API response
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
     public void sendStatusChangeNotification(String toEmail, String superUserName,
-                                              String institutionName, String institutionCode,
+                                              String bankName, String bankCode,
                                               String oldStatus, String newStatus) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Institution Status Update: " + institutionName);
-            helper.setText(buildStatusChangeHtml(superUserName, institutionName, institutionCode, oldStatus, newStatus), true);
+            helper.setSubject("ReconXpert.Ai — Bank Status Update: " + bankName);
+            helper.setText(buildStatusChangeHtml(superUserName, bankName, bankCode, oldStatus, newStatus), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Status change — recipient: {} | institution: {} | {} → {}", toEmail, institutionCode, oldStatus, newStatus);
+            logger.info("[EMAIL-OK] Status change — recipient: {} | bank: {} | {} → {}", toEmail, bankCode, oldStatus, newStatus);
         } catch (MessagingException e) {
             // @Async — status update must NOT be blocked by email failure
-            logger.error("[EMAIL-DELIVERY-FAIL] Status change — recipient: {} | institution: {} | {} → {} | reason: {}", toEmail, institutionCode, oldStatus, newStatus, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Status change — recipient: {} | bank: {} | {} → {} | reason: {}", toEmail, bankCode, oldStatus, newStatus, e.getMessage());
         } catch (Exception e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Status change — unexpected error — recipient: {} | institution: {} | reason: {}", toEmail, institutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Status change — unexpected error — recipient: {} | bank: {} | reason: {}", toEmail, bankCode, e.getMessage());
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────
     // HTML TEMPLATE — Status Change Notification Email
     // ─────────────────────────────────────────────────────────────────────
-    private String buildStatusChangeHtml(String name, String institutionName,
-                                          String institutionCode,
+    private String buildStatusChangeHtml(String name, String bankName,
+                                          String bankCode,
                                           String oldStatus, String newStatus) {
 
         // Color + icon per status
@@ -243,7 +243,7 @@ public class EmailServiceImpl implements EmailService {
                 statusColor  = "#6366f1";
                 statusBg     = "rgba(99,102,241,0.1)";
                 statusIcon   = "⏸";
-                statusMessage = "Your institution account has been marked <strong>Inactive</strong>. "
+                statusMessage = "Your bank account has been marked <strong>Inactive</strong>. "
                     + "You will not be able to access the platform until it is reactivated. "
                     + "Please contact KalInfotech Admin for assistance.";
                 break;
@@ -251,7 +251,7 @@ public class EmailServiceImpl implements EmailService {
                 statusColor  = "#ef4444";
                 statusBg     = "rgba(239,68,68,0.1)";
                 statusIcon   = "🚫";
-                statusMessage = "Your institution account has been <strong>Blocked</strong> by KalInfotech Admin. "
+                statusMessage = "Your bank account has been <strong>Blocked</strong> by KalInfotech Admin. "
                     + "Access to the ReconXpert.Ai platform has been restricted. "
                     + "Please contact KalInfotech Admin immediately for clarification.";
                 break;
@@ -259,14 +259,14 @@ public class EmailServiceImpl implements EmailService {
                 statusColor  = "#22c55e";
                 statusBg     = "rgba(34,197,94,0.1)";
                 statusIcon   = "✅";
-                statusMessage = "Your institution account has been <strong>Activated</strong>. "
+                statusMessage = "Your bank account has been <strong>Activated</strong>. "
                     + "You can now access the ReconXpert.Ai platform using your credentials.";
                 break;
             default:
                 statusColor  = "#d4a843";
                 statusBg     = "rgba(212,168,67,0.1)";
                 statusIcon   = "ℹ";
-                statusMessage = "Your institution status has been updated to <strong>" + sanitize(newStatus) + "</strong>.";
+                statusMessage = "Your bank status has been updated to <strong>" + sanitize(newStatus) + "</strong>.";
         }
 
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
@@ -291,14 +291,14 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.7;'>" + statusMessage + "</p>"
 
-            // Institution details box
+            // Bank details box
             + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid " + statusColor + ";border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
-            + "<p style='margin:0 0 12px;font-size:13px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:1px;'>Institution Details</p>"
+            + "<p style='margin:0 0 12px;font-size:13px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:1px;'>Bank Details</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:160px;'>Institution Name</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(institutionName) + "</td></tr>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Institution Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:600;padding:4px 0;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:160px;'>Bank Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(bankName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Bank Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:600;padding:4px 0;'>" + sanitize(bankCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Previous Status</td>"
             + "<td style='font-size:13px;color:#64748b;padding:4px 0;'>" + sanitize(oldStatus) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>New Status</td>"
@@ -328,35 +328,35 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendSubInstituteStatusNotification(String toEmail, String contactName,
-                                                   String subInstitutionName, String subInstitutionCode,
+    public void sendBranchBankStatusNotification(String toEmail, String contactName,
+                                                   String branchBankName, String branchBankCode,
                                                    String oldStatus, String newStatus,
-                                                   String parentInstitutionName, String parentInstitutionCode) {
+                                                   String parentBankName, String parentBankCode) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Sub-Institute Status Update: " + subInstitutionName);
+            helper.setSubject("ReconXpert.Ai — Sub-Institute Status Update: " + branchBankName);
             helper.setText(buildSubInstituteStatusHtml(
-                    contactName, subInstitutionName, subInstitutionCode,
-                    oldStatus, newStatus, parentInstitutionName, parentInstitutionCode), true);
+                    contactName, branchBankName, branchBankCode,
+                    oldStatus, newStatus, parentBankName, parentBankCode), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Sub-institute cascade — recipient: {} | sub: {} | {} → {} | parent: {}",
-                    toEmail, subInstitutionCode, oldStatus, newStatus, parentInstitutionCode);
+            logger.info("[EMAIL-OK] Sub-bnkitute cascade — recipient: {} | branch: {} | {} → {} | parent: {}",
+                    toEmail, branchBankCode, oldStatus, newStatus, parentBankCode);
         } catch (MessagingException e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Sub-institute cascade — recipient: {} | sub: {} | reason: {}",
-                    toEmail, subInstitutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub-bnkitute cascade — recipient: {} | branch: {} | reason: {}",
+                    toEmail, branchBankCode, e.getMessage());
         } catch (Exception e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Sub-institute cascade — unexpected — recipient: {} | sub: {} | reason: {}",
-                    toEmail, subInstitutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub-bnkitute cascade — unexpected — recipient: {} | branch: {} | reason: {}",
+                    toEmail, branchBankCode, e.getMessage());
         }
     }
 
     private String buildSubInstituteStatusHtml(String contactName,
-                                                String subInstitutionName, String subInstitutionCode,
+                                                String branchBankName, String branchBankCode,
                                                 String oldStatus, String newStatus,
-                                                String parentInstitutionName, String parentInstitutionCode) {
+                                                String parentBankName, String parentBankCode) {
 
         String statusColor, statusBg, statusIcon, statusHeading, statusMessage, actionNote;
 
@@ -366,25 +366,25 @@ public class EmailServiceImpl implements EmailService {
                 statusBg      = "rgba(239,68,68,0.08)";
                 statusIcon    = "🚫";
                 statusHeading = "Platform Access Suspended";
-                statusMessage = "We wish to inform you that your institution's access to the "
+                statusMessage = "We wish to inform you that your bank's access to the "
                     + "<strong>ReconXpert.Ai</strong> reconciliation platform has been <strong>suspended</strong> "
                     + "with immediate effect, in accordance with a compliance directive issued by "
                     + "<strong>KalInfotech Administration</strong> applicable to <strong>"
-                    + sanitize(parentInstitutionName) + "</strong> and all associated institutions. "
+                    + sanitize(parentBankName) + "</strong> and all associated banks. "
                     + "During this period, platform login and all reconciliation operations will be unavailable.";
-                actionNote    = "To understand the reason for this action or to request reinstatement, "
+                actionNote    = "To understand the reason for this action or to request rebnkatement, "
                     + "please reach out to your designated KalInfotech Relationship Manager or write to us at "
                     + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>. "
-                    + "Please quote your Institution Code when contacting support.";
+                    + "Please quote your Bank Code when contacting support.";
                 break;
             case "ACTIVE":
                 statusColor   = "#22c55e";
                 statusBg      = "rgba(34,197,94,0.08)";
                 statusIcon    = "✅";
-                statusHeading = "Platform Access Reinstated";
-                statusMessage = "We are pleased to inform you that your institution's access to the "
-                    + "<strong>ReconXpert.Ai</strong> reconciliation platform has been <strong>reinstated</strong>. "
-                    + "This follows the reactivation of <strong>" + sanitize(parentInstitutionName) + "</strong> "
+                statusHeading = "Platform Access Rebnkated";
+                statusMessage = "We are pleased to inform you that your bank's access to the "
+                    + "<strong>ReconXpert.Ai</strong> reconciliation platform has been <strong>rebnkated</strong>. "
+                    + "This follows the reactivation of <strong>" + sanitize(parentBankName) + "</strong> "
                     + "by KalInfotech Administration. You may now resume normal platform operations "
                     + "using your existing Super User credentials.";
                 actionNote    = "If you experience any difficulty accessing the platform or require assistance, "
@@ -395,8 +395,8 @@ public class EmailServiceImpl implements EmailService {
                 statusColor   = "#d4a843";
                 statusBg      = "rgba(212,168,67,0.08)";
                 statusIcon    = "ℹ";
-                statusHeading = "Institution Status Update";
-                statusMessage = "Your institution's status on the ReconXpert.Ai platform has been updated "
+                statusHeading = "Bank Status Update";
+                statusMessage = "Your bank's status on the ReconXpert.Ai platform has been updated "
                     + "to <strong>" + sanitize(newStatus) + "</strong> by KalInfotech Administration.";
                 actionNote    = "For queries, contact us at "
                     + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>.";
@@ -425,17 +425,17 @@ public class EmailServiceImpl implements EmailService {
             // Body
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(contactName) + "</strong>,"
-            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(subInstitutionName) + "</span></p>"
+            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(branchBankName) + "</span></p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 28px;line-height:1.8;'>" + statusMessage + "</p>"
 
-            // Institution details card
+            // Bank details card
             + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid " + statusColor + ";border-radius:8px;padding:20px 24px;margin-bottom:16px;'>"
-            + "<p style='margin:0 0 14px;font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Your Institution Details</p>"
+            + "<p style='margin:0 0 14px;font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Your Bank Details</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:5px 0;width:170px;'>Institution Name</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(subInstitutionName) + "</td></tr>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:5px 0;'>Institution Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(subInstitutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:5px 0;width:170px;'>Bank Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(branchBankName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:5px 0;'>Bank Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(branchBankCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:5px 0;'>Previous Status</td>"
             + "<td style='font-size:13px;color:#64748b;padding:5px 0;'>" + sanitize(oldStatus) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:5px 0;'>Current Status</td>"
@@ -450,9 +450,9 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:170px;'>Issuing Authority</td>"
             + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>KalInfotech Administration</td></tr>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Network Institution</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(parentInstitutionName)
-            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentInstitutionCode) + ")</span></td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Network Bank</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(parentBankName)
+            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentBankCode) + ")</span></td></tr>"
             + "</table>"
             + "</div>"
 
@@ -476,26 +476,26 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // BLOCK WARNING — Institution Super User
+    // BLOCK WARNING — Bank Super User
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
     public void sendBlockWarning(String toEmail, String superUserName,
-                                 String institutionName, String institutionCode,
+                                 String bankName, String bankCode,
                                  String blockAt) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + institutionName);
-            helper.setText(buildBlockWarningHtml(superUserName, institutionName, institutionCode, blockAt), true);
+            helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + bankName);
+            helper.setText(buildBlockWarningHtml(superUserName, bankName, bankCode, blockAt), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Block warning — recipient: {} | institution: {} | blockAt: {}",
-                    toEmail, institutionCode, blockAt);
+            logger.info("[EMAIL-OK] Block warning — recipient: {} | bank: {} | blockAt: {}",
+                    toEmail, bankCode, blockAt);
         } catch (MessagingException e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Block warning — recipient: {} | institution: {} | reason: {}",
-                    toEmail, institutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Block warning — recipient: {} | bank: {} | reason: {}",
+                    toEmail, bankCode, e.getMessage());
         } catch (Exception e) {
             logger.error("[EMAIL-DELIVERY-FAIL] Block warning — unexpected — recipient: {} | reason: {}",
                     toEmail, e.getMessage());
@@ -507,24 +507,24 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendSubInstituteBlockWarning(String toEmail, String contactName,
-                                             String subInstitutionName, String subInstitutionCode,
-                                             String parentInstitutionName, String parentInstitutionCode,
+    public void sendBranchBankBlockWarning(String toEmail, String contactName,
+                                             String branchBankName, String branchBankCode,
+                                             String parentBankName, String parentBankCode,
                                              String blockAt) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + subInstitutionName);
-            helper.setText(buildSubBlockWarningHtml(contactName, subInstitutionName, subInstitutionCode,
-                    parentInstitutionName, parentInstitutionCode, blockAt), true);
+            helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + branchBankName);
+            helper.setText(buildSubBlockWarningHtml(contactName, branchBankName, branchBankCode,
+                    parentBankName, parentBankCode, blockAt), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Sub block warning — recipient: {} | sub: {} | parent: {} | blockAt: {}",
-                    toEmail, subInstitutionCode, parentInstitutionCode, blockAt);
+            logger.info("[EMAIL-OK] Sub block warning — recipient: {} | branch: {} | parent: {} | blockAt: {}",
+                    toEmail, branchBankCode, parentBankCode, blockAt);
         } catch (MessagingException e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Sub block warning — recipient: {} | sub: {} | reason: {}",
-                    toEmail, subInstitutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub block warning — recipient: {} | branch: {} | reason: {}",
+                    toEmail, branchBankCode, e.getMessage());
         } catch (Exception e) {
             logger.error("[EMAIL-DELIVERY-FAIL] Sub block warning — unexpected — recipient: {} | reason: {}",
                     toEmail, e.getMessage());
@@ -532,25 +532,25 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // BLOCK CANCELLED — Institution Super User
+    // BLOCK CANCELLED — Bank Super User
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
     public void sendBlockCancelled(String toEmail, String superUserName,
-                                   String institutionName, String institutionCode,
+                                   String bankName, String bankCode,
                                    String restoredStatus) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + institutionName);
-            helper.setText(buildBlockCancelledHtml(superUserName, institutionName, institutionCode, restoredStatus), true);
+            helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + bankName);
+            helper.setText(buildBlockCancelledHtml(superUserName, bankName, bankCode, restoredStatus), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Block cancelled — recipient: {} | institution: {}", toEmail, institutionCode);
+            logger.info("[EMAIL-OK] Block cancelled — recipient: {} | bank: {}", toEmail, bankCode);
         } catch (MessagingException e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Block cancelled — recipient: {} | institution: {} | reason: {}",
-                    toEmail, institutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Block cancelled — recipient: {} | bank: {} | reason: {}",
+                    toEmail, bankCode, e.getMessage());
         } catch (Exception e) {
             logger.error("[EMAIL-DELIVERY-FAIL] Block cancelled — unexpected — recipient: {} | reason: {}",
                     toEmail, e.getMessage());
@@ -562,23 +562,23 @@ public class EmailServiceImpl implements EmailService {
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendSubInstituteBlockCancelled(String toEmail, String contactName,
-                                               String subInstitutionName, String subInstitutionCode,
-                                               String parentInstitutionName, String parentInstitutionCode) {
+    public void sendBranchBankBlockCancelled(String toEmail, String contactName,
+                                               String branchBankName, String branchBankCode,
+                                               String parentBankName, String parentBankCode) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + subInstitutionName);
-            helper.setText(buildSubBlockCancelledHtml(contactName, subInstitutionName, subInstitutionCode,
-                    parentInstitutionName, parentInstitutionCode), true);
+            helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + branchBankName);
+            helper.setText(buildSubBlockCancelledHtml(contactName, branchBankName, branchBankCode,
+                    parentBankName, parentBankCode), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Sub block cancelled — recipient: {} | sub: {} | parent: {}",
-                    toEmail, subInstitutionCode, parentInstitutionCode);
+            logger.info("[EMAIL-OK] Sub block cancelled — recipient: {} | branch: {} | parent: {}",
+                    toEmail, branchBankCode, parentBankCode);
         } catch (MessagingException e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Sub block cancelled — recipient: {} | sub: {} | reason: {}",
-                    toEmail, subInstitutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Sub block cancelled — recipient: {} | branch: {} | reason: {}",
+                    toEmail, branchBankCode, e.getMessage());
         } catch (Exception e) {
             logger.error("[EMAIL-DELIVERY-FAIL] Sub block cancelled — unexpected — recipient: {} | reason: {}",
                     toEmail, e.getMessage());
@@ -586,10 +586,10 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // HTML TEMPLATE — Block Cancelled (Institution)
+    // HTML TEMPLATE — Block Cancelled (Bank)
     // ─────────────────────────────────────────────────────────────────────
-    private String buildBlockCancelledHtml(String name, String institutionName,
-                                             String institutionCode, String restoredStatus) {
+    private String buildBlockCancelledHtml(String name, String bankName,
+                                             String bankCode, String restoredStatus) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
@@ -612,7 +612,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
-            + "We are pleased to inform you that the scheduled block of your institution's account on "
+            + "We are pleased to inform you that the scheduled block of your bank's account on "
             + "<strong>ReconXpert.Ai</strong> has been <strong>successfully cancelled</strong> by KalInfotech Administration. "
             + "Your account is now fully restored and you may continue using the platform as normal."
             + "</p>"
@@ -621,10 +621,10 @@ public class EmailServiceImpl implements EmailService {
             + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
             + "<p style='margin:0 0 14px;font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Account Restoration Details</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#4ade80;padding:5px 0;width:170px;color:#166534;'>Institution Name</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(institutionName) + "</td></tr>"
-            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Institution Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#4ade80;padding:5px 0;width:170px;color:#166534;'>Bank Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(bankName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Bank Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(bankCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Restored Status</td>"
             + "<td style='font-size:13px;font-weight:700;color:#15803d;padding:5px 0;'>" + sanitize(restoredStatus) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Action By</td>"
@@ -653,8 +653,8 @@ public class EmailServiceImpl implements EmailService {
     // HTML TEMPLATE — Block Cancelled (Sub-Institute)
     // ─────────────────────────────────────────────────────────────────────
     private String buildSubBlockCancelledHtml(String contactName,
-                                                String subInstitutionName, String subInstitutionCode,
-                                                String parentInstitutionName, String parentInstitutionCode) {
+                                                String branchBankName, String branchBankCode,
+                                                String parentBankName, String parentBankCode) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
@@ -676,26 +676,26 @@ public class EmailServiceImpl implements EmailService {
             // Body
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(contactName) + "</strong>,"
-            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(subInstitutionName) + "</span></p>"
+            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(branchBankName) + "</span></p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
-            + "We are pleased to inform you that the scheduled block of your institution on "
+            + "We are pleased to inform you that the scheduled block of your bank on "
             + "<strong>ReconXpert.Ai</strong> has been <strong>successfully cancelled</strong>. "
-            + "This follows the cancellation of the block of your parent institution, "
-            + "<strong>" + sanitize(parentInstitutionName) + "</strong>, by KalInfotech Administration. "
+            + "This follows the cancellation of the block of your parent bank, "
+            + "<strong>" + sanitize(parentBankName) + "</strong>, by KalInfotech Administration. "
             + "Your platform access and all reconciliation services remain fully active."
             + "</p>"
 
             // Details box
             + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin-bottom:16px;'>"
-            + "<p style='margin:0 0 14px;font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Your Institution Details</p>"
+            + "<p style='margin:0 0 14px;font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Your Bank Details</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;width:170px;'>Your Institution</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(subInstitutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;width:170px;'>Your Bank</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(branchBankName) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Your Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(subInstitutionCode) + "</td></tr>"
-            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Network Institution</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(parentInstitutionName)
-            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentInstitutionCode) + ")</span></td></tr>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(branchBankCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#166534;padding:5px 0;'>Network Bank</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(parentBankName)
+            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentBankCode) + ")</span></td></tr>"
             + "</table></div>"
 
             + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
@@ -719,10 +719,10 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // HTML TEMPLATE — Institution Block Warning
+    // HTML TEMPLATE — Bank Block Warning
     // ─────────────────────────────────────────────────────────────────────
-    private String buildBlockWarningHtml(String name, String institutionName,
-                                         String institutionCode, String blockAt) {
+    private String buildBlockWarningHtml(String name, String bankName,
+                                         String bankCode, String blockAt) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
@@ -745,7 +745,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
-            + "This is an urgent notice that your institution's account on <strong>ReconXpert.Ai</strong> has been "
+            + "This is an urgent notice that your bank's account on <strong>ReconXpert.Ai</strong> has been "
             + "<strong>scheduled for permanent blocking</strong> by KalInfotech Administration. "
             + "Once blocked, all platform access and reconciliation services will be <strong>permanently suspended</strong> "
             + "and cannot be reversed."
@@ -755,10 +755,10 @@ public class EmailServiceImpl implements EmailService {
             + "<div style='background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
             + "<p style='margin:0 0 14px;font-size:11px;color:#991b1b;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Block Details</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;width:170px;'>Institution Name</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(institutionName) + "</td></tr>"
-            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Institution Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;width:170px;'>Bank Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(bankName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Bank Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(bankCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Scheduled By</td>"
             + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>KalInfotech Administration</td></tr>"
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Block Time</td>"
@@ -790,8 +790,8 @@ public class EmailServiceImpl implements EmailService {
     // HTML TEMPLATE — Sub-Institute Block Warning
     // ─────────────────────────────────────────────────────────────────────
     private String buildSubBlockWarningHtml(String contactName,
-                                            String subInstitutionName, String subInstitutionCode,
-                                            String parentInstitutionName, String parentInstitutionCode,
+                                            String branchBankName, String branchBankCode,
+                                            String parentBankName, String parentBankCode,
                                             String blockAt) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
@@ -814,21 +814,21 @@ public class EmailServiceImpl implements EmailService {
             // Body
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(contactName) + "</strong>,"
-            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(subInstitutionName) + "</span></p>"
+            + "<span style='font-size:12px;color:#94a3b8;font-weight:400;'> &nbsp;|&nbsp; Super User, " + sanitize(branchBankName) + "</span></p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
-            + "This is an urgent notice that your institution's account on <strong>ReconXpert.Ai</strong> has been "
+            + "This is an urgent notice that your bank's account on <strong>ReconXpert.Ai</strong> has been "
             + "<strong>scheduled for permanent blocking</strong>. This action has been triggered by the blocking "
-            + "of your parent institution, <strong>" + sanitize(parentInstitutionName) + "</strong>, by KalInfotech Administration."
+            + "of your parent bank, <strong>" + sanitize(parentBankName) + "</strong>, by KalInfotech Administration."
             + "</p>"
 
             // Details box
             + "<div style='background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:8px;padding:20px 24px;margin-bottom:16px;'>"
             + "<p style='margin:0 0 14px;font-size:11px;color:#991b1b;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;'>Block Details</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;width:170px;'>Your Institution</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(subInstitutionName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;width:170px;'>Your Bank</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>" + sanitize(branchBankName) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Your Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(subInstitutionCode) + "</td></tr>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:5px 0;letter-spacing:1px;'>" + sanitize(branchBankCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#78716c;padding:5px 0;'>Block Time</td>"
             + "<td style='font-size:13px;font-weight:700;color:#dc2626;padding:5px 0;'>" + sanitize(blockAt) + "</td></tr>"
             + "</table></div>"
@@ -839,9 +839,9 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:170px;'>Issuing Authority</td>"
             + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>KalInfotech Administration</td></tr>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Network Institution</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(parentInstitutionName)
-            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentInstitutionCode) + ")</span></td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Network Bank</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(parentBankName)
+            + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentBankCode) + ")</span></td></tr>"
             + "</table></div>"
 
             // Urgent action
@@ -867,16 +867,16 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // INSTITUTION PROFILE UPDATE NOTIFICATION
-    // Sent to primary contact whenever Admin updates the institution profile.
+    // BANK PROFILE UPDATE NOTIFICATION
+    // Sent to primary contact whenever Admin updates the bankprofile.
     // changesBySections maps section name → list of "Field: old → new" strings.
     // Only called when the map is non-empty (i.e. something actually changed).
     // @Async — fire and forget, update must NOT be blocked by email failure
     // ─────────────────────────────────────────────────────────────────────
     @Override
     @Async
-    public void sendInstitutionUpdateNotification(String toEmail, String contactName,
-                                                   String institutionName, String institutionCode,
+    public void sendBankUpdateNotification(String toEmail, String contactName,
+                                                   String bankName, String bankCode,
                                                    String updatedAt,
                                                    Map<String, List<String>> changesBySections) {
         try {
@@ -884,27 +884,27 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Institution Profile Updated: " + institutionName);
-            helper.setText(buildInstitutionUpdateHtml(contactName, institutionName, institutionCode,
+            helper.setSubject("ReconXpert.Ai — Bank Profile Updated: " + bankName);
+            helper.setText(buildBankUpdateHtml(contactName, bankName, bankCode,
                     updatedAt, changesBySections), true);
             mailSender.send(message);
-            logger.info("[EMAIL-OK] Institution update notification — recipient: {} | institution: {} | sections: {}",
-                    toEmail, institutionCode, changesBySections.keySet());
+            logger.info("[EMAIL-OK] Bank update notification — recipient: {} | bank: {} | sections: {}",
+                    toEmail, bankCode, changesBySections.keySet());
         } catch (MessagingException e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Institution update — recipient: {} | institution: {} | reason: {}",
-                    toEmail, institutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Bank update — recipient: {} | bank: {} | reason: {}",
+                    toEmail, bankCode, e.getMessage());
         } catch (Exception e) {
-            logger.error("[EMAIL-DELIVERY-FAIL] Institution update — unexpected — recipient: {} | institution: {} | reason: {}",
-                    toEmail, institutionCode, e.getMessage());
+            logger.error("[EMAIL-DELIVERY-FAIL] Bank update — unexpected — recipient: {} | bank: {} | reason: {}",
+                    toEmail, bankCode, e.getMessage());
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // HTML TEMPLATE — Institution Profile Update Notification
+    // HTML TEMPLATE — Bank Profile Update Notification
     // Renders only the sections that actually changed, with before → after values
     // ─────────────────────────────────────────────────────────────────────
-    private String buildInstitutionUpdateHtml(String contactName, String institutionName,
-                                               String institutionCode, String updatedAt,
+    private String buildBankUpdateHtml(String contactName, String bankName,
+                                               String bankCode, String updatedAt,
                                                Map<String, List<String>> changesBySections) {
 
         // Build the change-details block: one coloured card per section
@@ -963,7 +963,7 @@ public class EmailServiceImpl implements EmailService {
             // Info banner
             + "<tr><td style='background:rgba(13,148,136,0.08);border-bottom:3px solid #0d9488;padding:20px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:32px;'>🔔</p>"
-            + "<p style='margin:8px 0 0;font-size:18px;font-weight:700;color:#0f766e;'>Institution Profile Updated</p>"
+            + "<p style='margin:8px 0 0;font-size:18px;font-weight:700;color:#0f766e;'>Bank Profile Updated</p>"
             + "<p style='margin:6px 0 0;font-size:13px;color:#0d9488;'>The following changes have been applied to your account</p>"
             + "</td></tr>"
 
@@ -971,18 +971,18 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 24px;line-height:1.8;'>"
-            + "We wish to inform you that the profile of <strong>" + sanitize(institutionName) + "</strong> "
+            + "We wish to inform you that the profile of <strong>" + sanitize(bankName) + "</strong> "
             + "on the <strong>ReconXpert.Ai</strong> platform has been updated by KalInfotech Administration. "
             + "The specific changes are detailed below."
             + "</p>"
 
-            // Institution meta card
+            // Bank meta card
             + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #0d9488;border-radius:8px;padding:16px 20px;margin-bottom:24px;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:140px;'>Institution Name</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(institutionName) + "</td></tr>"
-            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Institution Code</td>"
-            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:4px 0;letter-spacing:1px;'>" + sanitize(institutionCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:140px;'>Bank Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(bankName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Bank Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:700;padding:4px 0;letter-spacing:1px;'>" + sanitize(bankCode) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Updated On</td>"
             + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(updatedAt) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Updated By</td>"
@@ -1000,7 +1000,7 @@ public class EmailServiceImpl implements EmailService {
             + "If you were not informed of this update or believe it was made in error, "
             + "please contact KalInfotech Administration immediately at "
             + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;font-weight:600;'>support@kalinfotech.com</a> "
-            + "and quote your Institution Code: <strong>" + sanitize(institutionCode) + "</strong>."
+            + "and quote your Bank Code: <strong>" + sanitize(bankCode) + "</strong>."
             + "</p></div>"
 
             + "</td></tr>"

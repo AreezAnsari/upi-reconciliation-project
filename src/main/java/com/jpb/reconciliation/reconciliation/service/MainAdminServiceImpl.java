@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 
-import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequest;
+import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminSetPasswordDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyEmailResponseDto;
@@ -55,31 +55,31 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // verifyEmail
-    // GET /test/api/v1/institution/verify-email?institutionCode=xxx&username=yyy
+    // GET /test/api/v1/bank/verify-email?bankCode=xxx&username=yyy
     //
-    // KAL_SUPER_USER mein dhundho:
+    // BANK_ADMIN mein dhundho:
     //   - Record nahi / passwordSet=false → NEW_USER
     //   - passwordSet=true                → OLD_USER
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> verifyEmail(
-            String institutionCode, String username) {
+            String bankCode, String username) {
 
-        logger.info("verifyEmail — institutionCode={} username={}",
-                institutionCode, username);
+        logger.info("verifyEmail — bankCode={} username={}",
+                bankCode, username);
 
-        if (institutionCode == null || institutionCode.trim().isEmpty() ||
+        if (bankCode == null || bankCode.trim().isEmpty() ||
                 username == null || username.trim().isEmpty()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Institution code and username are required.", null),
+                            "Bank code and username are required.", null),
                     HttpStatus.BAD_REQUEST);
         }
 
-        // TEST_INSTITUTION is source of truth — defaultPassword==null means password already set
+        // TEST_BANK is source of truth — defaultPassword==null means password already set
         Optional<MainBank> optInst =
-                mainBankRepository.findByInstitutionCodeAndSuperUserId(
-                        institutionCode.trim(),
+                mainBankRepository.findByBankCodeAndBankAdminId(
+                        bankCode.trim(),
                         username.trim());
 
         String userStatus;
@@ -95,7 +95,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         MainAdminVerifyEmailResponseDto responseDto =
                 new MainAdminVerifyEmailResponseDto(
                         userStatus,
-                        institutionCode.trim(),
+                        bankCode.trim(),
                         username.trim());
 
         List<Object> data = new ArrayList<>();
@@ -109,19 +109,19 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // checkUserStatus
-    // POST /test/api/v1/institution/check-user-status
-    // Body: { institutionCode, username }
+    // POST /test/api/v1/bank/check-user-status
+    // Body: { bankCode, username }
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> checkUserStatus(MainAdminVerifyDto dto) {
 
-        logger.info("checkUserStatus — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("checkUserStatus — bankCode={} username={}",
+                dto.getBankCode(), dto.getUsername());
 
-        // TEST_INSTITUTION is source of truth — defaultPassword==null means password already set
+        // TEST_BANK is source of truth — defaultPassword==null means password already set
         Optional<MainBank> optInst =
-                mainBankRepository.findByInstitutionCodeAndSuperUserId(
-                        dto.getInstitutionCode(),
+                mainBankRepository.findByBankCodeAndBankAdminId(
+                        dto.getBankCode(),
                         dto.getUsername());
 
         if (!optInst.isPresent() || optInst.get().getDefaultPassword() != null) {
@@ -139,46 +139,46 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // STEP 1 — verifyCredentials
-    // POST /test/api/v1/institution/verify-credentials
-    // Body: { institutionCode, username, defaultPassword }
+    // POST /test/api/v1/bank/verify-credentials
+    // Body: { bankCode, username, defaultPassword }
     //
-    // KAL_SUPER_USER mein dhundho → default password compare karo
+    // BANK_ADMIN mein dhundho → default password compare karo
     // passwordSet=true → ALREADY_VERIFIED
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> verifyCredentials(MainAdminVerifyDto dto) {
 
-        logger.info("verifyCredentials — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("verifyCredentials — bankCode={} username={}",
+                dto.getBankCode(), dto.getUsername());
 
-        if (dto.getInstitutionCode() == null || dto.getUsername() == null) {
+        if (dto.getBankCode() == null || dto.getUsername() == null) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Institution Code and Username are required.", null),
+                            "Bank Code and Username are required.", null),
                     HttpStatus.BAD_REQUEST);
         }
 
-        String institutionCode = dto.getInstitutionCode().trim();
+        String bankCode = dto.getBankCode().trim();
         String username        = dto.getUsername().trim();
 
-        // TEST_INSTITUTION is source of truth for default credential verification
+        // TEST_BANK is source of truth for default credential verification
         Optional<MainBank> optInst =
-                mainBankRepository.findByInstitutionCodeAndSuperUserId(
-                        institutionCode, username);
+                mainBankRepository.findByBankCodeAndBankAdminId(
+                        bankCode, username);
 
         if (!optInst.isPresent()) {
-            logger.warn("verifyCredentials — institution not found: institutionCode={} username={}",
-                    institutionCode, username);
+            logger.warn("verifyCredentials — bank not found: bankCode={} username={}",
+                    bankCode, username);
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Invalid Institution Code or Username. Please check your email.", null),
+                            "Invalid Bank Code or Username. Please check your email.", null),
                     HttpStatus.BAD_REQUEST);
         }
 
-        MainBank institution = optInst.get();
+        MainBank bank = optInst.get();
 
         // defaultPassword==null means password was already set → direct login
-        if (institution.getDefaultPassword() == null) {
+        if (bank.getDefaultPassword() == null) {
             logger.info("verifyCredentials → ALREADY_VERIFIED for username={}", username);
             return new ResponseEntity<>(
                     new RestWithStatusList("ALREADY_VERIFIED",
@@ -186,23 +186,23 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.OK);
         }
 
-        // Verify default password — Case A: BCrypt (new institutions), Case B: plaintext (old institutions)
+        // Verify default password — Case A: BCrypt (new banks), Case B: plaintext (old banks)
         boolean passwordMatch = false;
-        if (dto.getDefaultPassword() != null && institution.getDefaultPassword() != null) {
+        if (dto.getDefaultPassword() != null && bank.getDefaultPassword() != null) {
             try {
                 passwordMatch = passwordEncoder.matches(
-                        dto.getDefaultPassword(), institution.getDefaultPassword());
+                        dto.getDefaultPassword(), bank.getDefaultPassword());
             } catch (Exception e) {
                 logger.warn("BCrypt match failed, trying plain text: {}", e.getMessage());
             }
             if (!passwordMatch) {
-                passwordMatch = dto.getDefaultPassword().equals(institution.getDefaultPassword());
+                passwordMatch = dto.getDefaultPassword().equals(bank.getDefaultPassword());
             }
         }
 
         if (!passwordMatch) {
-            logger.warn("verifyCredentials — password mismatch for institutionCode={} username={}",
-                    institutionCode, username);
+            logger.warn("verifyCredentials — password mismatch for bankCode={} username={}",
+                    bankCode, username);
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
                             "Invalid Default Password. Please check your email.", null),
@@ -219,34 +219,34 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // STEP 2 — setNewPassword
-    // POST /test/api/v1/institution/set-password
-    // Body: { institutionCode, username, newPassword }
+    // POST /test/api/v1/bank/set-password
+    // Body: { bankCode, username, newPassword }
     //
     // BCrypt encode karke save karo, passwordSet=true, status=VERIFIED
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> setNewPassword(MainAdminSetPasswordDto dto) {
 
-        logger.info("setNewPassword — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("setNewPassword — bankCode={} username={}",
+                dto.getBankCode(), dto.getUsername());
 
-        // TEST_INSTITUTION is source of truth — validate first
+        // TEST_BANK is source of truth — validate first
         Optional<MainBank> optInst =
-                mainBankRepository.findByInstitutionCodeAndSuperUserId(
-                        dto.getInstitutionCode().trim(),
+                mainBankRepository.findByBankCodeAndBankAdminId(
+                        dto.getBankCode().trim(),
                         dto.getUsername().trim());
 
         if (!optInst.isPresent()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Institution not found. Please verify credentials first.", null),
+                            "Bank not found. Please verify credentials first.", null),
                     HttpStatus.NOT_FOUND);
         }
 
-        MainBank institution = optInst.get();
+        MainBank bank = optInst.get();
 
         // defaultPassword==null means password was already set — cannot set again
-        if (institution.getDefaultPassword() == null) {
+        if (bank.getDefaultPassword() == null) {
             logger.info("setNewPassword → ALREADY_VERIFIED for username={}", dto.getUsername());
             return new ResponseEntity<>(
                     new RestWithStatusList("ALREADY_VERIFIED",
@@ -254,28 +254,28 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.OK);
         }
 
-        // INSERT new record into KAL_SUPER_USER (first-time password setup)
+        // INSERT new record into BANK_ADMIN (first-time password setup)
         MainAdmin mainAdmin = new MainAdmin();
-        mainAdmin.setInstitutionCode(dto.getInstitutionCode().trim());
+        mainAdmin.setBankCode(dto.getBankCode().trim());
         mainAdmin.setUsername(dto.getUsername().trim());
-        mainAdmin.setEmail(institution.getPrimaryEmail());
+        mainAdmin.setEmail(bank.getPrimaryEmail());
         mainAdmin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         mainAdmin.setPasswordSet(1);
         mainAdmin.setStatus("VERIFIED");
         mainAdmin.setCreatedAt(LocalDateTime.now());
-        mainAdmin.setCreatedBy(institution.getCreatedBy()); // admin username from TEST_INSTITUTION
+        mainAdmin.setCreatedBy(bank.getCreatedBy()); // admin username from TEST_BANK
         mainAdminRepository.save(mainAdmin);
-        logger.info("KAL_SUPER_USER record created for username={} institutionCode={}",
-                dto.getUsername(), dto.getInstitutionCode());
+        logger.info("BANK_ADMIN record created for username={} bankCode={}",
+                dto.getUsername(), dto.getBankCode());
 
-        // Update TEST_INSTITUTION → VERIFIED, wipe defaultPassword & token
-        institution.setStatus("VERIFIED");
-        institution.setDefaultPassword(null);       // default password null — kaam khatam
-        institution.setVerificationToken(null);     // link dead on success
-        institution.setTokenExpiry(LocalDateTime.now());
-        institution.setUpdatedAt(LocalDateTime.now());
-        mainBankRepository.save(institution);
-        logger.info("Institution {} status → VERIFIED after password setup", dto.getInstitutionCode());
+        // Update TEST_BANK → VERIFIED, wipe defaultPassword & token
+        bank.setStatus("VERIFIED");
+        bank.setDefaultPassword(null);       // default password null — kaam khatam
+        bank.setVerificationToken(null);     // link dead on success
+        bank.setTokenExpiry(LocalDateTime.now());
+        bank.setUpdatedAt(LocalDateTime.now());
+        mainBankRepository.save(bank);
+        logger.info("Bank {} status → VERIFIED after password setup", dto.getBankCode());
 
         logger.info("setNewPassword → SUCCESS for username={}", dto.getUsername());
         return new ResponseEntity<>(
@@ -286,17 +286,17 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // STEP 3 — login → OTP bhejo
-    // POST /test/api/v1/institution/login
-    // Body: { institutionCode, username, defaultPassword }
+    // POST /test/api/v1/bank/login
+    // Body: { bankCode, username, defaultPassword }
     //
-    // institutionCode optional — agar empty/null to username se dhundho
+    // bankCode optional — agar empty/null to username se dhundho
     // Password verify → OTP bhejo → email return karo
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> login(MainAdminVerifyDto dto) {
 
-        logger.info("login — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("login — bankCode={} username={}",
+                dto.getBankCode(), dto.getUsername());
 
         if (dto.getUsername() == null || dto.getUsername().trim().isEmpty()) {
             return new ResponseEntity<>(
@@ -307,63 +307,63 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         Optional<MainAdmin> optUser = Optional.empty();
 
-        // Primary lookup: institutionCode + username = composite identity
-        // Same username can exist at different institutions — institutionCode disambiguates
-        if (dto.getInstitutionCode() != null && !dto.getInstitutionCode().trim().isEmpty()) {
-            String enteredCode = dto.getInstitutionCode().trim();
+        // Primary lookup: bankCode + username = composite identity
+        // Same username can exist at different banks — bankCode disambiguates
+        if (dto.getBankCode() != null && !dto.getBankCode().trim().isEmpty()) {
+            String enteredCode = dto.getBankCode().trim();
             String enteredUser = dto.getUsername().trim();
 
-            // Step 1: Composite lookup (works when KAL_SUPER_USER.institution_code is correct)
-            optUser = mainAdminRepository.findByInstitutionCodeAndUsername(enteredCode, enteredUser);
+            // Step 1: Composite lookup (works when BANK_ADMIN.bank_code is correct)
+            optUser = mainAdminRepository.findByBankCodeAndUsername(enteredCode, enteredUser);
 
-            // Step 2: TEST_INSTITUTION bridge — handles stale/wrong institution_code in KAL_SUPER_USER
-            // TEST_INSTITUTION is authoritative; bridge via primary_email.
+            // Step 2: TEST_BANK bridge — handles stale/wrong bank_code in BANK_ADMIN
+            // TEST_BANK is authoritative; bridge via primary_email.
             // Skip BLOCKED records so re-onboarded users with the same email can log in.
             if (!optUser.isPresent()) {
-                logger.warn("login — composite miss, trying MainBank bridge for institutionCode={} username={}",
+                logger.warn("login — composite miss, trying MainBank bridge for bankCode={} username={}",
                         enteredCode, enteredUser);
-                Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> instOpt =
-                        mainBankRepository.findByInstitutionCodeAndSuperUserId(enteredCode, enteredUser);
-                if (instOpt.isPresent()) {
-                    String primaryEmail = instOpt.get().getPrimaryEmail();
+                Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> bnkOpt =
+                        mainBankRepository.findByBankCodeAndBankAdminId(enteredCode, enteredUser);
+                if (bnkOpt.isPresent()) {
+                    String primaryEmail = bnkOpt.get().getPrimaryEmail();
                     if (primaryEmail != null && !primaryEmail.trim().isEmpty()) {
                         // Prefer non-BLOCKED record — re-onboarding creates a 2nd record with same email
                         optUser = mainAdminRepository.findFirstByEmailAndStatusNot(primaryEmail.trim(), "BLOCKED");
                         if (optUser.isPresent()) {
                             logger.info("login — MainBank bridge hit via email={} for username={}", primaryEmail, enteredUser);
                         } else {
-                            logger.warn("login — MainBank bridge: no KAL_SUPER_USER entry for email={}", primaryEmail);
+                            logger.warn("login — MainBank bridge: no BANK_ADMIN entry for email={}", primaryEmail);
                         }
                     }
                 } else {
-                    logger.warn("login — MainBank bridge miss: institutionCode={} superUserId={} not found",
+                    logger.warn("login — MainBank bridge miss: bankCode={} superUserId={} not found",
                             enteredCode, enteredUser);
                 }
             }
 
-            // Step 3: Legacy fallback — old records where institution_code was stored as NULL
+            // Step 3: Legacy fallback — old records where bank_code was stored as NULL
             if (!optUser.isPresent()) {
                 Optional<MainAdmin> legacy =
-                        mainAdminRepository.findFirstByUsernameAndInstitutionCodeIsNull(enteredUser);
+                        mainAdminRepository.findFirstByUsernameAndBankCodeIsNull(enteredUser);
                 if (legacy.isPresent()) {
                     Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> parentInst =
-                            mainBankRepository.findFirstBySuperUserId(enteredUser);
-                    if (parentInst.isPresent() && enteredCode.equals(parentInst.get().getInstitutionCode())) {
+                            mainBankRepository.findFirstByBankAdminId(enteredUser);
+                    if (parentInst.isPresent() && enteredCode.equals(parentInst.get().getBankCode())) {
                         optUser = legacy;
                         logger.info("login — legacy NULL-code record matched for username={}", enteredUser);
                     } else {
-                        logger.warn("login — all strategies exhausted for institutionCode={} username={}", enteredCode, enteredUser);
+                        logger.warn("login — all strategies exhausted for bankCode={} username={}", enteredCode, enteredUser);
                     }
                 }
             }
         } else {
-            logger.warn("login — institutionCode missing for username={}", dto.getUsername());
+            logger.warn("login — bankCode missing for username={}", dto.getUsername());
         }
 
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Invalid Institution Code or Username.", null),
+                            "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
 
@@ -378,26 +378,26 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        // ── Status check from KAL_SUPER_USER (synced with TEST_INSTITUTION) ──
+        // ── Status check from BANK_ADMIN (synced with TEST_BANK) ──
         String userStatus = user.getStatus();
         if ("BLOCKED".equalsIgnoreCase(userStatus) || "BLOCK".equalsIgnoreCase(userStatus)) {
-            logger.warn("login BLOCKED: institution={} username={}", dto.getInstitutionCode(), dto.getUsername());
+            logger.warn("login BLOCKED: bank={} username={}", dto.getBankCode(), dto.getUsername());
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Invalid Institution Code or Username.", null),
+                            "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
         if ("INACTIVE".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("INACTIVE",
-                            "Your institution account is currently inactive. Please contact the KalInfotech administrator to reactivate your account.",
+                            "Your bank account is currently inactive. Please contact the KalInfotech administrator to reactivate your account.",
                             null),
                     HttpStatus.OK);
         }
         if ("BLOCK_PENDING".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCK_PENDING",
-                            "Your institution account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
+                            "Your bank account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
                             null),
                     HttpStatus.OK);
         }
@@ -436,20 +436,20 @@ public class MainAdminServiceImpl implements MainAdminService {
     }
 
     // =========================================================================
-    // DIRECT LOGIN — institutionCode + username + password → JWT (no OTP)
-    // POST /test/api/v1/institution/direct-login
-    // Body: { institutionCode, username, defaultPassword }
+    // DIRECT LOGIN — bankCode + username + password → JWT (no OTP)
+    // POST /test/api/v1/bank/direct-login
+    // Body: { bankCode, username, defaultPassword }
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> directLogin(MainAdminVerifyDto dto) {
 
-        logger.info("directLogin — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("directLogin — bankCode={} username={}",
+                dto.getBankCode(), dto.getUsername());
 
-        // institutionCode required
-        if (dto.getInstitutionCode() == null || dto.getInstitutionCode().trim().isEmpty()) {
+        // bankCode required
+        if (dto.getBankCode() == null || dto.getBankCode().trim().isEmpty()) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Institution Code is required.", null),
+                    new RestWithStatusList("FAILURE", "Bank Code is required.", null),
                     HttpStatus.BAD_REQUEST);
         }
         if (dto.getUsername() == null || dto.getUsername().trim().isEmpty()) {
@@ -463,22 +463,22 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        String enteredCode = dto.getInstitutionCode().trim();
+        String enteredCode = dto.getBankCode().trim();
         String enteredUser = dto.getUsername().trim();
 
         // Step 1: Composite lookup
-        Optional<MainAdmin> optUser = mainAdminRepository.findByInstitutionCodeAndUsername(
+        Optional<MainAdmin> optUser = mainAdminRepository.findByBankCodeAndUsername(
                 enteredCode, enteredUser);
 
-        // Step 2: TEST_INSTITUTION bridge — handles stale/wrong institution_code in KAL_SUPER_USER
+        // Step 2: TEST_BANK bridge — handles stale/wrong bank_code in BANK_ADMIN
         // Skip BLOCKED records so re-onboarded users with the same email can log in.
         if (!optUser.isPresent()) {
-            logger.warn("directLogin — composite miss, trying MainBank bridge for institutionCode={} username={}",
+            logger.warn("directLogin — composite miss, trying MainBank bridge for bankCode={} username={}",
                     enteredCode, enteredUser);
-            Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> instOpt =
-                    mainBankRepository.findByInstitutionCodeAndSuperUserId(enteredCode, enteredUser);
-            if (instOpt.isPresent()) {
-                String primaryEmail = instOpt.get().getPrimaryEmail();
+            Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> bnkOpt =
+                    mainBankRepository.findByBankCodeAndBankAdminId(enteredCode, enteredUser);
+            if (bnkOpt.isPresent()) {
+                String primaryEmail = bnkOpt.get().getPrimaryEmail();
                 if (primaryEmail != null && !primaryEmail.trim().isEmpty()) {
                     // Prefer non-BLOCKED record — re-onboarding creates a 2nd record with same email
                     optUser = mainAdminRepository.findFirstByEmailAndStatusNot(primaryEmail.trim(), "BLOCKED");
@@ -489,18 +489,18 @@ public class MainAdminServiceImpl implements MainAdminService {
             }
         }
 
-        // Step 3: Legacy fallback — old records where institution_code was stored as NULL
+        // Step 3: Legacy fallback — old records where bank_code was stored as NULL
         if (!optUser.isPresent()) {
             Optional<MainAdmin> legacy =
-                    mainAdminRepository.findFirstByUsernameAndInstitutionCodeIsNull(enteredUser);
+                    mainAdminRepository.findFirstByUsernameAndBankCodeIsNull(enteredUser);
             if (legacy.isPresent()) {
                 Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> parentInst =
-                        mainBankRepository.findFirstBySuperUserId(enteredUser);
-                if (parentInst.isPresent() && enteredCode.equals(parentInst.get().getInstitutionCode())) {
+                        mainBankRepository.findFirstByBankAdminId(enteredUser);
+                if (parentInst.isPresent() && enteredCode.equals(parentInst.get().getBankCode())) {
                     optUser = legacy;
                     logger.info("directLogin — legacy NULL-code record matched for username={}", enteredUser);
                 } else {
-                    logger.warn("directLogin — all strategies exhausted for institutionCode={} username={}", enteredCode, enteredUser);
+                    logger.warn("directLogin — all strategies exhausted for bankCode={} username={}", enteredCode, enteredUser);
                 }
             }
         }
@@ -508,7 +508,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Invalid Institution Code or Username.", null),
+                            "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
 
@@ -522,25 +522,25 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        // ── Status check from KAL_SUPER_USER (synced with TEST_INSTITUTION) ──
+        // ── Status check from BANK_ADMIN (synced with TEST_BANK) ──
         String status = user.getStatus();
         if ("BLOCKED".equalsIgnoreCase(status) || "BLOCK".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Invalid Institution Code or Username.", null),
+                            "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
         if ("INACTIVE".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("INACTIVE",
-                            "Your institution account is currently inactive. Please contact the KalInfotech administrator to reactivate your account.",
+                            "Your bank account is currently inactive. Please contact the KalInfotech administrator to reactivate your account.",
                             null),
                     HttpStatus.OK);
         }
         if ("BLOCK_PENDING".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCK_PENDING",
-                            "Your institution account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
+                            "Your bank account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
                             null),
                     HttpStatus.OK);
         }
@@ -564,15 +564,15 @@ public class MainAdminServiceImpl implements MainAdminService {
         String accessToken  = jwtHelper.generateToken(userDetails);
         String refreshToken = jwtHelper.generateTokenForRefresh(user.getUsername());
 
-        // Institution code bhi return karo
+        // Bank code bhi return karo
         List<Object> data = new ArrayList<>();
         data.add(user.getUsername());
-        data.add(user.getInstitutionCode());
+        data.add(user.getBankCode());
         data.add(accessToken);
         data.add(refreshToken);
 
-        logger.info("directLogin — success for username={} institutionCode={}",
-                user.getUsername(), user.getInstitutionCode());
+        logger.info("directLogin — success for username={} bankCode={}",
+                user.getUsername(), user.getBankCode());
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS", "Login successful.", data),
@@ -581,16 +581,16 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // FORGOT PASSWORD — Step A: OTP bhejo
-    // POST /test/api/v1/institution/forgot-password
-    // Body: { email }  OR  { institutionCode, username }
+    // POST /test/api/v1/bank/forgot-password
+    // Body: { email }  OR  { bankCode, username }
     //
     // ✅ FIX: OTP actually send karo — pehle sirf logger tha
     // =========================================================================
     @Override
-    public ResponseEntity<RestWithStatusList> forgotPassword(ForgotPasswordRequest request) {
+    public ResponseEntity<RestWithStatusList> forgotPassword(ForgotPasswordRequestDto request) {
 
-        logger.info("forgotPassword — email={} username={} institutionCode={}",
-                request.getEmail(), request.getUsername(), request.getInstitutionCode());
+        logger.info("forgotPassword — email={} username={} bankCode={}",
+                request.getEmail(), request.getUsername(), request.getBankCode());
 
         MainAdmin user = null;
 
@@ -604,14 +604,14 @@ public class MainAdminServiceImpl implements MainAdminService {
             }
         }
 
-        // Strategy 2: institutionCode + username se dhundho
+        // Strategy 2: bankCode + username se dhundho
         if (user == null &&
                 request.getUsername() != null && !request.getUsername().trim().isEmpty() &&
-                request.getInstitutionCode() != null && !request.getInstitutionCode().trim().isEmpty()) {
+                request.getBankCode() != null && !request.getBankCode().trim().isEmpty()) {
 
             Optional<MainAdmin> byUsername =
-                    mainAdminRepository.findByInstitutionCodeAndUsername(
-                            request.getInstitutionCode().trim(),
+                    mainAdminRepository.findByBankCodeAndUsername(
+                            request.getBankCode().trim(),
                             request.getUsername().trim());
             if (byUsername.isPresent()) {
                 user = byUsername.get();
@@ -675,11 +675,11 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // FORGOT PASSWORD — Step B: OTP sirf verify karo (password reset nahi)
-    // POST /test/api/v1/institution/verify-forgot-otp
-    // Body: { email, otp }  OR  { institutionCode, username, otp }
+    // POST /test/api/v1/bank/verify-forgot-otp
+    // Body: { email, otp }  OR  { bankCode, username, otp }
     // =========================================================================
     @Override
-    public ResponseEntity<RestWithStatusList> verifyForgotOtp(ForgotPasswordRequest request) {
+    public ResponseEntity<RestWithStatusList> verifyForgotOtp(ForgotPasswordRequestDto request) {
 
         logger.info("verifyForgotOtp — email={} username={}", request.getEmail(), request.getUsername());
 
@@ -693,9 +693,9 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         if (user == null &&
                 request.getUsername() != null && !request.getUsername().trim().isEmpty() &&
-                request.getInstitutionCode() != null && !request.getInstitutionCode().trim().isEmpty()) {
-            Optional<MainAdmin> byUsername = mainAdminRepository.findByInstitutionCodeAndUsername(
-                    request.getInstitutionCode().trim(), request.getUsername().trim());
+                request.getBankCode() != null && !request.getBankCode().trim().isEmpty()) {
+            Optional<MainAdmin> byUsername = mainAdminRepository.findByBankCodeAndUsername(
+                    request.getBankCode().trim(), request.getUsername().trim());
             if (byUsername.isPresent()) user = byUsername.get();
         }
 
@@ -734,15 +734,15 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     // =========================================================================
     // FORGOT PASSWORD — Step C: OTP verify + password reset
-    // POST /test/api/v1/institution/reset-password
+    // POST /test/api/v1/bank/reset-password
     // Body: { email, otp, newPassword, confirmNewPassword }
-    //   OR  { institutionCode, username, otp, newPassword, confirmNewPassword }
+    //   OR  { bankCode, username, otp, newPassword, confirmNewPassword }
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> resetPassword(ResetPasswordRequest request) {
 
-        logger.info("resetPassword — institutionCode={} username={} email={}",
-                request.getInstitutionCode(), request.getUsername(), request.getEmail());
+        logger.info("resetPassword — BankCode={} username={} email={}",
+                request.getBankCode(), request.getUsername(), request.getEmail());
 
         if (request.getNewPassword() == null ||
                 !request.getNewPassword().equals(request.getConfirmNewPassword())) {
@@ -760,14 +760,14 @@ public class MainAdminServiceImpl implements MainAdminService {
             if (byEmail.isPresent()) user = byEmail.get();
         }
 
-        // Username + institutionCode se dhundho
+        // Username + bankCode se dhundho
         if (user == null &&
                 request.getUsername() != null && !request.getUsername().trim().isEmpty() &&
-                request.getInstitutionCode() != null && !request.getInstitutionCode().trim().isEmpty()) {
+                request.getBankCode() != null && !request.getBankCode().trim().isEmpty()) {
 
             Optional<MainAdmin> byUsername =
-                    mainAdminRepository.findByInstitutionCodeAndUsername(
-                            request.getInstitutionCode().trim(),
+                    mainAdminRepository.findByBankCodeAndUsername(
+                            request.getBankCode().trim(),
                             request.getUsername().trim());
             if (byUsername.isPresent()) user = byUsername.get();
         }
@@ -821,15 +821,15 @@ public class MainAdminServiceImpl implements MainAdminService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // STEP 3.5 — After OTP verified → Set institution status ACTIVE
+    // STEP 3.5 — After OTP verified → Set bank status ACTIVE
     // Called from OtpController after successful OTP verification
     // ─────────────────────────────────────────────────────────────────────────
     @Override
-    public ResponseEntity<RestWithStatusList> activateInstitution(String email) {
+    public ResponseEntity<RestWithStatusList> activateBank(String email) {
 
         // Find the active (non-BLOCKED) MainAdmin by email — newest record first (highest ID).
         // If the same email was re-onboarded after a BLOCK, OrderByIdAsc would wrongly return the
-        // old BLOCKED record and the new institution would never become ACTIVE after first login.
+        // old BLOCKED record and the new bank would never become ACTIVE after first login.
         Optional<MainAdmin> optUser = mainAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
 
         if (!optUser.isPresent()) {
@@ -841,47 +841,47 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         MainAdmin user = optUser.get();
 
-        // Find institution by institutionCode + superUserId (superUserId = username)
+        // Find bank by bankCode + superUserId (superUserId = username)
         Optional<MainBank> optInst = mainBankRepository
-                .findByInstitutionCodeAndSuperUserId(
-                        user.getInstitutionCode(),
+                .findByBankCodeAndBankAdminId(
+                        user.getBankCode(),
                         user.getUsername());
 
         if (!optInst.isPresent()) {
-            logger.warn("[ACTIVATE] Institution not found for email: {}", email);
+            logger.warn("[ACTIVATE] Bank not found for email: {}", email);
             return new ResponseEntity<>(
                     new RestWithStatusList("SUCCESS",
                             "Login successful.", new ArrayList<>()),
                     HttpStatus.OK);
         }
 
-        MainBank institution = optInst.get();
+        MainBank bank = optInst.get();
 
         // BLOCKED — permanently blocked, kabhi ACTIVE mat karo
-        if ("BLOCKED".equals(institution.getStatus())) {
+        if ("BLOCKED".equals(bank.getStatus())) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Blocked institution cannot be activated.", null),
+                            "Blocked bank cannot be activated.", null),
                     HttpStatus.FORBIDDEN);
         }
 
         // Sirf VERIFIED → ACTIVE (INACTIVE/BLOCKED automatically ACTIVE nahi honge)
-        if ("VERIFIED".equals(institution.getStatus())) {
-            institution.setStatus("ACTIVE");
-            institution.setUpdatedAt(LocalDateTime.now());
-            mainBankRepository.save(institution);
-            // Sync to KAL_SUPER_USER
+        if ("VERIFIED".equals(bank.getStatus())) {
+            bank.setStatus("ACTIVE");
+            bank.setUpdatedAt(LocalDateTime.now());
+            mainBankRepository.save(bank);
+            // Sync to BANK_ADMIN
             user.setStatus("ACTIVE");
             user.setUpdatedAt(LocalDateTime.now());
             user.setUpdatedBy("SYSTEM");
             mainAdminRepository.save(user);
-            logger.info("[ACTIVATE] Institution {} status → ACTIVE after first login",
-                    institution.getInstitutionCode());
+            logger.info("[ACTIVATE] Bank {} status → ACTIVE after first login",
+                    bank.getBankCode());
         }
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS",
-                        "Institution activated successfully.", new ArrayList<>()),
+                        "Bank activated successfully.", new ArrayList<>()),
                 HttpStatus.OK);
     }
 

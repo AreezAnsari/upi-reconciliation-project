@@ -4,7 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequest;
+import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminSetPasswordDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
@@ -12,7 +12,7 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.service.MainAdminService;
 
 @RestController
-@RequestMapping("/test/api/v1/institution")
+@RequestMapping("/test/api/v1/bank")
 public class MainAdminController {
 
     @Autowired
@@ -42,11 +42,11 @@ public class MainAdminController {
     // Forgot Password Step 1 — send OTP via email OR username
     @PostMapping("/forgot-password")
     public ResponseEntity<RestWithStatusList> forgotPassword(
-            @RequestBody ForgotPasswordRequest request) {
+            @RequestBody ForgotPasswordRequestDto request) {
         return mainAdminService.forgotPassword(request);
     }
 
-    // Direct Login — institutionCode + username + password → JWT (no OTP)
+    // Direct Login — bankCode + username + password → JWT (no OTP)
     @PostMapping("/direct-login")
     public ResponseEntity<RestWithStatusList> directLogin(
             @RequestBody MainAdminVerifyDto dto) {
@@ -56,7 +56,7 @@ public class MainAdminController {
     // Forgot Password Step 2 — sirf OTP verify (password reset nahi)
     @PostMapping("/verify-forgot-otp")
     public ResponseEntity<RestWithStatusList> verifyForgotOtp(
-            @RequestBody ForgotPasswordRequest request) {
+            @RequestBody ForgotPasswordRequestDto request) {
         return mainAdminService.verifyForgotOtp(request);
     }
 
@@ -78,11 +78,11 @@ public class MainAdminController {
     @GetMapping("/verify-email")
     public ResponseEntity<RestWithStatusList> verifyEmail(
 
-            @RequestParam String institutionCode,
+            @RequestParam String bankCode,
             @RequestParam String username) {
 
         return mainAdminService.verifyEmail(
-                institutionCode,
+                bankCode,
                 username);
     }
 }

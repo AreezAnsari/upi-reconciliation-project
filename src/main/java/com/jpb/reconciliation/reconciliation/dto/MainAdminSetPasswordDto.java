@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class MainAdminSetPasswordDto {
 
-    private String institutionCode;
+    private String bankCode;
 
     private String username;
 

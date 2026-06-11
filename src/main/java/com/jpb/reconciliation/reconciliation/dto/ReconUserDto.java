@@ -16,7 +16,7 @@ import lombok.ToString;
 public class ReconUserDto {
 
 	private Long userId;
-	private String institution;
+	private String bank;
 	private String designation;
 	private String emailId;
 	private String type;

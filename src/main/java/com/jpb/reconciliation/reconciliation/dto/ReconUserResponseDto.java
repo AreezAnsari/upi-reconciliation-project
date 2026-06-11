@@ -13,7 +13,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ReconUserResponseDto {
 	private Long userId;
-	private String institution;
+	private String bank;
 	private String designation;
 	private String emailId;
 	private String type;

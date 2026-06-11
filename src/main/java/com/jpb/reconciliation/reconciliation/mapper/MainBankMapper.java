@@ -10,9 +10,9 @@ public class MainBankMapper {
     // DTO → Entity (for create)
     public static MainBank mapToEntity(MainBankDTO dto, MainBank entity) {
 
-        entity.setInstitutionNameFull(dto.getInstitutionNameFull() != null
-                ? dto.getInstitutionNameFull().trim() : null);
-        entity.setInstitutionNameShort(dto.getInstitutionNameShort());
+        entity.setBankNameFull(dto.getBankNameFull() != null
+                ? dto.getBankNameFull().trim() : null);
+        entity.setBankNameShort(dto.getBankNameShort());
 
         // List<String> → comma-separated String
         if (dto.getBankType() != null) {
@@ -91,16 +91,16 @@ public class MainBankMapper {
     public static MainBankDTO mapToDTO(MainBank entity) {
         MainBankDTO dto = new MainBankDTO();
 
-        dto.setInstitutionId(entity.getInstitutionId());
-        dto.setInstitutionCode(entity.getInstitutionCode());
+        dto.setBankId(entity.getBankId());
+        dto.setBankCode(entity.getBankCode());
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setLogoPath(entity.getLogoPath());
         dto.setInactivatedAt(entity.getInactivatedAt());
         dto.setBlockScheduledAt(entity.getBlockScheduledAt());
 
-        dto.setInstitutionNameFull(entity.getInstitutionNameFull());
-        dto.setInstitutionNameShort(entity.getInstitutionNameShort());
+        dto.setBankNameFull(entity.getBankNameFull());
+        dto.setBankNameShort(entity.getBankNameShort());
 
         // comma-separated → List<String>
         if (entity.getBankType() != null && !entity.getBankType().isEmpty()) {
@@ -157,7 +157,7 @@ public class MainBankMapper {
         dto.setEnableOtp("Y".equals(entity.getEnableOtp()));
 
         // Super-user credentials — returned on create so success page can display them
-        dto.setSuperUserId(entity.getSuperUserId());
+        dto.setBankId(entity.getBankId());
         dto.setDefaultPassword(entity.getDefaultPassword());
 
         return dto;

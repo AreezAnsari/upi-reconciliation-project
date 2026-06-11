@@ -17,73 +17,73 @@ public interface EmailService {
     void sendForgotPasswordOtp(String toEmail, String userName, String otpCode, int expiryMins);
 
     /**
-     * Send welcome email to Institution's Primary Contact (Super User)
-     * after KalInfotech Admin successfully onboards the institution.
-     * Includes: Institution Code, Super User ID, Default Password, Verify Link.
+     * Send welcome email to Bank's Primary Contact (Super User)
+     * after KalInfotech Admin successfully onboards the bank.
+     * Includes: Bank Code, Super User ID, Default Password, Verify Link.
      */
-    void sendSuperUserWelcome(String toEmail, String superUserName,
-                              String institutionName, String institutionCode,
+    void sendBankAdminWelcome(String toEmail, String superUserName,
+                              String bankName, String bankCode,
                               String superUserId, String defaultPassword,
                               String verifyLink);
 
     /**
-     * Send status change notification email to Institution's Super User
-     * whenever KalInfotech Admin changes the institution status.
+     * Send status change notification email to Bank's Super User
+     * whenever KalInfotech Admin changes the bank status.
      * e.g. ACTIVE → INACTIVE, BLOCKED, etc.
      */
     void sendStatusChangeNotification(String toEmail, String superUserName,
-                                      String institutionName, String institutionCode,
+                                      String bankName, String bankCode,
                                       String oldStatus, String newStatus);
 
     /**
      * Send cascade status change notification to a Sub-Institute's primary contact.
-     * Triggered when parent institution is BLOCKED / ACTIVE.
-     * Email includes a note referencing the parent institution that caused the cascade.
+     * Triggered when parent bank is BLOCKED / ACTIVE.
+     * Email includes a note referencing the parent bank that caused the cascade.
      */
-    void sendSubInstituteStatusNotification(String toEmail, String contactName,
-                                            String subInstitutionName, String subInstitutionCode,
+    void sendBranchBankStatusNotification(String toEmail, String contactName,
+                                            String branchBankName, String branchBankCode,
                                             String oldStatus, String newStatus,
-                                            String parentInstitutionName, String parentInstitutionCode);
+                                            String parentBankName, String parentBankCode);
 
     /**
-     * Send block warning email to Institution's Super User when admin schedules permanent block.
+     * Send block warning email to Bank's Super User when admin schedules permanent block.
      * Tells them: account will be permanently blocked in 24 hours, contact admin to cancel.
      */
     void sendBlockWarning(String toEmail, String superUserName,
-                          String institutionName, String institutionCode,
+                          String bankName, String bankCode,
                           String blockAt);
 
     /**
-     * Send block cancelled email to Institution's Super User when admin undoes block.
+     * Send block cancelled email to Bank's Super User when admin undoes block.
      */
     void sendBlockCancelled(String toEmail, String superUserName,
-                            String institutionName, String institutionCode,
+                            String bankName, String bankCode,
                             String restoredStatus);
 
     /**
      * Send block cancelled email to a Sub-Institute when parent's block is undone.
      */
-    void sendSubInstituteBlockCancelled(String toEmail, String contactName,
-                                        String subInstitutionName, String subInstitutionCode,
-                                        String parentInstitutionName, String parentInstitutionCode);
+    void sendBranchBankBlockCancelled(String toEmail, String contactName,
+                                        String branchBankName, String branchBankCode,
+                                        String parentBankName, String parentBankCode);
 
     /**
      * Send block warning email to a Sub-Institute's primary contact.
-     * Triggered at same time as parent institution block warning.
+     * Triggered at same time as parent bank block warning.
      */
-    void sendSubInstituteBlockWarning(String toEmail, String contactName,
-                                      String subInstitutionName, String subInstitutionCode,
-                                      String parentInstitutionName, String parentInstitutionCode,
+    void sendBranchBankBlockWarning(String toEmail, String contactName,
+                                      String branchBankName, String branchBankCode,
+                                      String parentBankName, String parentBankCode,
                                       String blockAt);
 
     /**
-     * Send profile update notification to the institution's primary contact
-     * whenever KalInfotech Admin updates the institution profile.
+     * Send profile update notification to the bank's primary contact
+     * whenever KalInfotech Admin updates the bank profile.
      * changesBySections: section name → list of "Field: old → new" strings.
      * Only sections that actually changed are included; empty map means no email is sent.
      */
-    void sendInstitutionUpdateNotification(String toEmail, String contactName,
-                                           String institutionName, String institutionCode,
+    void sendBankUpdateNotification(String toEmail, String contactName,
+                                           String bankName, String bankCode,
                                            String updatedAt,
                                            Map<String, List<String>> changesBySections);
 }

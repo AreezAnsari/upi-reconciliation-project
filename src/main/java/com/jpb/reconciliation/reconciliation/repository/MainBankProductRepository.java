@@ -11,8 +11,8 @@ import com.jpb.reconciliation.reconciliation.entity.MainBankProduct;
 @Repository
 public interface MainBankProductRepository extends JpaRepository<MainBankProduct, Long> {
 
-    List<MainBankProduct> findByInstitutionId(Long institutionId);
+    List<MainBankProduct> findByBankId(Long bankId);
 
     @Transactional
-    void deleteByInstitutionId(Long institutionId);
+    void deleteByBankId(Long bankId);
 }

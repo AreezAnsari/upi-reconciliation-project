@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 public class MainAdminVerifyEmailResponseDto {
 
     private String userStatus;
-    private String institutionCode;
+    private String bankCode;
     private String username;
 }

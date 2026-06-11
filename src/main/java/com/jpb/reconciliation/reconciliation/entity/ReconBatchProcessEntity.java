@@ -51,7 +51,7 @@ public class ReconBatchProcessEntity {
 	private Date seqHeaderDetails;
 	
 	@Column(name = "RBP_INST_CODE")
-	private Long instCode;
+	private Long bnkCode;
 	
 	@Column(name = "RBP_INS_USER")
 	private Long insertUser;
@@ -170,11 +170,11 @@ public class ReconBatchProcessEntity {
 	}
 
 	public Long getInstCode() {
-		return instCode;
+		return bnkCode;
 	}
 
-	public void setInstCode(Long instCode) {
-		this.instCode = instCode;
+	public void setInstCode(Long bnkCode) {
+		this.bnkCode = bnkCode;
 	}
 
 	public Long getInsertUser() {

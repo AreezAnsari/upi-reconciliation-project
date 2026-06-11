@@ -113,7 +113,7 @@ public class KalAdminServiceImpl implements KalAdminService {
         KalAdmin.setEmailId(dto.getEmail().trim().toLowerCase());
         KalAdmin.setMobileNumber(Long.parseLong(dto.getPhone().trim()));
         KalAdmin.setDesignation(dto.getDesignation() != null ? dto.getDesignation() : "Admin");
-        KalAdmin.setInstitution("KalInfotech");
+        KalAdmin.setBank("KalInfotech");
         KalAdmin.setType("Internal");
         KalAdmin.setUserStatus("ACTIVE");
         KalAdmin.setApprovedYn("Y");              // Admin — no approval needed

@@ -7,10 +7,10 @@ import lombok.Data;
 @Data
 @Entity
 @Table(
-    name = "KAL_SUPER_USER",
+    name = "BANK_ADMIN",
     uniqueConstraints = @UniqueConstraint(
-        name = "uq_kal_super_user_inst_username",
-        columnNames = { "institution_code", "username" }
+        name = "uq_kal_super_user_bnk_username",
+        columnNames = { "bank_code", "username" }
     )
 )
 public class MainAdmin {
@@ -19,8 +19,8 @@ public class MainAdmin {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "institution_code")
-    private String institutionCode;
+    @Column(name = "bank_code")
+    private String bankCode;
 
     @Column(name = "username", nullable = false)
     private String username;

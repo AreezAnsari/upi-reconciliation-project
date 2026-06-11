@@ -9,14 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jpb.reconciliation.reconciliation.entity.BranchBankProduct;
 
 /**
- * Repository for branch bank (sub-institution) product date entries.
+ * Repository for branch bank product date entries.
  * Same pattern as MainBankProductRepository.
  */
 @Repository
 public interface BranchBankProductRepository extends JpaRepository<BranchBankProduct, Long> {
 
-    List<BranchBankProduct> findByInstitutionId(Long institutionId);
+    List<BranchBankProduct> findByBranchId(Long branchId);
 
     @Transactional
-    void deleteByInstitutionId(Long institutionId);
+    void deleteByBranchId(Long branchId);
 }

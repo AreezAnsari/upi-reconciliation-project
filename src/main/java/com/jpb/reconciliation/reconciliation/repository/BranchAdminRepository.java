@@ -8,9 +8,9 @@ import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 @Repository
 public interface BranchAdminRepository extends JpaRepository<BranchAdmin, Long> {
 
-    Optional<BranchAdmin> findByInstitutionCodeAndUsername(String institutionCode, String username);
+    Optional<BranchAdmin> findByBranchCodeAndUsername(String branchCode, String username);
 
-    boolean existsByInstitutionCodeAndUsername(String institutionCode, String username);
+    boolean existsByBranchCodeAndUsername(String branchCode, String username);
 
     Optional<BranchAdmin> findFirstByEmail(String email);
 

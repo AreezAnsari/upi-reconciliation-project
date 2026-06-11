@@ -382,7 +382,7 @@ public class ReconTemplateDetailsServiceImpl implements ReconTemplateDetailsServ
             // Delete the newly committed fields and re-insert the previous ones
             reconFieldDetailsRepository.deleteByTemplateId(templateId);
             if (previousFields != null && !previousFields.isEmpty()) {
-                // Clear primary keys so JPA inserts fresh rows instead of trying to merge
+                // Clear primary keys so JPA inserts fresh rows bnkead of trying to merge
                 previousFields.forEach(f -> f.setReconFieldId(null));
                 reconFieldDetailsRepository.saveAll(previousFields);
             }

@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.dto.BranchAdminSetPasswordDto;
 import com.jpb.reconciliation.reconciliation.dto.BranchAdminVerifyDto;
-import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequest;
+import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyEmailResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
@@ -42,22 +42,22 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     // =========================================================================
     // verifyEmail — NEW_USER / OLD_USER check
-    // GET /test/api/v1/subinstitution/verify-email?institutionCode=xxx&username=yyy
+    // GET /test/api/v1/BranchBank/verify-email?BranchCode=xxx&username=yyy
     // =========================================================================
     @Override
-    public ResponseEntity<RestWithStatusList> verifyEmail(String institutionCode, String username) {
-        logger.info("branchAdmin.verifyEmail — institutionCode={} username={}", institutionCode, username);
+    public ResponseEntity<RestWithStatusList> verifyEmail(String BranchCode, String username) {
+        logger.info("branchAdmin.verifyEmail — BranchCode={} username={}", BranchCode, username);
 
-        if (institutionCode == null || institutionCode.trim().isEmpty() ||
+        if (BranchCode == null || BranchCode.trim().isEmpty() ||
                 username == null || username.trim().isEmpty()) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Institution code and username are required.", null),
+                    new RestWithStatusList("FAILURE", "bank code and username are required.", null),
                     HttpStatus.BAD_REQUEST);
         }
 
-        // defaultPassword==null in SUB_TEST_INSTITUTION means password was already set
+        // defaultPassword==null in Branch_Bank means password was already set
         Optional<BranchBank> optInst = branchBankRepository
-                .findByInstitutionCodeAndSuperUserId(institutionCode.trim(), username.trim());
+                .findByBranchCodeAndBranchAdminId(BranchCode.trim(), username.trim());
 
         String userStatus;
         if (optInst.isPresent() && optInst.get().getDefaultPassword() == null) {
@@ -69,7 +69,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         }
 
         MainAdminVerifyEmailResponseDto responseDto =
-                new MainAdminVerifyEmailResponseDto(userStatus, institutionCode.trim(), username.trim());
+                new MainAdminVerifyEmailResponseDto(userStatus, BranchCode.trim(), username.trim());
         List<Object> data = new ArrayList<>();
         data.add(responseDto);
 
@@ -83,11 +83,11 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> checkUserStatus(BranchAdminVerifyDto dto) {
-        logger.info("branchAdmin.checkUserStatus — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("branchAdmin.checkUserStatus — BranchCode={} username={}",
+                dto.getBranchCode(), dto.getUsername());
 
         Optional<BranchBank> optInst = branchBankRepository
-                .findByInstitutionCodeAndSuperUserId(dto.getInstitutionCode(), dto.getUsername());
+                .findByBranchCodeAndBranchAdminId(dto.getBranchCode(), dto.getUsername());
 
         if (!optInst.isPresent() || optInst.get().getDefaultPassword() != null) {
             return new ResponseEntity<>(
@@ -101,37 +101,37 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     // =========================================================================
     // STEP 1 — verifyCredentials
-    // POST /test/api/v1/subinstitution/verify-credentials
+    // POST /test/api/v1/BranchBank/verify-credentials
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> verifyCredentials(BranchAdminVerifyDto dto) {
-        logger.info("branchAdmin.verifyCredentials — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("branchAdmin.verifyCredentials — BranchCode={} username={}",
+                dto.getBranchCode(), dto.getUsername());
 
-        if (dto.getInstitutionCode() == null || dto.getUsername() == null) {
+        if (dto.getBranchCode() == null || dto.getUsername() == null) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Institution Code and Username are required.", null),
+                    new RestWithStatusList("FAILURE", "bank Code and Username are required.", null),
                     HttpStatus.BAD_REQUEST);
         }
 
-        String institutionCode = dto.getInstitutionCode().trim();
+        String BranchCode = dto.getBranchCode().trim();
         String username        = dto.getUsername().trim();
 
         Optional<BranchBank> optInst =
-                branchBankRepository.findByInstitutionCodeAndSuperUserId(institutionCode, username);
+                branchBankRepository.findByBranchCodeAndBranchAdminId(BranchCode, username);
 
         if (!optInst.isPresent()) {
-            logger.warn("branchAdmin.verifyCredentials — institution not found: {} {}", institutionCode, username);
+            logger.warn("branchAdmin.verifyCredentials — bank not found: {} {}", BranchCode, username);
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Invalid Institution Code or Username. Please check your email.", null),
+                            "Invalid bank Code or Username. Please check your email.", null),
                     HttpStatus.BAD_REQUEST);
         }
 
-        BranchBank institution = optInst.get();
+        BranchBank Branch = optInst.get();
 
         // defaultPassword==null means password was already set
-        if (institution.getDefaultPassword() == null) {
+        if (Branch.getDefaultPassword() == null) {
             logger.info("branchAdmin.verifyCredentials → ALREADY_VERIFIED for username={}", username);
             return new ResponseEntity<>(
                     new RestWithStatusList("ALREADY_VERIFIED",
@@ -141,20 +141,20 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         // BCrypt match (Case A) + plain text fallback (Case B — old records)
         boolean passwordMatch = false;
-        if (dto.getDefaultPassword() != null && institution.getDefaultPassword() != null) {
+        if (dto.getDefaultPassword() != null && Branch.getDefaultPassword() != null) {
             try {
                 passwordMatch = passwordEncoder.matches(
-                        dto.getDefaultPassword(), institution.getDefaultPassword());
+                        dto.getDefaultPassword(), Branch.getDefaultPassword());
             } catch (Exception e) {
                 logger.warn("branchAdmin: BCrypt match failed, trying plain text: {}", e.getMessage());
             }
             if (!passwordMatch) {
-                passwordMatch = dto.getDefaultPassword().equals(institution.getDefaultPassword());
+                passwordMatch = dto.getDefaultPassword().equals(Branch.getDefaultPassword());
             }
         }
 
         if (!passwordMatch) {
-            logger.warn("branchAdmin.verifyCredentials — password mismatch for {} {}", institutionCode, username);
+            logger.warn("branchAdmin.verifyCredentials — password mismatch for {} {}", BranchCode, username);
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
                             "Invalid Default Password. Please check your email.", null),
@@ -170,28 +170,28 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     // =========================================================================
     // STEP 2 — setNewPassword → INSERT into BRANCH_ADMIN
-    // POST /test/api/v1/subinstitution/set-password
+    // POST /test/api/v1/Branch Bank/set-password
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> setNewPassword(BranchAdminSetPasswordDto dto) {
-        logger.info("branchAdmin.setNewPassword — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("branchAdmin.setNewPassword — BranchCode={} username={}",
+                dto.getBranchCode(), dto.getUsername());
 
         Optional<BranchBank> optInst = branchBankRepository
-                .findByInstitutionCodeAndSuperUserId(
-                        dto.getInstitutionCode().trim(), dto.getUsername().trim());
+                .findByBranchCodeAndBranchAdminId(
+                        dto.getBranchCode().trim(), dto.getUsername().trim());
 
         if (!optInst.isPresent()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Institution not found. Please verify credentials first.", null),
+                            "Bank not found. Please verify credentials first.", null),
                     HttpStatus.NOT_FOUND);
         }
 
-        BranchBank institution = optInst.get();
+        BranchBank bank = optInst.get();
 
         // defaultPassword==null means password was already set
-        if (institution.getDefaultPassword() == null) {
+        if (bank.getDefaultPassword() == null) {
             logger.info("branchAdmin.setNewPassword → ALREADY_VERIFIED for username={}", dto.getUsername());
             return new ResponseEntity<>(
                     new RestWithStatusList("ALREADY_VERIFIED",
@@ -201,26 +201,26 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         // INSERT new BRANCH_ADMIN record
         BranchAdmin branchAdmin = new BranchAdmin();
-        branchAdmin.setInstitutionCode(dto.getInstitutionCode().trim());
+        branchAdmin.setBranchCode(dto.getBranchCode().trim());
         branchAdmin.setUsername(dto.getUsername().trim());
-        branchAdmin.setEmail(institution.getPrimaryEmail());
+        branchAdmin.setEmail(bank.getPrimaryEmail());
         branchAdmin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         branchAdmin.setPasswordSet(1);
         branchAdmin.setStatus("VERIFIED");
         branchAdmin.setCreatedAt(LocalDateTime.now());
-        branchAdmin.setCreatedBy(institution.getCreatedBy());
+        branchAdmin.setCreatedBy(bank.getCreatedBy());
         branchAdminRepository.save(branchAdmin);
-        logger.info("BRANCH_ADMIN record created for username={} institutionCode={}",
-                dto.getUsername(), dto.getInstitutionCode());
+        logger.info("BRANCH_ADMIN record created for username={} BranchCode={}",
+                dto.getUsername(), dto.getBranchCode());
 
-        // Update SUB_TEST_INSTITUTION → VERIFIED, wipe defaultPassword & token
-        institution.setStatus("VERIFIED");
-        institution.setDefaultPassword(null);
-        institution.setVerificationToken(null);
-        institution.setTokenExpiry(LocalDateTime.now());
-        institution.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(institution);
-        logger.info("BranchBank {} status → VERIFIED after password setup", dto.getInstitutionCode());
+        // Update BRANCH_BANK → VERIFIED, wipe defaultPassword & token
+        bank.setStatus("VERIFIED");
+        bank.setDefaultPassword(null);
+        bank.setVerificationToken(null);
+        bank.setTokenExpiry(LocalDateTime.now());
+        bank.setUpdatedAt(LocalDateTime.now());
+        branchBankRepository.save(bank);
+        logger.info("BranchBank {} status → VERIFIED after password setup", dto.getBranchCode());
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS",
@@ -230,12 +230,12 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     // =========================================================================
     // STEP 3 — login → OTP bhejo
-    // POST /test/api/v1/subinstitution/login
+    // POST /test/api/v1/Branch Bank/login
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> login(BranchAdminVerifyDto dto) {
-        logger.info("branchAdmin.login — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("branchAdmin.login — BranchCode={} username={}",
+                dto.getBranchCode(), dto.getUsername());
 
         if (dto.getUsername() == null || dto.getUsername().trim().isEmpty()) {
             return new ResponseEntity<>(
@@ -245,26 +245,26 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         Optional<BranchAdmin> optUser = Optional.empty();
 
-        if (dto.getInstitutionCode() != null && !dto.getInstitutionCode().trim().isEmpty()) {
-            optUser = branchAdminRepository.findByInstitutionCodeAndUsername(
-                    dto.getInstitutionCode().trim(), dto.getUsername().trim());
+        if (dto.getBranchCode() != null && !dto.getBranchCode().trim().isEmpty()) {
+            optUser = branchAdminRepository.findByBranchCodeAndUsername(
+                    dto.getBranchCode().trim(), dto.getUsername().trim());
 
             // Bridge lookup via BranchBank if composite miss.
             // Skip BLOCKED records so re-onboarded users with same email can log in.
             if (!optUser.isPresent()) {
-                Optional<BranchBank> instOpt = branchBankRepository
-                        .findByInstitutionCodeAndSuperUserId(
-                                dto.getInstitutionCode().trim(), dto.getUsername().trim());
-                if (instOpt.isPresent() && instOpt.get().getPrimaryEmail() != null) {
+                Optional<BranchBank> bnkOpt = branchBankRepository
+                        .findByBranchCodeAndBranchAdminId(
+                                dto.getBranchCode().trim(), dto.getUsername().trim());
+                if (bnkOpt.isPresent() && bnkOpt.get().getPrimaryEmail() != null) {
                     optUser = branchAdminRepository.findFirstByEmailAndStatusNot(
-                            instOpt.get().getPrimaryEmail().trim(), "BLOCKED");
+                            bnkOpt.get().getPrimaryEmail().trim(), "BLOCKED");
                 }
             }
         }
 
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Invalid Institution Code or Username.", null),
+                    new RestWithStatusList("FAILURE", "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
 
@@ -277,24 +277,24 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        // Status check from BRANCH_ADMIN (synced with SUB_TEST_INSTITUTION)
+        // Status check from BRANCH_ADMIN (synced with BRANCH_BANK)
         String userStatus = user.getStatus();
         if ("BLOCKED".equalsIgnoreCase(userStatus) || "BLOCK".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Invalid Institution Code or Username.", null),
+                    new RestWithStatusList("FAILURE", "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
         if ("INACTIVE".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("INACTIVE",
-                            "Your institution account is currently inactive. Please contact your administrator.",
+                            "Your bank account is currently inactive. Please contact your administrator.",
                             null),
                     HttpStatus.OK);
         }
         if ("BLOCK_PENDING".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCK_PENDING",
-                            "Your institution account has been scheduled for permanent block. Please contact your administrator immediately.",
+                            "Your bank account has been scheduled for permanent block. Please contact your administrator immediately.",
                             null),
                     HttpStatus.OK);
         }
@@ -329,16 +329,16 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     // =========================================================================
     // directLogin — No OTP (for direct auth flow)
-    // POST /test/api/v1/subinstitution/direct-login
+    // POST /test/api/v1/Branch Bank/direct-login
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> directLogin(BranchAdminVerifyDto dto) {
-        logger.info("branchAdmin.directLogin — institutionCode={} username={}",
-                dto.getInstitutionCode(), dto.getUsername());
+        logger.info("branchAdmin.directLogin — BranchCode={} username={}",
+                dto.getBranchCode(), dto.getUsername());
 
-        if (dto.getInstitutionCode() == null || dto.getInstitutionCode().trim().isEmpty()) {
+        if (dto.getBranchCode() == null || dto.getBranchCode().trim().isEmpty()) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Institution Code is required.", null),
+                    new RestWithStatusList("FAILURE", "Bank Code is required.", null),
                     HttpStatus.BAD_REQUEST);
         }
         if (dto.getUsername() == null || dto.getUsername().trim().isEmpty()) {
@@ -347,26 +347,26 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        String enteredCode = dto.getInstitutionCode().trim();
+        String enteredCode = dto.getBranchCode().trim();
         String enteredUser = dto.getUsername().trim();
 
         Optional<BranchAdmin> optUser = branchAdminRepository
-                .findByInstitutionCodeAndUsername(enteredCode, enteredUser);
+                .findByBranchCodeAndUsername(enteredCode, enteredUser);
 
         // Bridge via BranchBank if composite miss.
         // Skip BLOCKED records so re-onboarded users with same email can log in.
         if (!optUser.isPresent()) {
-            Optional<BranchBank> instOpt = branchBankRepository
-                    .findByInstitutionCodeAndSuperUserId(enteredCode, enteredUser);
-            if (instOpt.isPresent() && instOpt.get().getPrimaryEmail() != null) {
+            Optional<BranchBank> bnkOpt = branchBankRepository
+                    .findByBranchCodeAndBranchAdminId(enteredCode, enteredUser);
+            if (bnkOpt.isPresent() && bnkOpt.get().getPrimaryEmail() != null) {
                 optUser = branchAdminRepository.findFirstByEmailAndStatusNot(
-                        instOpt.get().getPrimaryEmail().trim(), "BLOCKED");
+                        bnkOpt.get().getPrimaryEmail().trim(), "BLOCKED");
             }
         }
 
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Invalid Institution Code or Username.", null),
+                    new RestWithStatusList("FAILURE", "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
 
@@ -382,20 +382,20 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         String status = user.getStatus();
         if ("BLOCKED".equalsIgnoreCase(status) || "BLOCK".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Invalid Institution Code or Username.", null),
+                    new RestWithStatusList("FAILURE", "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
         }
         if ("INACTIVE".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("INACTIVE",
-                            "Your institution account is currently inactive. Please contact your administrator.",
+                            "Your bank account is currently inactive. Please contact your administrator.",
                             null),
                     HttpStatus.OK);
         }
         if ("BLOCK_PENDING".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCK_PENDING",
-                            "Your institution account has been scheduled for permanent block. Please contact your administrator immediately.",
+                            "Your bank account has been scheduled for permanent block. Please contact your administrator immediately.",
                             null),
                     HttpStatus.OK);
         }
@@ -424,12 +424,12 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         List<Object> data = new ArrayList<>();
         data.add(user.getUsername());
-        data.add(user.getInstitutionCode());
+        data.add(user.getBranchCode());
         data.add(accessToken);
         data.add(refreshToken);
 
-        logger.info("branchAdmin.directLogin — success for username={} institutionCode={}",
-                user.getUsername(), user.getInstitutionCode());
+        logger.info("branchAdmin.directLogin — success for username={} BranchCode={}",
+                user.getUsername(), user.getBranchCode());
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS", "Login successful.", data),
@@ -440,7 +440,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     // forgotPassword — OTP bhejo
     // =========================================================================
     @Override
-    public ResponseEntity<RestWithStatusList> forgotPassword(ForgotPasswordRequest request) {
+    public ResponseEntity<RestWithStatusList> forgotPassword(ForgotPasswordRequestDto request) {
         logger.info("branchAdmin.forgotPassword — email={} username={}", request.getEmail(), request.getUsername());
 
         BranchAdmin user = null;
@@ -454,9 +454,9 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         if (user == null &&
                 request.getUsername() != null && !request.getUsername().trim().isEmpty() &&
-                request.getInstitutionCode() != null && !request.getInstitutionCode().trim().isEmpty()) {
-            Optional<BranchAdmin> byUsername = branchAdminRepository.findByInstitutionCodeAndUsername(
-                    request.getInstitutionCode().trim(), request.getUsername().trim());
+                request.getBankCode() != null && !request.getBankCode().trim().isEmpty()) {
+            Optional<BranchAdmin> byUsername = branchAdminRepository.findByBranchCodeAndUsername(
+                    request.getBankCode().trim(), request.getUsername().trim());
             if (byUsername.isPresent()) user = byUsername.get();
         }
 
@@ -505,7 +505,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     // verifyForgotOtp — OTP sirf verify karo
     // =========================================================================
     @Override
-    public ResponseEntity<RestWithStatusList> verifyForgotOtp(ForgotPasswordRequest request) {
+    public ResponseEntity<RestWithStatusList> verifyForgotOtp(ForgotPasswordRequestDto request) {
         BranchAdmin user = findUserForForgotPassword(request);
         if (user == null) return new ResponseEntity<>(
                 new RestWithStatusList("FAILURE", "Invalid credentials.", null), HttpStatus.UNAUTHORIZED);
@@ -539,7 +539,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         }
 
         BranchAdmin user = findUserByEmailOrUsername(
-                request.getEmail(), request.getUsername(), request.getInstitutionCode());
+                request.getEmail(), request.getUsername(), request.getBankCode());
         if (user == null) return new ResponseEntity<>(
                 new RestWithStatusList("FAILURE", "Invalid credentials.", null), HttpStatus.UNAUTHORIZED);
 
@@ -585,55 +585,55 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         BranchAdmin user = optUser.get();
 
         Optional<BranchBank> optInst = branchBankRepository
-                .findByInstitutionCodeAndSuperUserId(user.getInstitutionCode(), user.getUsername());
+                .findByBranchCodeAndBranchAdminId(user.getBranchCode(), user.getUsername());
 
         if (!optInst.isPresent()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("SUCCESS", "Login successful.", new ArrayList<>()), HttpStatus.OK);
         }
 
-        BranchBank institution = optInst.get();
+        BranchBank bank = optInst.get();
 
-        if ("BLOCKED".equals(institution.getStatus())) {
+        if ("BLOCKED".equals(bank.getStatus())) {
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE", "Blocked institution cannot be activated.", null),
+                    new RestWithStatusList("FAILURE", "Blocked bank cannot be activated.", null),
                     HttpStatus.FORBIDDEN);
         }
 
-        if ("VERIFIED".equals(institution.getStatus())) {
-            institution.setStatus("ACTIVE");
-            institution.setUpdatedAt(LocalDateTime.now());
-            branchBankRepository.save(institution);
+        if ("VERIFIED".equals(bank.getStatus())) {
+            bank.setStatus("ACTIVE");
+            bank.setUpdatedAt(LocalDateTime.now());
+            branchBankRepository.save(bank);
             // Sync to BRANCH_ADMIN
             user.setStatus("ACTIVE");
             user.setUpdatedAt(LocalDateTime.now());
             user.setUpdatedBy("SYSTEM");
             branchAdminRepository.save(user);
             logger.info("[BRANCH-ACTIVATE] BranchBank {} status → ACTIVE after first login",
-                    institution.getInstitutionCode());
+                    bank.getBranchCode());
         }
 
         return new ResponseEntity<>(
-                new RestWithStatusList("SUCCESS", "Institution activated successfully.", new ArrayList<>()),
+                new RestWithStatusList("SUCCESS", "bank activated successfully.", new ArrayList<>()),
                 HttpStatus.OK);
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private BranchAdmin findUserForForgotPassword(ForgotPasswordRequest request) {
-        return findUserByEmailOrUsername(request.getEmail(), request.getUsername(), request.getInstitutionCode());
+    private BranchAdmin findUserForForgotPassword(ForgotPasswordRequestDto request) {
+        return findUserByEmailOrUsername(request.getEmail(), request.getUsername(), request.getBankCode());
     }
 
-    private BranchAdmin findUserByEmailOrUsername(String email, String username, String institutionCode) {
+    private BranchAdmin findUserByEmailOrUsername(String email, String username, String BranchCode) {
         // Skip BLOCKED records — re-onboarded user with same email must not hit old BLOCKED record
         if (email != null && !email.trim().isEmpty()) {
             Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmailAndStatusNot(email.trim(), "BLOCKED");
             if (byEmail.isPresent()) return byEmail.get();
         }
         if (username != null && !username.trim().isEmpty() &&
-                institutionCode != null && !institutionCode.trim().isEmpty()) {
-            Optional<BranchAdmin> byUsername = branchAdminRepository.findByInstitutionCodeAndUsername(
-                    institutionCode.trim(), username.trim());
+                BranchCode != null && !BranchCode.trim().isEmpty()) {
+            Optional<BranchAdmin> byUsername = branchAdminRepository.findByBranchCodeAndUsername(
+                    BranchCode.trim(), username.trim());
             if (byUsername.isPresent()) return byUsername.get();
         }
         return null;

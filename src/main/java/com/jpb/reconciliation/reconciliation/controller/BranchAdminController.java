@@ -6,13 +6,13 @@ import org.springframework.web.bind.annotation.*;
 
 import com.jpb.reconciliation.reconciliation.dto.BranchAdminSetPasswordDto;
 import com.jpb.reconciliation.reconciliation.dto.BranchAdminVerifyDto;
-import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequest;
+import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.service.BranchAdminService;
 
 @RestController
-@RequestMapping("/test/api/v1/subinstitution")
+@RequestMapping("/test/api/v1/branch")
 @CrossOrigin(origins = "*")
 public class BranchAdminController {
 
@@ -22,9 +22,9 @@ public class BranchAdminController {
     // Step 0 — verify email link (NEW_USER / OLD_USER)
     @GetMapping("/verify-email")
     public ResponseEntity<RestWithStatusList> verifyEmail(
-            @RequestParam String institutionCode,
+            @RequestParam String bankCode,
             @RequestParam String username) {
-        return branchAdminService.verifyEmail(institutionCode, username);
+        return branchAdminService.verifyEmail(bankCode, username);
     }
 
     // Check user status inline
@@ -65,13 +65,13 @@ public class BranchAdminController {
 
     // Forgot Password Step 1 — send OTP
     @PostMapping("/forgot-password")
-    public ResponseEntity<RestWithStatusList> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<RestWithStatusList> forgotPassword(@RequestBody ForgotPasswordRequestDto request) {
         return branchAdminService.forgotPassword(request);
     }
 
     // Forgot Password Step 2 — verify OTP only
     @PostMapping("/verify-forgot-otp")
-    public ResponseEntity<RestWithStatusList> verifyForgotOtp(@RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<RestWithStatusList> verifyForgotOtp(@RequestBody ForgotPasswordRequestDto request) {
         return branchAdminService.verifyForgotOtp(request);
     }
 

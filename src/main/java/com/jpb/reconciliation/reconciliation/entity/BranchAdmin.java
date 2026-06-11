@@ -9,8 +9,8 @@ import lombok.Data;
 @Table(
     name = "BRANCH_ADMIN",
     uniqueConstraints = @UniqueConstraint(
-        name = "uq_branch_admin_inst_username",
-        columnNames = { "institution_code", "username" }
+        name = "uq_branch_admin_bnk_username",
+        columnNames = { "branch_code", "username" }
     )
 )
 public class BranchAdmin {
@@ -19,8 +19,8 @@ public class BranchAdmin {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "institution_code")
-    private String institutionCode;
+    @Column(name = "branch_code")
+    private String branchCode;
 
     @Column(name = "username", nullable = false)
     private String username;

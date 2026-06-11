@@ -168,7 +168,7 @@ fi
 mkdir -p -- "${MAVEN_HOME%/*}"
 
 # Download and Install Apache Maven
-verbose "Couldn't find MAVEN_HOME, downloading and installing it ..."
+verbose "Couldn't find MAVEN_HOME, downloading and bnkalling it ..."
 verbose "Downloading from: $distributionUrl"
 verbose "Downloading to: $TMP_DOWNLOAD_DIR/$distributionUrlName"
 
@@ -236,7 +236,7 @@ if [ -n "${distributionSha256Sum-}" ]; then
     fi
   else
     echo "Checksum validation was requested but neither 'sha256sum' or 'shasum' are available." >&2
-    echo "Please install either command, or disable validation by removing 'distributionSha256Sum' from your maven-wrapper.properties." >&2
+    echo "Please bnkall either command, or disable validation by removing 'distributionSha256Sum' from your maven-wrapper.properties." >&2
     exit 1
   fi
   if [ $distributionSha256Result = false ]; then

@@ -20,7 +20,7 @@ public class GlobalNewExceptionHandler {
   * Response:
   * {
   *   "status"    : "FAILURE",
-  *   "statusMsg" : "Institution not found with ID: 99",
+  *   "statusMsg" : "Bank not found with ID: 99",
   *   "data"      : []
   * }
   */
@@ -34,7 +34,7 @@ public class GlobalNewExceptionHandler {
   * Response:
   * {
   *   "status"    : "FAILURE",
-  *   "statusMsg" : "Institution with name 'X' already exists",
+  *   "statusMsg" : "Bank with name 'X' already exists",
   *   "data"      : []
   * }
   */
@@ -49,7 +49,7 @@ public class GlobalNewExceptionHandler {
   * {
   *   "status"    : "FAILURE",
   *   "statusMsg" : "Validation failed",
-  *   "data"      : [ "institutionName: must not be blank", "emailAddress: invalid email" ]
+  *   "data"      : [ "bankName: must not be blank", "emailAddress: invalid email" ]
   * }
   */
  @ExceptionHandler(MethodArgumentNotValidException.class)

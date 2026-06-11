@@ -10,9 +10,9 @@ public class BranchBankMapper {
     // DTO → Entity (for create)
     public static BranchBank mapToEntity(BranchBankDTO dto, BranchBank entity) {
 
-        entity.setInstitutionNameFull(dto.getInstitutionNameFull() != null
-                ? dto.getInstitutionNameFull().trim() : null);
-        entity.setInstitutionNameShort(dto.getInstitutionNameShort());
+        entity.setBranchNameFull(dto.getBranchNameFull() != null
+                ? dto.getBranchNameFull().trim() : null);
+        entity.setBranchNameShort(dto.getBranchNameShort());
 
         // List<String> → comma-separated String
         if (dto.getBankType() != null) {
@@ -91,16 +91,16 @@ public class BranchBankMapper {
     public static BranchBankDTO mapToDTO(BranchBank entity) {
         BranchBankDTO dto = new BranchBankDTO();
 
-        dto.setInstitutionId(entity.getInstitutionId());
-        dto.setInstitutionCode(entity.getInstitutionCode());
+        dto.setBranchId(entity.getBranchId());
+        dto.setBranchCode(entity.getBranchCode());
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setLogoPath(entity.getLogoPath());
         dto.setInactivatedAt(entity.getInactivatedAt());
         dto.setBlockScheduledAt(entity.getBlockScheduledAt());
 
-        dto.setInstitutionNameFull(entity.getInstitutionNameFull());
-        dto.setInstitutionNameShort(entity.getInstitutionNameShort());
+        dto.setBranchNameFull(entity.getBranchNameFull());
+        dto.setBranchNameShort(entity.getBranchNameShort());
 
         // comma-separated → List<String>
         if (entity.getBankType() != null && !entity.getBankType().isEmpty()) {
@@ -157,7 +157,7 @@ public class BranchBankMapper {
         dto.setEnableOtp("Y".equals(entity.getEnableOtp()));
 
         // Super-user credentials — shown on success page
-        dto.setSuperUserId(entity.getSuperUserId());
+        dto.setBranchId(entity.getBranchId());
         dto.setDefaultPassword(entity.getDefaultPassword());
 
         return dto;

@@ -58,7 +58,7 @@ public class SchedulerJob {
     private String currentStatus;
 
     @Column(name = "RSM_INST_CODE")
-    private Integer instCode;
+    private Integer bnkCode;
 
     @Column(name = "RSM_INS_USER")
     private Integer insUser;

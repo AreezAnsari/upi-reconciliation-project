@@ -20,7 +20,7 @@ import org.springframework.security.core.Authentication;
 import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
-@RequestMapping(path = "/test/api/v1/subinstitution")
+@RequestMapping(path = "/test/api/v1/branch")
 @CrossOrigin(origins = "*")
 public class BranchBankController {
 
@@ -29,14 +29,14 @@ public class BranchBankController {
     @Autowired
     BranchBankService branchBankService;
 
-    // POST /test/api/v1/subinstitution/create
-    @Operation(summary = "Onboard a new branch bank (sub-institution)")
+    // POST /test/api/v1/branchBank/create
+    @Operation(summary = "Onboard a new branch bank (branch-bank)")
     @PostMapping(value = "/create", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> createInstitution(
+    public ResponseEntity<RestWithStatusList> createBank(
             @RequestBody BranchBankDTO dto,
             Authentication authentication) {
 
-        logger.info("Create branch bank request: {}", dto.getInstitutionNameFull());
+        logger.info("Create branch bank request: {}", dto.getBranchNameFull());
 
         String createdBy = "UNKNOWN";
 
@@ -46,87 +46,79 @@ public class BranchBankController {
 
         logger.info("Created By Username: {}", createdBy);
 
-        return branchBankService.createInstitution(dto, createdBy);
+        return branchBankService.createBank(dto, createdBy);
     }
 
-    // GET /test/api/v1/subinstitution/get-all
-    @Operation(summary = "Get all branch banks for the logged-in SuperUser's parent institution")
+    // GET /test/api/v1/branchbank/get-all
+    @Operation(summary = "Get all branch banks for the logged-in Branch Admin's parent bank")
     @GetMapping(value = "/get-all", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getAllInstitutions(Authentication authentication) {
+    public ResponseEntity<RestWithStatusList> getAllBanks(Authentication authentication) {
         String loggedInUsername = (authentication != null && authentication.isAuthenticated())
                 ? authentication.getName() : "UNKNOWN";
         logger.info("Fetch branch banks for user: {}", loggedInUsername);
-        return branchBankService.getAllInstitutions(loggedInUsername);
+        return branchBankService.getAllBanks(loggedInUsername);
     }
 
-    // GET /test/api/v1/subinstitution/get/{institutionId}
+    // GET /test/api/v1/branchbank/get/{bankId}
     @Operation(summary = "Get branch bank by ID")
-    @GetMapping(value = "/get/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getInstitutionById(
-            @PathVariable Long institutionId) {
-        logger.info("Fetch branch bank by ID: {}", institutionId);
-        return branchBankService.getInstitutionById(institutionId);
+    @GetMapping(value = "/get/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getBankById(
+            @PathVariable Long bankId) {
+        logger.info("Fetch branch bank by ID: {}", bankId);
+        return branchBankService.getBankById(bankId);
     }
 
-    // GET /test/api/v1/subinstitution/get-by-status?status=ACTIVE
+    // GET /test/api/v1/branchbank/get-by-status?status=ACTIVE
     @Operation(summary = "Get branch banks by status")
     @GetMapping(value = "/get-by-status", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getInstitutionsByStatus(
+    public ResponseEntity<RestWithStatusList> getBanksByStatus(
             @RequestParam String status) {
         logger.info("Fetch branch banks by status: {}", status);
-        return branchBankService.getInstitutionsByStatus(status);
+        return branchBankService.getBanksByStatus(status);
     }
 
-    // PUT /test/api/v1/subinstitution/update/{institutionId}
+    // PUT /test/api/v1/branchbank/update/{bankId}
     @Operation(summary = "Full update of branch bank details")
-    @PutMapping(value = "/update/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> updateInstitution(
-            @PathVariable Long institutionId,
+    @PutMapping(value = "/update/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> updateBank(
+            @PathVariable Long bankId,
             @RequestBody BranchBankDTO dto) {
-        logger.info("Update branch bank ID: {}", institutionId);
-        return branchBankService.updateInstitution(institutionId, dto);
+        logger.info("Update branch bank ID: {}", bankId);
+        return branchBankService.updateBank(bankId, dto);
     }
 
-    // PATCH /test/api/v1/subinstitution/update-status/{institutionId}?status=ACTIVE
+    // PATCH /test/api/v1/branchbank/update-status/{bankId}?status=ACTIVE
     @Operation(summary = "Update branch bank status")
-    @PatchMapping(value = "/update-status/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    @PatchMapping(value = "/update-status/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> updateStatus(
-            @PathVariable Long institutionId,
+            @PathVariable Long bankId,
             @RequestParam String status) {
-        logger.info("Update branch bank {} status → {}", institutionId, status);
-        return branchBankService.updateStatus(institutionId, status);
+        logger.info("Update branch bank {} status → {}", bankId, status);
+        return branchBankService.updateStatus(bankId, status);
     }
 
-    // DELETE /test/api/v1/subinstitution/delete/{institutionId}
+    // DELETE /test/api/v1/branchbank/delete/{bankId}
     @Operation(summary = "Soft delete branch bank (status → INACTIVE)")
-    @DeleteMapping(value = "/delete/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> deleteInstitution(
-            @PathVariable Long institutionId) {
-        logger.info("Delete branch bank ID: {}", institutionId);
-        return branchBankService.deleteInstitution(institutionId);
+    @DeleteMapping(value = "/delete/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> deleteBank(
+            @PathVariable Long bankId) {
+        logger.info("Delete branch bank ID: {}", bankId);
+        return branchBankService.deleteBank(bankId);
     }
 
-    // POST /test/api/v1/subinstitution/upload-logo/{institutionId}
+    // POST /test/api/v1/branchbank/upload-logo/{bankId}
     @Operation(summary = "Upload branch bank logo (JPG/TIF, max 2MB)")
-    @PostMapping(value = "/upload-logo/{institutionId}", consumes = "multipart/form-data",
+    @PostMapping(value = "/upload-logo/{bankId}", consumes = "multipart/form-data",
             produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> uploadLogo(
-            @PathVariable Long institutionId,
+            @PathVariable Long bankId,
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) {
-        logger.info("Logo upload for branch bank ID: {}", institutionId);
-        return branchBankService.uploadLogo(institutionId, file, userDetails.getUsername());
+        logger.info("Logo upload for branch bank ID: {}", bankId);
+        return branchBankService.uploadLogo(bankId, file, userDetails.getUsername());
     }
 
-    // GET /test/api/v1/subinstitution/verify-email?institutionCode=...&username=...
-    @GetMapping(value = "/verify-email", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> verifyEmail(
-            @RequestParam String institutionCode,
-            @RequestParam String username) {
-        return branchBankService.verifyEmail(institutionCode, username);
-    }
-
-    // GET /test/api/v1/subinstitution/generate-code
+    // GET /test/api/v1/branchbank/generate-code
     @Operation(summary = "Pre-generate a unique 8-digit branch bank code for form preview")
     @GetMapping(value = "/generate-code", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> generateCode(Authentication authentication) {
@@ -136,7 +128,7 @@ public class BranchBankController {
         return branchBankService.generateCode(createdBy);
     }
 
-    // GET /test/api/v1/subinstitution/check-email?email=abc@gmail.com
+    // GET /test/api/v1/branchbank/check-email?email=abc@gmail.com
     @Operation(summary = "Check branch bank email already exists")
     @GetMapping(value = "/check-email", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> checkEmailExists(
@@ -147,7 +139,7 @@ public class BranchBankController {
         return branchBankService.checkEmailExists(email);
     }
 
-    // GET /test/api/v1/subinstitution/check-name?name=SomeName
+    // GET /test/api/v1/branchbank/check-name?name=SomeName
     @Operation(summary = "Check branch bank name already exists")
     @GetMapping(value = "/check-name", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> checkNameExists(
@@ -158,31 +150,31 @@ public class BranchBankController {
         return branchBankService.checkNameExists(name);
     }
 
-    // POST /test/api/v1/subinstitution/schedule-block/{institutionId}
+    // POST /test/api/v1/branchbank/schedule-block/{bankId}
     @Operation(summary = "Schedule permanent block for branch bank (30s countdown)")
-    @PostMapping(value = "/schedule-block/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    @PostMapping(value = "/schedule-block/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> scheduleBlock(
-            @PathVariable Long institutionId,
+            @PathVariable Long bankId,
             Authentication authentication) {
         String scheduledBy = (authentication != null && authentication.isAuthenticated())
                 ? authentication.getName() : "UNKNOWN";
-        logger.info("Schedule block for branch bank {} by {}", institutionId, scheduledBy);
-        return branchBankService.scheduleBlock(institutionId, scheduledBy);
+        logger.info("Schedule block for branch bank {} by {}", bankId, scheduledBy);
+        return branchBankService.scheduleBlock(bankId, scheduledBy);
     }
 
-    // POST /test/api/v1/subinstitution/undo-block/{institutionId}
+    // POST /test/api/v1/branchbank/undo-block/{bankId}
     @Operation(summary = "Undo scheduled block for branch bank (within 30s window)")
-    @PostMapping(value = "/undo-block/{institutionId}", produces = CommonConstants.APPLICATION_JSON)
+    @PostMapping(value = "/undo-block/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> undoBlock(
-            @PathVariable Long institutionId,
+            @PathVariable Long bankId,
             Authentication authentication) {
         String undoneBy = (authentication != null && authentication.isAuthenticated())
                 ? authentication.getName() : "UNKNOWN";
-        logger.info("Undo block for branch bank {} by {}", institutionId, undoneBy);
-        return branchBankService.undoBlock(institutionId, undoneBy);
+        logger.info("Undo block for branch bank {} by {}", bankId, undoneBy);
+        return branchBankService.undoBlock(bankId, undoneBy);
     }
 
-    // GET /test/api/v1/subinstitution/export/excel
+    // GET /test/api/v1/branchbank/export/excel
     @Operation(summary = "Export all branch banks as Excel (.xlsx)")
     @GetMapping(value = "/export/excel")
     public ResponseEntity<byte[]> exportExcel() throws IOException {
@@ -190,7 +182,7 @@ public class BranchBankController {
         return branchBankService.exportToExcel();
     }
 
-    // GET /test/api/v1/subinstitution/export/csv
+    // GET /test/api/v1/branchbank/export/csv
     @Operation(summary = "Export all branch banks as CSV")
     @GetMapping(value = "/export/csv")
     public ResponseEntity<byte[]> exportCsv() {
@@ -198,29 +190,29 @@ public class BranchBankController {
         return branchBankService.exportToCsv();
     }
 
-    // GET /test/api/v1/subinstitution/get-by-code/{institutionCode}
+    // GET /test/api/v1/branchbank/get-by-code/{bankCode}
     // Used by BranchAdmin sidebar to display bank logo + short name
-    @Operation(summary = "Get sub-institution by institution code")
-    @GetMapping(value = "/get-by-code/{institutionCode}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getByCode(@PathVariable String institutionCode) {
-        logger.info("Get sub-institution by code: {}", institutionCode);
-        return branchBankService.getInstitutionByCode(institutionCode);
+    @Operation(summary = "Get branch bank by bank code")
+    @GetMapping(value = "/get-by-code/{bankCode}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getByCode(@PathVariable String bankCode) {
+        logger.info("Get branch bank by code: {}", bankCode);
+        return branchBankService.getBankByCode(bankCode);
     }
 
-    // GET /test/api/v1/subinstitution/get-by-email?email=...
-    // Used by BranchAdmin sidebar — email is always in sync with SUB_TEST_INSTITUTION.primary_email
-    @Operation(summary = "Get sub-institution by admin email")
+    // GET /test/api/v1/branchbank/get-by-email?email=...
+    // Used by BranchAdmin sidebar — email is always in sync with BRANCH_BANK.primary_email
+    @Operation(summary = "Get branch bank by admin email")
     @GetMapping(value = "/get-by-email", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getByEmail(@RequestParam String email) {
-        logger.info("Get sub-institution by email: {}", email);
-        return branchBankService.getInstitutionByEmail(email);
+        logger.info("Get branch bank by email: {}", email);
+        return branchBankService.getBankByEmail(email);
     }
 
-    // GET /test/api/v1/subinstitution/logo/{institutionCode}
-    @Operation(summary = "Serve branch bank logo image by institution code")
-    @GetMapping(value = "/logo/{institutionCode}")
-    public ResponseEntity<byte[]> getLogoImage(@PathVariable String institutionCode) {
-        logger.info("Serve logo for branch bank code: {}", institutionCode);
-        return branchBankService.getLogoImage(institutionCode);
+    // GET /test/api/v1/branchbank/logo/{bankCode}
+    @Operation(summary = "Serve branch bank logo image by bank code")
+    @GetMapping(value = "/logo/{bankCode}")
+    public ResponseEntity<byte[]> getLogoImage(@PathVariable String bankCode) {
+        logger.info("Serve logo for branch bank code: {}", bankCode);
+        return branchBankService.getLogoImage(bankCode);
     }
 }

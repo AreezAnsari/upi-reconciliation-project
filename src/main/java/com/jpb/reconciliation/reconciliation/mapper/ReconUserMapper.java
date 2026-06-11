@@ -17,7 +17,7 @@ public class ReconUserMapper {
 		KalAdmin.setUserStatus("INACTIVE");
 		KalAdmin.setDesignation(reconUserDto.getDesignation());
 		KalAdmin.setEmailId(reconUserDto.getEmailId());
-		KalAdmin.setInstitution(reconUserDto.getInstitution());
+		KalAdmin.setBank(reconUserDto.getBank());
 		KalAdmin.setMobileNumber(reconUserDto.getMobileNumber());
 		KalAdmin.setType(reconUserDto.getType());
 		KalAdmin.setCreatedAt(LocalDateTime.now());
@@ -34,7 +34,7 @@ public class ReconUserMapper {
 		reconUserResponseDto.setUserStatus(KalAdmin.getUserStatus());
 		reconUserResponseDto.setDesignation(KalAdmin.getDesignation());
 		reconUserResponseDto.setEmailId(KalAdmin.getEmailId());
-		reconUserResponseDto.setInstitution(KalAdmin.getInstitution());
+		reconUserResponseDto.setBank(KalAdmin.getBank());
 		reconUserResponseDto.setMobileNumber(KalAdmin.getMobileNumber());
 		reconUserResponseDto.setType(KalAdmin.getType());
 		reconUserResponseDto.setCreatedAt(LocalDateTime.now());
@@ -69,7 +69,7 @@ public class ReconUserMapper {
 			mapUser.setUserStatus(user.getUserStatus());
 			mapUser.setDesignation(user.getDesignation());
 			mapUser.setEmailId(user.getEmailId());
-			mapUser.setInstitution(user.getInstitution());
+			mapUser.setBank(user.getBank());
 			mapUser.setMobileNumber(user.getMobileNumber());
 			mapUser.setType(user.getType());
 			mapUser.setCreatedAt(user.getCreatedAt());
@@ -97,7 +97,7 @@ public class ReconUserMapper {
 		KalAdmin.setUserStatus(reconUserDto.getUserStatus());
 		KalAdmin.setDesignation(reconUserDto.getDesignation());
 		KalAdmin.setEmailId(reconUserDto.getEmailId());
-		KalAdmin.setInstitution(reconUserDto.getInstitution());
+		KalAdmin.setBank(reconUserDto.getBank());
 		KalAdmin.setMobileNumber(reconUserDto.getMobileNumber());
 		KalAdmin.setType(reconUserDto.getType());
 		KalAdmin.setCreatedAt(LocalDateTime.now());

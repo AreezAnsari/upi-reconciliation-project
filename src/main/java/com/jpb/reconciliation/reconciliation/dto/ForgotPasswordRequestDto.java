@@ -18,15 +18,15 @@ package com.jpb.reconciliation.reconciliation.dto;
 import lombok.Data;
  
 @Data
-public class ForgotPasswordRequest {
+public class ForgotPasswordRequestDto {
  
     // User email se dhundh sakta hai
     private String email;
 
-    // Ya username + institutionCode se dhundh sakta hai
+    // Ya username + bankCode se dhundh sakta hai
     private String username;
 
-    private String institutionCode;
+    private String bankCode;
 
     // OTP — Step B verify ke liye
     private String otp;

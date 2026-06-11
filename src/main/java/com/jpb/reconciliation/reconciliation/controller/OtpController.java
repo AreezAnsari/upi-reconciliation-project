@@ -110,28 +110,28 @@ public class OtpController {
             String accessToken  = jwtHelper.generateToken(userDetails);
             String refreshToken = jwtHelper.generateTokenForRefresh(email);
 
-            // ── Institution status → ACTIVE (first login ke baad) ──
+            // ── Bank status → ACTIVE (first login ke baad) ──
             try {
-                mainAdminService.activateInstitution(email);
+                mainAdminService.activateBank(email);
             } catch (Exception e) {
                 // Abhi ye silently fail ho rha hai — status ACTIVE nhi hoti
-                System.out.println("Warning: Could not activate institution for "
+                System.out.println("Warning: Could not activate bank for "
                     + email + ": " + e.getMessage());
                 e.printStackTrace(); // ← ye add karo taaki full stack trace dikhe
             }
 
-            // ── Fetch institution code by email — try MainBank first, then BranchAdmin ──
+            // ── Fetch bank code by email — try MainBank first, then BranchAdmin ──
             // Use findFirstByPrimaryEmailAndStatusNot to skip BLOCKED old records
             // (re-onboarding creates 2 rows with the same email — BLOCKED old + active new)
-            String institutionCode = mainBankRepository
+            String bankCode = mainBankRepository
                     .findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED")
-                    .map(inst -> inst.getInstitutionCode())
+                    .map(bnk -> bnk.getBankCode())
                     .orElseGet(() ->
                         branchAdminRepository.findFirstByEmail(email)
-                            .map(ba -> ba.getInstitutionCode())
+                            .map(ba -> ba.getBranchCode())
                             .orElse(null)
                     );
-            logger.info("[OTP-VERIFY] institutionCode resolved for {}: {}", maskEmail(email), institutionCode);
+            logger.info("[OTP-VERIFY] bankCode resolved for {}: {}", maskEmail(email), bankCode);
 
             Map<String, Object> res = new HashMap<>();
             res.put("success",         true);
@@ -139,7 +139,7 @@ public class OtpController {
             res.put("accessToken",     accessToken);
             res.put("refreshToken",    refreshToken);
             res.put("email",           email);
-            res.put("institutionCode", institutionCode); // ← "47050033" → frontend stores first 4 as prefix
+            res.put("bankCode", bankCode); // ← "47050033" → frontend stores first 4 as prefix
 
             return ResponseEntity.ok(res);
 
@@ -220,17 +220,17 @@ public class OtpController {
             @RequestBody Map<String, String> request) {
 
         try {
-            String institutionId = request.get("institutionId");
-            String username      = request.get("username");
-            String email         = request.get("email");
-            String password      = request.get("password");
+            String bankId   = request.get("bankId");
+            String username = request.get("username");
+            String email    = request.get("email");
+            String password = request.get("password");
 
             System.out.println("======================================");
             System.out.println("SUPER USER PASSWORD SET");
-            System.out.println("Institution ID : " + institutionId);
-            System.out.println("Username       : " + username);
-            System.out.println("Email          : " + email);
-            System.out.println("Password       : " + password);
+            System.out.println("Bank ID  : " + bankId);
+            System.out.println("Username : " + username);
+            System.out.println("Email    : " + email);
+            System.out.println("Password : " + password);
             System.out.println("======================================");
 
             Map<String, Object> response = new HashMap<>();

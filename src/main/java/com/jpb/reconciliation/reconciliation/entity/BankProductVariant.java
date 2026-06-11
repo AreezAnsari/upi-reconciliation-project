@@ -5,13 +5,13 @@ import javax.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "institution_product_variants")
+@Table(name = "BANK_PRODUCT_VARIANTS")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InstitutionProductVariant {
+public class BankProductVariant {
 
     @Id
     @GeneratedValue(
@@ -32,6 +32,6 @@ public class InstitutionProductVariant {
     private String variantName;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "institution_id")
-    private BranchBank institution;
+    @JoinColumn(name = "branch_id")
+    private BranchBank branchBank;
 }

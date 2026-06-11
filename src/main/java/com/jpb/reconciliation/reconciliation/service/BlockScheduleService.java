@@ -6,7 +6,7 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 
 public interface BlockScheduleService {
 
-    ResponseEntity<RestWithStatusList> scheduleBlock(Long institutionId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy);
 
-    ResponseEntity<RestWithStatusList> undoBlock(Long institutionId, String undoneBy);
+    ResponseEntity<RestWithStatusList> undoBlock(Long bankId, String undoneBy);
 }
