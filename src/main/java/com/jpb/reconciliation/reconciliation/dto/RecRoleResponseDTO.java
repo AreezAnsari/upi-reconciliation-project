@@ -16,12 +16,14 @@ public class RecRoleResponseDTO {
     // All master rows assigned to this role (each has its enum-based int code)
     private List<RecRoleMasterDTO> assignedRoles;
     private String    roleType;
-    private String    externalDepartmentName;
-    private String    externalSupervisorName;
-    private String    externalSupervisorEmail;
-    private String    externalSupervisorPhone;
-    private String    status;
+//    private String    externalDepartmentName;
+//    private String    externalSupervisorName;
+//    private String    externalSupervisorEmail;
+//    private String    externalSupervisorPhone;
+//    private String    status;
+    private String department;
     private String    description;
+    private Integer sessionTimeout;
     private Long   assignedUserId;
     private String assignedUserName;
     private String assignedUserEmail;

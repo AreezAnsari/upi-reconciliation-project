@@ -49,6 +49,46 @@ public class AddUser {
  
     @Column(name = "EMAIL", unique = true, nullable = false, length = 150)
     private String email;
+    
+    // ── NEW: Password fields ──────────────────────────────────────────────────
+    
+    /**
+     * BCrypt-encoded password — set when user sets their own password via
+     * the verify link. NULL until user completes first-time setup.
+     */
+    @Column(name = "PASSWORD", length = 255)
+    private String password;
+ 
+    /**
+     * Plain-text default password sent in welcome email.
+     * Cleared to NULL after user successfully sets their own password.
+     */
+    @Column(name = "DEFAULT_PASSWORD", length = 100)
+    private String defaultPassword;
+ 
+    /**
+     * 0 = user has NOT set a personal password yet (new user)
+     * 1 = user HAS set their own password (returning user)
+     */
+    @Column(name = "PASSWORD_SET", nullable = false)
+    @Builder.Default
+    private Integer passwordSet = 0;
+ 
+    /**
+     * 6-digit OTP stored temporarily for forgot-password flow.
+     * Cleared after successful use.
+     */
+    @Column(name = "FORGOT_OTP", length = 10)
+    private String forgotOtp;
+ 
+    /**
+     * Expiry timestamp for FORGOT_OTP (10 minutes from generation).
+     */
+    @Column(name = "FORGOT_OTP_EXPIRY")
+    private LocalDateTime forgotOtpExpiry;
+    
+    // ── Profile ───────────────────────────────────────────────────────────────
+    
  
     @Column(name = "DEPARTMENT", length = 150)
     private String department;
@@ -58,6 +98,9 @@ public class AddUser {
  
     @Column(name = "MOBILE_NUMBER", length = 20)
     private String mobileNumber;
+    
+    	// ── Role ──────────────────────────────────────────────────────────────────
+    
  
     @Enumerated(EnumType.STRING)
     @Column(name = "USER_TYPE", nullable = false, length = 20)
@@ -71,6 +114,7 @@ public class AddUser {
     @Column(name = "ROLE_TYPE", nullable = false , length = 20)
     private RoleType roleType;
  
+    // ── Status ────────────────────────────────────────────────────────────────
     @Enumerated(EnumType.STRING)
     @Column(name = "STATUS", nullable = false, length = 20)
     @Builder.Default

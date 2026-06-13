@@ -50,12 +50,19 @@ public class RecRole {
     @Column(name = "ROLE_TYPE", nullable = false, length = 20)
     private String roleType;  // INTERNAL / EXTERNAL
 
-    @Column(name = "STATUS", nullable = false, length = 20)
+//    @Column(name = "STATUS", nullable = false, length = 20)
+//    @Builder.Default
+//    private String status = "DRAFT";
+    
+    @Column(name = "SESSION_TIMEOUT", nullable = false)
     @Builder.Default
-    private String status = "DRAFT";
+    private Integer sessionTimeout = 15; // default 30 minutes
 
     @Column(name = "DESCRIPTION", length = 500)
     private String description;
+    
+    @Column(name = "DEPARTMENT", length = 500)
+    private String department;
     
  // New for assigning user entity
     @Column(name = "ASSIGNED_USER_ID")
@@ -75,17 +82,17 @@ public class RecRole {
     
    // ── External-org fields (only required when roleType = EXTERNAL) ──────────
 
-    @Column(name = "EXTERNAL_DEPARTMENT_NAME")
-    private String externalDepartmentName;
-
-    @Column(name = "EXTERNAL_SUPERVISOR_NAME")
-    private String externalSupervisorName;
-
-    @Column(name = "EXTERNAL_SUPERVISOR_EMAIL")
-    private String externalSupervisorEmail;
-    
-    @Column(name = "EXTERNAL_SUPERVISOR_PHONE")
-    private String externalSupervisorPhone;
+//    @Column(name = "EXTERNAL_DEPARTMENT_NAME")
+//    private String externalDepartmentName;
+//
+//    @Column(name = "EXTERNAL_SUPERVISOR_NAME")
+//    private String externalSupervisorName;
+//
+//    @Column(name = "EXTERNAL_SUPERVISOR_EMAIL")
+//    private String externalSupervisorEmail;
+//    
+//    @Column(name = "EXTERNAL_SUPERVISOR_PHONE")
+//    private String externalSupervisorPhone;
 
     // ── Audit ─────────────────────────────────────────────────────────────────
 

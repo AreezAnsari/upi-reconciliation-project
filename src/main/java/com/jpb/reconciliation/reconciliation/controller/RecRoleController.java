@@ -31,10 +31,20 @@ public class RecRoleController {
     // CREATE Role
     @PostMapping("/create")
     public ResponseEntity<RestWithStatusList> createRole(@RequestBody RecCreateRoleRequestDTO req) {
-        log.info("Creating role: {} with status: {}", req.getRoleNames(), req.getStatus());
+        log.info("Creating role: {} with status: {}", req.getRoleNames()); //req.getStatus());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(roleService.createRole(req));
+    }
+    
+    //UPDATE ROLE BY ID 
+    @PutMapping("/update/{id}")
+    public ResponseEntity<RestWithStatusList> updateRole(
+            @PathVariable Long id,
+            @RequestBody RecCreateRoleRequestDTO request) {
+
+        return ResponseEntity.ok(
+                roleService.updateRole(id, request));
     }
     
  // GET ALL ROLES

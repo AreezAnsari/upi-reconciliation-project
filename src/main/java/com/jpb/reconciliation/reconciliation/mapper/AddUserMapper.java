@@ -28,7 +28,8 @@ public class AddUserMapper {
                 .userType(AddUser.UserType.valueOf(req.getUserType().toUpperCase()))
                 .role(AddUser.Role.valueOf(req.getRole().toUpperCase()))
                 .roleType(AddUser.RoleType.valueOf(req.getRoleType().toUpperCase())) 
-                .status(AddUser.UserStatus.ACTIVE) // default
+                .status(AddUser.UserStatus.REQUEST) // default
+                .passwordSet(0)
                 .createdBy(createdBy)
                 .institutionCode(institutionCode)
              // External fields — null when INTERNAL
@@ -64,6 +65,8 @@ public class AddUserMapper {
                 .createdBy(user.getCreatedBy())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                // ✅ Return defaultPassword in response so admin success screen can show it
+                .defaultPassword(user.getDefaultPassword())
                 .build();
     }
 }

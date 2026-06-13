@@ -26,6 +26,9 @@ public class AddUserResponse{
     private String role;            // "MAKER" | "CHECKER"
     private String roleType;        // "RECON USER" | "BRANCH USER"
     private String status;          // "ACTIVE" | "INACTIVE"
+    private String institutionCode;
+ // Add this field — needed so admin success screen can show default password
+    private String defaultPassword;
     
  // External org fields — null when INTERNAL
     private String externalDepartmentName;
@@ -33,7 +36,6 @@ public class AddUserResponse{
     private String externalSupervisorEmail;
     private String externalSupervisorPhone;
     
-    private String institutionCode;
     private String createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
