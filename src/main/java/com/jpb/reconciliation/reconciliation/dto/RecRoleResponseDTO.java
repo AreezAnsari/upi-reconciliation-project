@@ -13,13 +13,20 @@ public class RecRoleResponseDTO {
     private Long      id;
     private String    roleName;
     private String    roleCode;
+    private List<RecRoleMasterDTO> assignedRoles;
     private String    roleType;
+    private String    externalDepartmentName;
+    private String    externalSupervisorName;
+    private String    externalSupervisorEmail;
+    private String    externalSupervisorPhone;
     private String    status;
     private String    description;
+    private Long      assignedUserId;
+    private String    assignedUserName;
+    private String    assignedUserEmail;
     private LocalDate validFrom;
     private LocalDate validTo;
     private String    createdBy;
     private LocalDateTime createdAt;
     private List<RecPermissionRowDTO> permissions;
 }
-

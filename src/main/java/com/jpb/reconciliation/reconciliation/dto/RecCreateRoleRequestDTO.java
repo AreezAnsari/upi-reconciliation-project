@@ -10,13 +10,22 @@ import java.util.List;
 @Builder
 public class RecCreateRoleRequestDTO {
 
-    private String    roleName;       // mandatory
-    private String    roleType;       // INTERNAL / EXTERNAL (mandatory)
-    private String    status;         // DRAFT / PENDING
-    private String    description;    // optional
-    private LocalDate validFrom;      // optional
-    private LocalDate validTo;        // optional
-    private String    createdBy;      // set from session in real app
+    private List<String> roleNames;
+    private String    roleType;
+    private String    status;
+    private String    externalDepartmentName;
+    private String    externalSupervisorName;
+    private String    externalSupervisorEmail;
+    private String    externalSupervisorPhone;
+    private Long      assignedUserId;
+    private String    assignedUserName;
+    private String    assignedUserEmail;
+    private String    description;
+    private String    department;
+    private Integer   sessionTimeout;
+    private LocalDate validFrom;
+    private LocalDate validTo;
+    private String    createdBy;
 
-    private List<RecPermissionRowDTO> permissions; // the checkbox matrix
+    private List<RecPermissionRowDTO> permissions;
 }

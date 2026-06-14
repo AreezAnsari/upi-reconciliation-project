@@ -1,4 +1,4 @@
-﻿package com.jpb.reconciliation.reconciliation.mapper;
+package com.jpb.reconciliation.reconciliation.mapper;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

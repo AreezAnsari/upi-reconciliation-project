@@ -1,4 +1,4 @@
-﻿package com.jpb.reconciliation.reconciliation.entity;
+package com.jpb.reconciliation.reconciliation.entity;
 
 import java.time.LocalDateTime;
 

@@ -1,0 +1,58 @@
+package com.jpb.reconciliation.reconciliation.mapper;
+
+import com.jpb.reconciliation.reconciliation.dto.AddUserRequest;
+import com.jpb.reconciliation.reconciliation.dto.AddUserResponse;
+import com.jpb.reconciliation.reconciliation.entity.AddUser;
+
+public class AddUserMapper {
+
+    public static AddUser toEntity(AddUserRequest req, String createdBy, String bankCode) {
+
+        boolean isExternal = "EXTERNAL".equalsIgnoreCase(req.getUserType());
+
+        return AddUser.builder()
+                .fullName(req.getFullName())
+                .username(req.getUsername())
+                .email(req.getEmail())
+                .department(req.getDepartment())
+                .designation(req.getDesignation())
+                .mobileNumber(req.getMobileNumber())
+                .userType(AddUser.UserType.valueOf(req.getUserType().toUpperCase()))
+                .role(AddUser.Role.valueOf(req.getRole().toUpperCase()))
+                .roleType(req.getRoleType() != null ? req.getRoleType() : "RECON_USER")
+                .passwordSet(0)
+                .status(AddUser.UserStatus.ACTIVE)
+                .createdBy(createdBy)
+                .bankCode(bankCode)
+                .externalDepartmentName(isExternal ? req.getExternalDepartmentName() : null)
+                .externalSupervisorName(isExternal ? req.getExternalSupervisorName() : null)
+                .externalSupervisorEmail(isExternal ? req.getExternalSupervisorEmail() : null)
+                .externalSupervisorPhone(isExternal ? req.getExternalSupervisorPhone() : null)
+                .build();
+    }
+
+    public static AddUserResponse toResponse(AddUser user) {
+
+        return AddUserResponse.builder()
+                .id(user.getId())
+                .fullName(user.getFullName())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .department(user.getDepartment())
+                .designation(user.getDesignation())
+                .mobileNumber(user.getMobileNumber())
+                .userType(user.getUserType() != null ? user.getUserType().name() : null)
+                .role(user.getRole() != null ? user.getRole().name() : null)
+                .roleType(user.getRoleType())
+                .status(user.getStatus() != null ? user.getStatus().name() : null)
+                .externalDepartmentName(user.getExternalDepartmentName())
+                .externalSupervisorName(user.getExternalSupervisorName())
+                .externalSupervisorEmail(user.getExternalSupervisorEmail())
+                .externalSupervisorPhone(user.getExternalSupervisorPhone())
+                .bankCode(user.getBankCode())
+                .createdBy(user.getCreatedBy())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
+    }
+}

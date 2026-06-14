@@ -1,4 +1,4 @@
-﻿package com.jpb.reconciliation.reconciliation.service;
+package com.jpb.reconciliation.reconciliation.service;
 
 import java.sql.Types;
 import java.time.LocalDate;

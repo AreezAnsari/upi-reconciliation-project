@@ -1,4 +1,4 @@
-﻿package com.jpb.reconciliation.reconciliation.service;
+package com.jpb.reconciliation.reconciliation.service;
 
 import java.util.ArrayList;
 import java.util.Date;

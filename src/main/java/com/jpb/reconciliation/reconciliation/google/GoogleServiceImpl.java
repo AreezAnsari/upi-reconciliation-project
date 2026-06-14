@@ -1,4 +1,4 @@
-﻿package com.jpb.reconciliation.reconciliation.google;
+package com.jpb.reconciliation.reconciliation.google;
 
 import java.io.IOException;  
 import java.security.GeneralSecurityException;

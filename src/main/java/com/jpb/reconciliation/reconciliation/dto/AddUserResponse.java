@@ -13,17 +13,25 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AddUserResponse{
- 
+public class AddUserResponse {
+
     private Long   id;
+    private String fullName;
     private String username;
     private String email;
     private String department;
     private String designation;
     private String mobileNumber;
-    private String userType;        // "INTERNAL" | "EXTERNAL"
-    private String role;            // "MAKER" | "CHECKER"
-    private String status;          // "ACTIVE" | "INACTIVE"
+    private String userType;
+    private String role;
+    private String roleType;
+    private String status;
+
+    private String externalDepartmentName;
+    private String externalSupervisorName;
+    private String externalSupervisorEmail;
+    private String externalSupervisorPhone;
+
     private String bankCode;
     private String createdBy;
     private LocalDateTime createdAt;

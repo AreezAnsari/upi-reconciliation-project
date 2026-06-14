@@ -52,6 +52,7 @@ public class SecurityConfig {
 
                 // User APIs
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create-user")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create")).permitAll()
 
                 // Google OAuth
                 .requestMatchers(new AntPathRequestMatcher("/authentication/app")).permitAll()
