@@ -8,9 +8,9 @@
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>C:/AKSHAY/Logs/springboot-app.log</file>
+        <file>/home/reconapp/kalrecon/app.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>C:/AKSHAY/Logs/springboot-app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>/home/reconapp/kalrecon/app.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <append>true</append>

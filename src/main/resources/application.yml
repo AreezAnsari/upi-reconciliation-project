@@ -28,19 +28,19 @@ spring:
         connection-timeout: 60000
         minimumIdle: 5
         poolName: HikariCP
-        leakDetectionThreshold: 600000  
-        validationTimeout: 5000 
+        leakDetectionThreshold: 600000
+        validationTimeout: 5000
         connection-test-query: SELECT 1 FROM DUAL
         dataSourceProperties:
           oracle:
             jdbc:
-              ReadTimeout: 900000 
+              ReadTimeout: 900000
 ##      secondary:
-###      datasource: 
+###      datasource:
 ##        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
 ##        driver-class-name: oracle.jdbc.OracleDriver
 ##        username: recon_sit
-##        password: 
+##        password:
 ##        hikari:
 ##          maximum-pool-size: 100
 ##          max-lifetime: 1800000
@@ -51,9 +51,9 @@ spring:
 ##        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
 ##        driver-class-name: oracle.jdbc.OracleDriver
 ##        username: recon_sit
-##        password:    
+##        password:
   jpa:
-    database-platform: org.hibernate.dialect.Oracle12cDialect 
+    database-platform: org.hibernate.dialect.Oracle12cDialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -81,7 +81,7 @@ spring:
       max-history: 30
   servlet:
     multipart:
-      max-file-size: -1 #Max file upload limit set 
+      max-file-size: -1 #Max file upload limit set
       max-request-size: -1 #Max file upload limit request
   security:
     oauth2:
@@ -124,6 +124,4 @@ AUTH:
 sqlldr:
 #   url: '@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb'
    url: '@//80.225.233.60:1521/FREEPDB1'
-   secondUrl: '@//localhost:1521/orcl.lan' 
-
-
+   secondUrl: '@//localhost:1521/orcl.lan'
