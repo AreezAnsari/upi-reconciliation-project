@@ -122,7 +122,7 @@ public class CustomUserDetailService implements UserDetailsService {
 				.username(subject)
 				.password(su.getPassword() != null ? su.getPassword() : "")
 				.authorities(Collections.singletonList(
-						new SimpleGrantedAuthority("ROLE_SUPER_USER")))
+						new SimpleGrantedAuthority("ROLE_BANK_ADMIN")))
 				.build();
 	}
 

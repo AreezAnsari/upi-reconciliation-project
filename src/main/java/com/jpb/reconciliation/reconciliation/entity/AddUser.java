@@ -85,6 +85,12 @@ public class AddUser {
     @Column(name = "BANK_CODE", length = 50)
     private String bankCode;
 
+    @Column(name = "BRANCH_CODE", length = 50)
+    private String branchCode;
+
+    @Column(name = "DEFAULT_PASSWORD", length = 100)
+    private String defaultPassword; // stores BCrypt hash, same as MainBank
+
     @Column(name = "CREATED_BY", length = 100)
     private String createdBy;
 

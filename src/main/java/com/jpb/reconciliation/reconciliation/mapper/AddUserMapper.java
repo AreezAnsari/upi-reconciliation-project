@@ -6,7 +6,8 @@ import com.jpb.reconciliation.reconciliation.entity.AddUser;
 
 public class AddUserMapper {
 
-    public static AddUser toEntity(AddUserRequest req, String createdBy, String bankCode) {
+    public static AddUser toEntity(AddUserRequest req, String createdBy, String bankCode,
+                                   String branchCode, String defaultPassword) {
 
         boolean isExternal = "EXTERNAL".equalsIgnoreCase(req.getUserType());
 
@@ -24,6 +25,8 @@ public class AddUserMapper {
                 .status(AddUser.UserStatus.ACTIVE)
                 .createdBy(createdBy)
                 .bankCode(bankCode)
+                .branchCode(branchCode)
+                .defaultPassword(defaultPassword) // BCrypt hash, same as MainBank pattern
                 .externalDepartmentName(isExternal ? req.getExternalDepartmentName() : null)
                 .externalSupervisorName(isExternal ? req.getExternalSupervisorName() : null)
                 .externalSupervisorEmail(isExternal ? req.getExternalSupervisorEmail() : null)
@@ -50,6 +53,7 @@ public class AddUserMapper {
                 .externalSupervisorEmail(user.getExternalSupervisorEmail())
                 .externalSupervisorPhone(user.getExternalSupervisorPhone())
                 .bankCode(user.getBankCode())
+                .branchCode(user.getBranchCode())
                 .createdBy(user.getCreatedBy())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

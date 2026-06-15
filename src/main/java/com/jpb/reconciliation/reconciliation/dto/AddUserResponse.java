@@ -33,6 +33,7 @@ public class AddUserResponse {
     private String externalSupervisorPhone;
 
     private String bankCode;
+    private String branchCode;
     private String createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

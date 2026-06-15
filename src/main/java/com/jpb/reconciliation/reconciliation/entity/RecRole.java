@@ -87,6 +87,12 @@ public class RecRole {
     @Column(name = "EXTERNAL_SUPERVISOR_PHONE")
     private String externalSupervisorPhone;
 
+    @Column(name = "BANK_CODE", length = 50)
+    private String bankCode;
+
+    @Column(name = "BRANCH_CODE", length = 50)
+    private String branchCode;
+
     @Column(name = "CREATED_BY", length = 100)
     private String createdBy;
 

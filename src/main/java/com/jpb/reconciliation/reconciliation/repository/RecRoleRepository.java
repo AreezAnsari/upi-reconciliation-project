@@ -15,6 +15,8 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
 
     boolean existsByRoleName(String roleName);
 
+    List<RecRole> findByCreatedBy(String createdBy);
+
     @Query("SELECT r FROM RecRole r LEFT JOIN FETCH r.permissions p LEFT JOIN FETCH p.module WHERE r.id = :id")
     Optional<RecRole> findByIdWithPermissions(@Param("id") Long id);
 

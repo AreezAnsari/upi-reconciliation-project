@@ -20,10 +20,10 @@ public class AddUserRequest {
     private String fullName;
 
     @NotBlank(message = "Username is required")
-    @Size(min = 3, max = 100, message = "Username must be between 3 and 100 characters")
+    @Size(min = 2, max = 100, message = "Username must be between 2 and 100 characters")
     @Pattern(
-            regexp = "^[A-Z][a-zA-Z]*\\.[A-Z][a-zA-Z]*$",
-            message = "Username must be in First.Last format (e.g. Karan.Joshi)"
+            regexp = "^[A-Za-z][a-zA-Z]*(\\.[A-Za-z][a-zA-Z]*)?$",
+            message = "Username must be alphabetic, optionally in First.Last format (e.g. Karan or Karan.Joshi)"
     )
     private String username;
 
@@ -35,7 +35,7 @@ public class AddUserRequest {
 
     private String designation;
 
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Mobile number must be 10-15 digits")
+    @Pattern(regexp = "^[6-9][0-9]{9}$", message = "Mobile number must be a valid 10-digit Indian number starting with 6-9")
     private String mobileNumber;
 
     @NotBlank(message = "Role is required")

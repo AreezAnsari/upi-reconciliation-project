@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import com.jpb.reconciliation.reconciliation.dto.AdminContext;
 import com.jpb.reconciliation.reconciliation.dto.RecCreateRoleRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.RecPermissionRowDTO;
 import com.jpb.reconciliation.reconciliation.dto.RecRoleResponseDTO;
@@ -19,6 +20,7 @@ import com.jpb.reconciliation.reconciliation.repository.RecRoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,10 +37,15 @@ public class RecRoleServiceImpl implements RecRoleService {
     private final RecModuleRepository        moduleRepo;
     private final RoleCompatibilityValidator compatibilityValidator;
     private final RecRoleMapper              roleMapper;
+    private final AdminContextResolver       contextResolver;
 
     @Override
     @Transactional(noRollbackFor = {Exception.class})
-    public RestWithStatusList createRole(RecCreateRoleRequestDTO req) {
+    public RestWithStatusList createRole(RecCreateRoleRequestDTO req, Authentication authentication) {
+        AdminContext ctx = contextResolver.resolve(authentication);
+        req.setCreatedBy(ctx.getUsername());
+        req.setBankCode(ctx.getBankCode());
+        req.setBranchCode(ctx.getBranchCode());
         try {
             if (req.getRoleNames() == null || req.getRoleNames().isEmpty()) {
                 return RestWithStatusList.builder()
@@ -96,6 +103,8 @@ public class RecRoleServiceImpl implements RecRoleService {
                     .validFrom(req.getValidFrom())
                     .validTo(req.getValidTo())
                     .createdBy(req.getCreatedBy())
+                    .bankCode(req.getBankCode())
+                    .branchCode(req.getBranchCode())
                     .assignedUserId(req.getAssignedUserId())
                     .assignedUserName(req.getAssignedUserName())
                     .assignedUserEmail(req.getAssignedUserEmail())
@@ -154,9 +163,17 @@ public class RecRoleServiceImpl implements RecRoleService {
 
     @Override
     @Transactional(readOnly = true)
-    public RestWithStatusList getRole(Long id) {
-        RecRole role = roleRepo.findByIdWithPermissions(id)
+    public RestWithStatusList getRole(Long id, Authentication authentication) {
+        AdminContext ctx  = contextResolver.resolve(authentication);
+        RecRole      role = roleRepo.findByIdWithPermissions(id)
                 .orElseThrow(() -> new RuntimeException("Role not found: " + id));
+        if (!ctx.getUsername().equals(role.getCreatedBy())) {
+            return RestWithStatusList.builder()
+                    .status("FAILURE")
+                    .statusMsg("Access denied")
+                    .data(Collections.emptyList())
+                    .build();
+        }
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Role fetched successfully")
@@ -166,12 +183,13 @@ public class RecRoleServiceImpl implements RecRoleService {
 
     @Override
     @Transactional(readOnly = true)
-    public RestWithStatusList getAllRoles() {
-        List<RecRole> roles = roleRepo.findAll();
+    public RestWithStatusList getAllRolesByCreator(Authentication authentication) {
+        AdminContext ctx   = contextResolver.resolve(authentication);
+        List<RecRole> roles = roleRepo.findByCreatedBy(ctx.getUsername());
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Roles fetched successfully")
-                .data(new ArrayList<>(roles))
+                .data(roles.stream().map(roleMapper::toResponseDTO).collect(Collectors.toList()))
                 .build();
     }
 
@@ -264,7 +282,7 @@ public class RecRoleServiceImpl implements RecRoleService {
         try {
             return RoleType.valueOf(raw.toUpperCase());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid roleType '" + raw + "'. Allowed: INTERNAL, EXTERNAL.");
+            throw new IllegalArgumentException("Invalid roleType '" + raw + "'. Allowed: RECON_USER, BANK_USER, BRANCH_USER.");
         }
     }
 

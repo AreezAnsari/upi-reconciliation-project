@@ -2,12 +2,13 @@ package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.AddUserRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import org.springframework.security.core.Authentication;
 
 public interface AddUserService {
 
-    RestWithStatusList createUser(AddUserRequest request, String createdBy, String instCode);
+    RestWithStatusList createUser(AddUserRequest request, Authentication authentication);
 
-    RestWithStatusList getUsersByBank(String bankCode);
+    RestWithStatusList getUsersByCreator(Authentication authentication);
 
     RestWithStatusList getUserById(Long id);
 
@@ -15,7 +16,7 @@ public interface AddUserService {
 
     RestWithStatusList deactivateUser(Long id);
 
-    RestWithStatusList searchUsers(String instCode, String term);
+    RestWithStatusList searchByCreator(Authentication authentication, String term);
 
     RestWithStatusList getAllUsers();
 }

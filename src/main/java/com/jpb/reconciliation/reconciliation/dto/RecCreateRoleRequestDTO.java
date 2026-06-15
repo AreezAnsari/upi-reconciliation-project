@@ -26,6 +26,8 @@ public class RecCreateRoleRequestDTO {
     private LocalDate validFrom;
     private LocalDate validTo;
     private String    createdBy;
+    private String    bankCode;
+    private String    branchCode;
 
     private List<RecPermissionRowDTO> permissions;
 }

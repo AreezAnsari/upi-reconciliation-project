@@ -2,17 +2,21 @@ package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.AddUserRequest;
 import com.jpb.reconciliation.reconciliation.dto.AddUserResponse;
+import com.jpb.reconciliation.reconciliation.dto.AdminContext;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.mapper.AddUserMapper;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -20,27 +24,39 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AddUserServiceImpl implements AddUserService {
 
-    private final AddUserRepository userRepository;
+    private final AddUserRepository    userRepository;
+    private final AdminContextResolver contextResolver;
+    private final PasswordEncoder      passwordEncoder;
 
     @Override
-    public RestWithStatusList createUser(AddUserRequest request, String createdBy, String instCode) {
+    public RestWithStatusList createUser(AddUserRequest request, Authentication authentication) {
         try {
+            AdminContext ctx = contextResolver.resolve(authentication);
+
             if (userRepository.existsByUsername(request.getUsername())) {
                 throw new RuntimeException("Username '" + request.getUsername() + "' already exists");
             }
             if (userRepository.existsByEmail(request.getEmail())) {
                 throw new RuntimeException("Email '" + request.getEmail() + "' already exists");
             }
-
             if ("EXTERNAL".equalsIgnoreCase(request.getUserType())) {
                 validateExternalFields(request);
             }
 
-            AddUser user = AddUserMapper.toEntity(request, createdBy, instCode);
+            String rawPassword = generateDefaultPassword();
+
+            AddUser user = AddUserMapper.toEntity(
+                    request,
+                    ctx.getUsername(),
+                    ctx.getBankCode(),
+                    ctx.getBranchCode(),
+                    passwordEncoder.encode(rawPassword) // BCrypt stored, same as MainBankServiceImpl
+            );
             userRepository.save(user);
 
-            log.info("User created → id={}, username={}, role={}, type={}",
-                    user.getId(), user.getUsername(), user.getRole(), user.getUserType());
+            log.info("User created → id={}, username={}, createdBy={}, bankCode={}, branchCode={}",
+                    user.getId(), user.getUsername(), user.getCreatedBy(),
+                    user.getBankCode(), user.getBranchCode());
 
             return RestWithStatusList.builder()
                     .status("SUCCESS")
@@ -59,6 +75,20 @@ public class AddUserServiceImpl implements AddUserService {
     }
 
     @Override
+    public RestWithStatusList getUsersByCreator(Authentication authentication) {
+        AdminContext ctx = contextResolver.resolve(authentication);
+        List<AddUserResponse> users = userRepository.findByCreatedBy(ctx.getUsername())
+                .stream()
+                .map(AddUserMapper::toResponse)
+                .collect(Collectors.toList());
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Users fetched successfully")
+                .data(new java.util.ArrayList<>(users))
+                .build();
+    }
+
+    @Override
     public RestWithStatusList getUserById(Long id) {
         AddUser user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
@@ -73,20 +103,6 @@ public class AddUserServiceImpl implements AddUserService {
     public RestWithStatusList getAllUsers() {
         List<AddUserResponse> users = userRepository.findAll()
                 .stream()
-                .map(AddUserMapper::toResponse)
-                .collect(Collectors.toList());
-        return RestWithStatusList.builder()
-                .status("SUCCESS")
-                .statusMsg("Users fetched successfully")
-                .data(new java.util.ArrayList<>(users))
-                .build();
-    }
-
-    @Override
-    public RestWithStatusList getUsersByBank(String bankCode) {
-        List<AddUserResponse> users = userRepository.findAll()
-                .stream()
-                .filter(u -> bankCode.equals(u.getBankCode()))
                 .map(AddUserMapper::toResponse)
                 .collect(Collectors.toList());
         return RestWithStatusList.builder()
@@ -143,8 +159,9 @@ public class AddUserServiceImpl implements AddUserService {
     }
 
     @Override
-    public RestWithStatusList searchUsers(String instCode, String term) {
-        List<AddUserResponse> users = userRepository.searchUsers(instCode, term)
+    public RestWithStatusList searchByCreator(Authentication authentication, String term) {
+        AdminContext ctx = contextResolver.resolve(authentication);
+        List<AddUserResponse> users = userRepository.searchByCreator(ctx.getUsername(), term)
                 .stream()
                 .map(AddUserMapper::toResponse)
                 .collect(Collectors.toList());
@@ -153,6 +170,14 @@ public class AddUserServiceImpl implements AddUserService {
                 .statusMsg("Search completed")
                 .data(new java.util.ArrayList<>(users))
                 .build();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────────
+
+    // Same logic as MainBankServiceImpl and BranchBankServiceImpl
+    private String generateDefaultPassword() {
+        int digits = 1000 + new Random().nextInt(9000);
+        return "Recon@" + digits;
     }
 
     private void validateExternalFields(AddUserRequest req) {
