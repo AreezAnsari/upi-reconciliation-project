@@ -95,9 +95,15 @@ public class BranchBankMapper {
         dto.setBranchCode(entity.getBranchCode());
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        dto.setUpdatedBy(entity.getUpdatedBy());
         dto.setLogoPath(entity.getLogoPath());
         dto.setInactivatedAt(entity.getInactivatedAt());
         dto.setBlockScheduledAt(entity.getBlockScheduledAt());
+        dto.setBlockScheduledBy(entity.getBlockScheduledBy());
+        dto.setPreBlockStatus(entity.getPreBlockStatus());
+        dto.setBranchAdminId(entity.getBranchAdminId());
 
         dto.setBranchNameFull(entity.getBranchNameFull());
         dto.setBranchNameShort(entity.getBranchNameShort());

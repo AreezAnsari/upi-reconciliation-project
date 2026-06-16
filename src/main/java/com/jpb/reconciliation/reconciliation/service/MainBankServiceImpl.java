@@ -37,10 +37,15 @@ import org.springframework.http.MediaType;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.MainBankDTO;
 import com.jpb.reconciliation.reconciliation.dto.MainBankDTO.ProductDateEntry;
+import com.jpb.reconciliation.reconciliation.dto.BranchBankDTO;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBankProduct;
+import com.jpb.reconciliation.reconciliation.mapper.BranchBankMapper;
 import com.jpb.reconciliation.reconciliation.mapper.MainBankMapper;
+import com.jpb.reconciliation.reconciliation.entity.BranchBankProduct;
+import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.BranchBankProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
@@ -68,10 +73,16 @@ public class MainBankServiceImpl implements MainBankService {
     private MainBankProductRepository mainBankProductRepository;
 
     @Autowired
+    private BranchBankProductRepository branchBankProductRepository;
+
+    @Autowired
     private EmailService emailService;
 
     @Autowired
     private MainAdminRepository mainAdminRepository;
+
+    @Autowired
+    private BranchAdminRepository branchAdminRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -1048,9 +1059,22 @@ public class MainBankServiceImpl implements MainBankService {
     @Override
     public ResponseEntity<RestWithStatusList> getBanksByCreatedBy(String username) {
         List<MainBank> list = mainBankRepository.findByCreatedBy(username);
-        List<MainBankDTO> dtos = list.stream()
-            .map(bnk -> MainBankMapper.mapToDTO(bnk))
-            .collect(Collectors.toList());
+        List<MainBankDTO> dtos = new ArrayList<>();
+        for (MainBank bnk : list) {
+            MainBankDTO dto = MainBankMapper.mapToDTO(bnk);
+            List<MainBankProduct> prods = mainBankProductRepository.findByBankId(bnk.getBankId());
+            if (!prods.isEmpty()) {
+                Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
+                for (MainBankProduct p : prods) {
+                    ProductDateEntry entry = new ProductDateEntry();
+                    entry.setValidFrom(p.getValidFrom());
+                    entry.setValidTo(p.getValidTo());
+                    productDates.put(p.getProductName(), entry);
+                }
+                dto.setProductDates(productDates);
+            }
+            dtos.add(dto);
+        }
         return new ResponseEntity<>(
             new RestWithStatusList("SUCCESS", "Banks fetched.", new ArrayList<>(dtos)),
             HttpStatus.OK);
@@ -1147,22 +1171,39 @@ public class MainBankServiceImpl implements MainBankService {
     @Override
     public ResponseEntity<RestWithStatusList> getBranchBank(Long parentBankId) {
         List<BranchBank> branchs = branchBankRepository.findByParentBankId(parentBankId);
-        List<MainBankDTO> dtos = branchs.stream().map(branch -> {
-            MainBankDTO dto = new MainBankDTO();
-            dto.setBankId(branch.getBranchId());
-            dto.setBankCode(branch.getBranchCode());
-            dto.setBankNameFull(branch.getBranchNameFull());
-            dto.setRegCity(branch.getRegCity());
-            dto.setRegState(branch.getRegState());
-            dto.setRegCountry(branch.getRegCountry());
-            dto.setPrimaryFullName(branch.getPrimaryFullName());
-            dto.setPrimaryEmail(branch.getPrimaryEmail());
-            dto.setPrimaryMobile(branch.getPrimaryMobile());
-            dto.setStatus(branch.getStatus());
-            return dto;
-        }).collect(Collectors.toList());
+        List<Object> data = new ArrayList<>();
+        for (BranchBank branch : branchs) {
+            BranchBankDTO dto = BranchBankMapper.mapToDTO(branch);
+            // Resolve numeric PK of BRANCH_ADMIN record
+            try {
+                branchAdminRepository.findByBranchCodeAndUsername(
+                        branch.getBranchCode(), branch.getBranchAdminId())
+                    .ifPresent(ba -> dto.setAdminId(ba.getId()));
+            } catch (Exception e) {
+                logger.warn("getBranchBank: adminId lookup failed for {}: {}",
+                        branch.getBranchCode(), e.getMessage());
+            }
+            // Populate product validity dates
+            try {
+                List<BranchBankProduct> prods = branchBankProductRepository.findByBranchId(branch.getBranchId());
+                if (!prods.isEmpty()) {
+                    java.util.Map<String, BranchBankDTO.ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
+                    for (BranchBankProduct p : prods) {
+                        BranchBankDTO.ProductDateEntry entry = new BranchBankDTO.ProductDateEntry();
+                        entry.setValidFrom(p.getValidFrom());
+                        entry.setValidTo(p.getValidTo());
+                        productDates.put(p.getProductName(), entry);
+                    }
+                    dto.setProductDates(productDates);
+                }
+            } catch (Exception e) {
+                logger.warn("getBranchBank: productDates lookup failed for {}: {}",
+                        branch.getBranchCode(), e.getMessage());
+            }
+            data.add(dto);
+        }
         return new ResponseEntity<>(
-            new RestWithStatusList("SUCCESS", dtos.size() + " branch-bank(s) found.", new ArrayList<>(dtos)),
+            new RestWithStatusList("SUCCESS", data.size() + " branch-bank(s) found.", data),
             HttpStatus.OK);
     }
 }

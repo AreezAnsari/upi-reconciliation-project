@@ -19,4 +19,8 @@ public interface AddUserService {
     RestWithStatusList searchByCreator(Authentication authentication, String term);
 
     RestWithStatusList getAllUsers();
+
+    RestWithStatusList getUsersByBankCode(String bankCode);
+
+    RestWithStatusList getUsersByBranchCode(String branchCode);
 }

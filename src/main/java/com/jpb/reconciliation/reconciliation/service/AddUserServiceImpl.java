@@ -113,6 +113,46 @@ public class AddUserServiceImpl implements AddUserService {
     }
 
     @Override
+    public RestWithStatusList getUsersByBankCode(String bankCode) {
+        if (bankCode == null || bankCode.trim().isEmpty()) {
+            return RestWithStatusList.builder()
+                    .status("FAILURE")
+                    .statusMsg("bankCode is required")
+                    .data(Collections.emptyList())
+                    .build();
+        }
+        List<AddUserResponse> users = userRepository.findByBankCode(bankCode)
+                .stream()
+                .map(AddUserMapper::toResponse)
+                .collect(Collectors.toList());
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Users fetched successfully")
+                .data(new java.util.ArrayList<>(users))
+                .build();
+    }
+
+    @Override
+    public RestWithStatusList getUsersByBranchCode(String branchCode) {
+        if (branchCode == null || branchCode.trim().isEmpty()) {
+            return RestWithStatusList.builder()
+                    .status("FAILURE")
+                    .statusMsg("branchCode is required")
+                    .data(Collections.emptyList())
+                    .build();
+        }
+        List<AddUserResponse> users = userRepository.findByBranchCode(branchCode)
+                .stream()
+                .map(AddUserMapper::toResponse)
+                .collect(Collectors.toList());
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Users fetched successfully")
+                .data(new java.util.ArrayList<>(users))
+                .build();
+    }
+
+    @Override
     public RestWithStatusList updateUser(Long id, AddUserRequest request) {
         AddUser user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));

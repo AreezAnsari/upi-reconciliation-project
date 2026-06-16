@@ -52,6 +52,16 @@ public class AddUserController {
         return userService.updateUser(id, request);
     }
 
+    @GetMapping("/get-by-bank/{bankCode}")
+    public RestWithStatusList getUsersByBank(@PathVariable String bankCode) {
+        return userService.getUsersByBankCode(bankCode);
+    }
+
+    @GetMapping("/get-by-branch/{branchCode}")
+    public RestWithStatusList getUsersByBranch(@PathVariable String branchCode) {
+        return userService.getUsersByBranchCode(branchCode);
+    }
+
     @DeleteMapping("/{id}")
     public RestWithStatusList deactivateUser(@PathVariable Long id) {
         return userService.deactivateUser(id);

@@ -95,9 +95,15 @@ public class MainBankMapper {
         dto.setBankCode(entity.getBankCode());
         dto.setStatus(entity.getStatus());
         dto.setCreatedAt(entity.getCreatedAt());
+        dto.setCreatedBy(entity.getCreatedBy());
         dto.setLogoPath(entity.getLogoPath());
         dto.setInactivatedAt(entity.getInactivatedAt());
         dto.setBlockScheduledAt(entity.getBlockScheduledAt());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        dto.setUpdatedBy(entity.getUpdatedBy());
+        dto.setBlockScheduledBy(entity.getBlockScheduledBy());
+        dto.setPreBlockStatus(entity.getPreBlockStatus());
+        dto.setBankAdminId(entity.getBankAdminId());
 
         dto.setBankNameFull(entity.getBankNameFull());
         dto.setBankNameShort(entity.getBankNameShort());

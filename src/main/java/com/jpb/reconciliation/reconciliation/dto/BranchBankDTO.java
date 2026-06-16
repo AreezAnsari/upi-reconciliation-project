@@ -13,7 +13,14 @@ public class BranchBankDTO {
     private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED / BLOCK_PENDING
     private LocalDateTime createdAt;
     private LocalDateTime inactivatedAt;     // when last set INACTIVE (for 30s cooldown display)
+    private LocalDateTime updatedAt;         // last updated timestamp
     private LocalDateTime blockScheduledAt;  // when block was scheduled (for countdown display)
+    private Long adminId;                    // numeric PK of BRANCH_ADMIN record
+    private String branchAdminId;           // branch admin username (e.g. areez.ansari)
+    private String blockScheduledBy;        // who scheduled the block
+    private String preBlockStatus;          // status before block was scheduled
+    private String createdBy;              // who created
+    private String updatedBy;              // who last modified
 
     // ─── Step 1: Bank Details ────────────────────────────────────────
     private String branchNameFull;   // required
@@ -89,6 +96,27 @@ public class BranchBankDTO {
 
     public LocalDateTime getInactivatedAt() { return inactivatedAt; }
     public void setInactivatedAt(LocalDateTime inactivatedAt) { this.inactivatedAt = inactivatedAt; }
+
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Long getAdminId() { return adminId; }
+    public void setAdminId(Long adminId) { this.adminId = adminId; }
+
+    public String getBranchAdminId() { return branchAdminId; }
+    public void setBranchAdminId(String branchAdminId) { this.branchAdminId = branchAdminId; }
+
+    public String getBlockScheduledBy() { return blockScheduledBy; }
+    public void setBlockScheduledBy(String blockScheduledBy) { this.blockScheduledBy = blockScheduledBy; }
+
+    public String getPreBlockStatus() { return preBlockStatus; }
+    public void setPreBlockStatus(String preBlockStatus) { this.preBlockStatus = preBlockStatus; }
+
+    public String getCreatedBy() { return createdBy; }
+    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
+
+    public String getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
     public LocalDateTime getBlockScheduledAt() { return blockScheduledAt; }
     public void setBlockScheduledAt(LocalDateTime blockScheduledAt) { this.blockScheduledAt = blockScheduledAt; }

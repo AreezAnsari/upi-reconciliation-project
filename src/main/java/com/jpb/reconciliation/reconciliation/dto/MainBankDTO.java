@@ -16,6 +16,11 @@ public class MainBankDTO {
     private Long parentBankId; // null = parent bank; non-null = sub-bnkitute
     private LocalDateTime inactivatedAt;     // when bank was last set INACTIVE (for 30s cooldown)
     private LocalDateTime blockScheduledAt;  // when block was scheduled (for countdown display)
+    private LocalDateTime updatedAt;         // last audit timestamp
+    private String updatedBy;               // who last modified
+    private String blockScheduledBy;        // who scheduled the block
+    private String preBlockStatus;          // status before block was scheduled
+    private String bankAdminId;             // bank admin username (e.g. areez.ansari)
 
     // ─── Step 1: Bank Details ────────────────────────────────────────
     private String bankNameFull;   // required
@@ -107,6 +112,21 @@ public class MainBankDTO {
 
     public LocalDateTime getBlockScheduledAt() { return blockScheduledAt; }
     public void setBlockScheduledAt(LocalDateTime blockScheduledAt) { this.blockScheduledAt = blockScheduledAt; }
+
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
+
+    public String getBlockScheduledBy() { return blockScheduledBy; }
+    public void setBlockScheduledBy(String blockScheduledBy) { this.blockScheduledBy = blockScheduledBy; }
+
+    public String getPreBlockStatus() { return preBlockStatus; }
+    public void setPreBlockStatus(String preBlockStatus) { this.preBlockStatus = preBlockStatus; }
+
+    public String getBankAdminId() { return bankAdminId; }
+    public void setBankAdminId(String bankAdminId) { this.bankAdminId = bankAdminId; }
 
     public String getBankNameFull() { return bankNameFull; }
     public void setBankNameFull(String bankNameFull) { this.bankNameFull = bankNameFull; }
@@ -233,4 +253,10 @@ public class MainBankDTO {
 
     public String getDefaultPassword() { return defaultPassword; }
     public void setDefaultPassword(String defaultPassword) { this.defaultPassword = defaultPassword; }
+	public String getCreatedBy() {
+		return createdBy;
+	}
+	public void setCreatedBy(String createdBy) {
+		this.createdBy = createdBy;
+	}
 }

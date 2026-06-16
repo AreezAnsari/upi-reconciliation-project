@@ -21,6 +21,10 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
 
     List<AddUser> findByCreatedBy(String createdBy);
 
+    List<AddUser> findByBankCode(String bankCode);
+
+    List<AddUser> findByBranchCode(String branchCode);
+
     @Query("SELECT u FROM AddUser u WHERE u.createdBy = :createdBy AND " +
            "(LOWER(u.username) LIKE LOWER(CONCAT('%', :term, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :term, '%')))")
