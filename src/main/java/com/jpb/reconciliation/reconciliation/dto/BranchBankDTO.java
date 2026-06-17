@@ -10,15 +10,19 @@ public class BranchBankDTO {
     // ─── System Generated ────────────────────────────────────────────────────
     private Long branchId;
     private String branchCode; // 8 chars: first 4 letters + 4 digits
-    private String status;          // ACTIVE / INACTIVE / PENDING / BLOCKED / BLOCK_PENDING
+    private String status;          // ACTIVE / INACTIVE / INACTIVE_PENDING / ACTIVE_PENDING / PENDING / BLOCKED / BLOCK_PENDING
     private LocalDateTime createdAt;
-    private LocalDateTime inactivatedAt;     // when last set INACTIVE (for 30s cooldown display)
-    private LocalDateTime updatedAt;         // last updated timestamp
-    private LocalDateTime blockScheduledAt;  // when block was scheduled (for countdown display)
+    private LocalDateTime inactivatedAt;         // when last set INACTIVE (for 30s cooldown display)
+    private LocalDateTime updatedAt;             // last updated timestamp
+    private LocalDateTime blockScheduledAt;      // when block was scheduled (for countdown display)
+    private LocalDateTime inactivateScheduledAt; // when inactivation was scheduled (INACTIVE_PENDING countdown)
+    private LocalDateTime reactivateScheduledAt; // when reactivation was scheduled (ACTIVE_PENDING countdown)
     private Long adminId;                    // numeric PK of BRANCH_ADMIN record
     private String branchAdminId;           // branch admin username (e.g. areez.ansari)
     private String blockScheduledBy;        // who scheduled the block
     private String preBlockStatus;          // status before block was scheduled
+    private String preInactivateStatus;     // status before INACTIVE_PENDING was set
+    private String preReactivateStatus;     // status before ACTIVE_PENDING was set
     private String createdBy;              // who created
     private String updatedBy;              // who last modified
 
@@ -120,6 +124,18 @@ public class BranchBankDTO {
 
     public LocalDateTime getBlockScheduledAt() { return blockScheduledAt; }
     public void setBlockScheduledAt(LocalDateTime blockScheduledAt) { this.blockScheduledAt = blockScheduledAt; }
+
+    public LocalDateTime getInactivateScheduledAt() { return inactivateScheduledAt; }
+    public void setInactivateScheduledAt(LocalDateTime inactivateScheduledAt) { this.inactivateScheduledAt = inactivateScheduledAt; }
+
+    public LocalDateTime getReactivateScheduledAt() { return reactivateScheduledAt; }
+    public void setReactivateScheduledAt(LocalDateTime reactivateScheduledAt) { this.reactivateScheduledAt = reactivateScheduledAt; }
+
+    public String getPreInactivateStatus() { return preInactivateStatus; }
+    public void setPreInactivateStatus(String preInactivateStatus) { this.preInactivateStatus = preInactivateStatus; }
+
+    public String getPreReactivateStatus() { return preReactivateStatus; }
+    public void setPreReactivateStatus(String preReactivateStatus) { this.preReactivateStatus = preReactivateStatus; }
 
     public String getBranchNameFull() { return branchNameFull; }
     public void setBranchNameFull(String branchNameFull) { this.branchNameFull = branchNameFull; }

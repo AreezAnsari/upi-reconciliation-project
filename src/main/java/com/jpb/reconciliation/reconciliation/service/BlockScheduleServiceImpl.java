@@ -16,8 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.entity.AddUser;
+import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
+import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
+import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
@@ -39,6 +43,9 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
 
     @Autowired
     private BranchAdminRepository branchAdminRepository;
+
+    @Autowired
+    private AddUserRepository addUserRepository;
 
     @Autowired
     private EmailService emailService;
@@ -264,6 +271,217 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                                 bnk.getBranchCode(), e.getMessage());
                 }
             }
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // AUTO-INACTIVATE / REACTIVATE — BranchBank + AddUser
+    // Runs every 5 seconds (DEMO); production: increase fixedRate
+    // ─────────────────────────────────────────────
+    @Scheduled(fixedRate = 5000)
+    @Transactional
+    public void autoProcessPendingStatuses() {
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);  // DEMO: 30s window
+
+        // ── BranchBank: INACTIVE_PENDING → INACTIVE ──
+        List<BranchBank> toInactivateBranch = branchBankRepository
+                .findByStatusAndInactivateScheduledAtBefore("INACTIVE_PENDING", cutoff);
+        for (BranchBank bnk : toInactivateBranch) {
+            bnk.setStatus("INACTIVE");
+            bnk.setInactivatedAt(LocalDateTime.now());
+            bnk.setUpdatedAt(LocalDateTime.now());
+            branchBankRepository.save(bnk);
+            try {
+                branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
+                    .ifPresent(ba -> { ba.setStatus("INACTIVE"); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy("SYSTEM"); branchAdminRepository.save(ba); });
+            } catch (Exception e) {
+                logger.warn("autoInactivate BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
+            }
+            logger.info("Auto-inactivated branch bank: {} ({})", bnk.getBranchNameFull(), bnk.getBranchId());
+            try {
+                if (bnk.getPrimaryEmail() != null) {
+                    emailService.sendInactivatedNotification(bnk.getPrimaryEmail(),
+                            bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
+                            bnk.getBranchNameFull(), bnk.getBranchCode());
+                }
+            } catch (Exception e) {
+                logger.warn("Auto-inactivate email failed for branch bank {}: {}", bnk.getBranchCode(), e.getMessage());
+            }
+        }
+
+        // ── BranchBank: ACTIVE_PENDING → ACTIVE ──
+        List<BranchBank> toActivateBranch = branchBankRepository
+                .findByStatusAndReactivateScheduledAtBefore("ACTIVE_PENDING", cutoff);
+        for (BranchBank bnk : toActivateBranch) {
+            bnk.setStatus("ACTIVE");
+            bnk.setInactivateScheduledAt(null);
+            bnk.setPreInactivateStatus(null);
+            bnk.setUpdatedAt(LocalDateTime.now());
+            branchBankRepository.save(bnk);
+            try {
+                branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
+                    .ifPresent(ba -> { ba.setStatus("ACTIVE"); ba.setInactivateScheduledAt(null); ba.setPreInactivateStatus(null); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy("SYSTEM"); branchAdminRepository.save(ba); });
+            } catch (Exception e) {
+                logger.warn("autoReactivate BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
+            }
+            logger.info("Auto-reactivated branch bank: {} ({})", bnk.getBranchNameFull(), bnk.getBranchId());
+            try {
+                if (bnk.getPrimaryEmail() != null) {
+                    emailService.sendReactivatedNotification(bnk.getPrimaryEmail(),
+                            bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
+                            bnk.getBranchNameFull(), bnk.getBranchCode());
+                }
+            } catch (Exception e) {
+                logger.warn("Auto-reactivate email failed for branch bank {}: {}", bnk.getBranchCode(), e.getMessage());
+            }
+        }
+
+        // ── AddUser: INACTIVE_PENDING → INACTIVE ──
+        List<AddUser> toInactivateUsers = addUserRepository
+                .findByStatusAndInactivateScheduledAtBefore(AddUser.UserStatus.INACTIVE_PENDING, cutoff);
+        for (AddUser user : toInactivateUsers) {
+            user.setStatus(AddUser.UserStatus.INACTIVE);
+            addUserRepository.save(user);
+            logger.info("Auto-inactivated user: {} ({})", user.getUsername(), user.getId());
+            try {
+                if (user.getEmail() != null) {
+                    emailService.sendInactivatedNotification(user.getEmail(),
+                            user.getFullName(), user.getUsername(), user.getUsername());
+                }
+            } catch (Exception e) {
+                logger.warn("Auto-inactivate email failed for user {}: {}", user.getUsername(), e.getMessage());
+            }
+        }
+
+        // ── AddUser: ACTIVE_PENDING → ACTIVE ──
+        List<AddUser> toActivateUsers = addUserRepository
+                .findByStatusAndReactivateScheduledAtBefore(AddUser.UserStatus.ACTIVE_PENDING, cutoff);
+        for (AddUser user : toActivateUsers) {
+            user.setStatus(AddUser.UserStatus.ACTIVE);
+            user.setInactivateScheduledAt(null);
+            user.setPreInactivateStatus(null);
+            addUserRepository.save(user);
+            logger.info("Auto-reactivated user: {} ({})", user.getUsername(), user.getId());
+            try {
+                if (user.getEmail() != null) {
+                    emailService.sendReactivatedNotification(user.getEmail(),
+                            user.getFullName(), user.getUsername(), user.getUsername());
+                }
+            } catch (Exception e) {
+                logger.warn("Auto-reactivate email failed for user {}: {}", user.getUsername(), e.getMessage());
+            }
+        }
+
+        // ── AddUser: BLOCK_PENDING → BLOCK ──
+        List<AddUser> toBlockUsers = addUserRepository
+                .findByStatusAndBlockScheduledAtBefore(AddUser.UserStatus.BLOCK_PENDING, cutoff);
+        for (AddUser user : toBlockUsers) {
+            user.setStatus(AddUser.UserStatus.BLOCK);
+            user.setInactivateScheduledAt(null);
+            user.setPreInactivateStatus(null);
+            user.setReactivateScheduledAt(null);
+            user.setPreReactivateStatus(null);
+            addUserRepository.save(user);
+            logger.info("Auto-blocked user: {} ({})", user.getUsername(), user.getId());
+            try {
+                if (user.getEmail() != null) {
+                    emailService.sendStatusChangeNotification(user.getEmail(),
+                            user.getFullName(), user.getUsername(), user.getUsername(),
+                            "BLOCK_PENDING", "BLOCK");
+                }
+            } catch (Exception e) {
+                logger.warn("Auto-block email failed for user {}: {}", user.getUsername(), e.getMessage());
+            }
+        }
+
+        // ── MainAdmin (BANK_ADMIN): INACTIVE_PENDING → INACTIVE ──
+        List<MainAdmin> toInactivateBankAdmins = mainAdminRepository
+                .findByStatusAndInactivateScheduledAtBefore("INACTIVE_PENDING", cutoff);
+        for (MainAdmin admin : toInactivateBankAdmins) {
+            admin.setStatus("INACTIVE");
+            admin.setUpdatedAt(LocalDateTime.now());
+            admin.setUpdatedBy("SYSTEM");
+            mainAdminRepository.save(admin);
+            try {
+                mainBankRepository.findByBankCode(admin.getBankCode())
+                    .ifPresent(b -> { b.setStatus("INACTIVE"); mainBankRepository.save(b); });
+            } catch (Exception e) {
+                logger.warn("Auto-inactivate MainBank sync failed for {}: {}", admin.getBankCode(), e.getMessage());
+            }
+            logger.info("Auto-inactivated bank admin: {} ({})", admin.getUsername(), admin.getId());
+        }
+
+        // ── MainAdmin (BANK_ADMIN): ACTIVE_PENDING → ACTIVE ──
+        List<MainAdmin> toActivateBankAdmins = mainAdminRepository
+                .findByStatusAndReactivateScheduledAtBefore("ACTIVE_PENDING", cutoff);
+        for (MainAdmin admin : toActivateBankAdmins) {
+            admin.setStatus("ACTIVE");
+            admin.setInactivateScheduledAt(null);
+            admin.setPreInactivateStatus(null);
+            admin.setUpdatedAt(LocalDateTime.now());
+            admin.setUpdatedBy("SYSTEM");
+            mainAdminRepository.save(admin);
+            try {
+                mainBankRepository.findByBankCode(admin.getBankCode())
+                    .ifPresent(b -> { b.setStatus("ACTIVE"); mainBankRepository.save(b); });
+            } catch (Exception e) {
+                logger.warn("Auto-reactivate MainBank sync failed for {}: {}", admin.getBankCode(), e.getMessage());
+            }
+            logger.info("Auto-reactivated bank admin: {} ({})", admin.getUsername(), admin.getId());
+        }
+
+        // ── MainAdmin (BANK_ADMIN): BLOCK_PENDING → BLOCKED ──
+        List<MainAdmin> toBlockBankAdmins = mainAdminRepository
+                .findByStatusAndBlockScheduledAtBefore("BLOCK_PENDING", cutoff);
+        for (MainAdmin admin : toBlockBankAdmins) {
+            admin.setStatus("BLOCKED");
+            admin.setInactivateScheduledAt(null);
+            admin.setPreInactivateStatus(null);
+            admin.setReactivateScheduledAt(null);
+            admin.setPreReactivateStatus(null);
+            admin.setUpdatedAt(LocalDateTime.now());
+            admin.setUpdatedBy("SYSTEM");
+            mainAdminRepository.save(admin);
+            logger.info("Auto-blocked bank admin: {} ({})", admin.getUsername(), admin.getId());
+        }
+
+        // ── BranchAdmin (BRANCH_ADMIN): INACTIVE_PENDING → INACTIVE ──
+        List<BranchAdmin> toInactivateBranchAdmins = branchAdminRepository
+                .findByStatusAndInactivateScheduledAtBefore("INACTIVE_PENDING", cutoff);
+        for (BranchAdmin admin : toInactivateBranchAdmins) {
+            admin.setStatus("INACTIVE");
+            admin.setUpdatedAt(LocalDateTime.now());
+            admin.setUpdatedBy("SYSTEM");
+            branchAdminRepository.save(admin);
+            logger.info("Auto-inactivated branch admin: {} ({})", admin.getUsername(), admin.getId());
+        }
+
+        // ── BranchAdmin (BRANCH_ADMIN): ACTIVE_PENDING → ACTIVE ──
+        List<BranchAdmin> toActivateBranchAdmins = branchAdminRepository
+                .findByStatusAndReactivateScheduledAtBefore("ACTIVE_PENDING", cutoff);
+        for (BranchAdmin admin : toActivateBranchAdmins) {
+            admin.setStatus("ACTIVE");
+            admin.setInactivateScheduledAt(null);
+            admin.setPreInactivateStatus(null);
+            admin.setUpdatedAt(LocalDateTime.now());
+            admin.setUpdatedBy("SYSTEM");
+            branchAdminRepository.save(admin);
+            logger.info("Auto-reactivated branch admin: {} ({})", admin.getUsername(), admin.getId());
+        }
+
+        // ── BranchAdmin (BRANCH_ADMIN): BLOCK_PENDING → BLOCKED ──
+        List<BranchAdmin> toBlockBranchAdmins = branchAdminRepository
+                .findByStatusAndBlockScheduledAtBefore("BLOCK_PENDING", cutoff);
+        for (BranchAdmin admin : toBlockBranchAdmins) {
+            admin.setStatus("BLOCKED");
+            admin.setInactivateScheduledAt(null);
+            admin.setPreInactivateStatus(null);
+            admin.setReactivateScheduledAt(null);
+            admin.setPreReactivateStatus(null);
+            admin.setUpdatedAt(LocalDateTime.now());
+            admin.setUpdatedBy("SYSTEM");
+            branchAdminRepository.save(admin);
+            logger.info("Auto-blocked branch admin: {} ({})", admin.getUsername(), admin.getId());
         }
     }
 

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
+import javax.transaction.Transactional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -899,5 +901,179 @@ public class MainAdminServiceImpl implements MainAdminService {
         String domain  = parts[1];
         if (local.length() <= 2) return "**@" + domain;
         return local.substring(0, 2) + "***@" + domain;
+    }
+
+    // ── Schedule / Undo status transitions for Bank Admin ───────────────────
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleInactivate(Long bankId, String scheduledBy) {
+        Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
+        if (!bankOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
+        }
+        MainBank bank = bankOpt.get();
+        Optional<MainAdmin> opt = mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found for bank: " + bankId, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if (!"ACTIVE".equalsIgnoreCase(admin.getStatus()) && !"VERIFIED".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin must be ACTIVE to schedule inactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
+        }
+        admin.setPreInactivateStatus(admin.getStatus());
+        admin.setStatus("INACTIVE_PENDING");
+        admin.setInactivateScheduledAt(LocalDateTime.now());
+        admin.setInactivatedBy(scheduledBy);
+        admin.setReactivateScheduledAt(null);
+        admin.setPreReactivateStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        mainAdminRepository.save(admin);
+        bank.setStatus("INACTIVE_PENDING");
+        mainBankRepository.save(bank);
+        logger.info("Inactivation scheduled for bank admin {} (bank {}) by {}", admin.getUsername(), bankId, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation scheduled. Bank admin will be INACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoInactivate(Long bankId, String undoneBy) {
+        Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
+        if (!bankOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
+        }
+        MainBank bank = bankOpt.get();
+        Optional<MainAdmin> opt = mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found for bank: " + bankId, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if (!"INACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled inactivation found for this bank admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreInactivateStatus() != null ? admin.getPreInactivateStatus() : "ACTIVE";
+        admin.setStatus(restored);
+        admin.setInactivateScheduledAt(null);
+        admin.setPreInactivateStatus(null);
+        admin.setInactivatedBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        mainAdminRepository.save(admin);
+        bank.setStatus(restored);
+        mainBankRepository.save(bank);
+        logger.info("Inactivation undone for bank admin {} (bank {}) by {}. Restored to {}", admin.getUsername(), bankId, undoneBy, restored);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation cancelled. Restored to " + restored + ".", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleReactivate(Long bankId, String scheduledBy) {
+        Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
+        if (!bankOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
+        }
+        MainBank bank = bankOpt.get();
+        Optional<MainAdmin> opt = mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found for bank: " + bankId, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if (!"INACTIVE".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin must be INACTIVE to schedule reactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
+        }
+        admin.setPreReactivateStatus(admin.getStatus());
+        admin.setStatus("ACTIVE_PENDING");
+        admin.setReactivateScheduledAt(LocalDateTime.now());
+        admin.setInactivatedBy(null);
+        admin.setInactivateScheduledAt(null);
+        admin.setPreInactivateStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        mainAdminRepository.save(admin);
+        bank.setStatus("ACTIVE_PENDING");
+        mainBankRepository.save(bank);
+        logger.info("Reactivation scheduled for bank admin {} (bank {}) by {}", admin.getUsername(), bankId, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation scheduled. Bank admin will be ACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoReactivate(Long bankId, String undoneBy) {
+        Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
+        if (!bankOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
+        }
+        MainBank bank = bankOpt.get();
+        Optional<MainAdmin> opt = mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found for bank: " + bankId, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if (!"ACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled reactivation found for this bank admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreReactivateStatus() != null ? admin.getPreReactivateStatus() : "INACTIVE";
+        admin.setStatus(restored);
+        admin.setReactivateScheduledAt(null);
+        admin.setPreReactivateStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        mainAdminRepository.save(admin);
+        bank.setStatus(restored);
+        mainBankRepository.save(bank);
+        logger.info("Reactivation undone for bank admin {} (bank {}) by {}. Restored to {}", admin.getUsername(), bankId, undoneBy, restored);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation cancelled. Restored to " + restored + ".", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy) {
+        Optional<MainAdmin> opt = mainAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found: " + id, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if ("BLOCKED".equalsIgnoreCase(admin.getStatus()) || "BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin is already blocked or pending block.", null), HttpStatus.OK);
+        }
+        admin.setPreBlockStatus(admin.getStatus());
+        admin.setStatus("BLOCK_PENDING");
+        admin.setBlockScheduledAt(LocalDateTime.now());
+        admin.setBlockedBy(scheduledBy);
+        admin.setInactivateScheduledAt(null);
+        admin.setPreInactivateStatus(null);
+        admin.setReactivateScheduledAt(null);
+        admin.setPreReactivateStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        mainAdminRepository.save(admin);
+        logger.info("Block scheduled for bank admin {} by {}", id, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Bank admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy) {
+        Optional<MainAdmin> opt = mainAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found: " + id, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if (!"BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled block found for this bank admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreBlockStatus() != null ? admin.getPreBlockStatus() : "INACTIVE";
+        admin.setStatus(restored);
+        admin.setBlockScheduledAt(null);
+        admin.setPreBlockStatus(null);
+        admin.setBlockedBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        mainAdminRepository.save(admin);
+        logger.info("Block undone for bank admin {} by {}. Restored to {}", id, undoneBy, restored);
+        List<Object> data = new ArrayList<>();
+        data.add(admin);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Bank admin restored to " + restored + ".", data), HttpStatus.OK);
     }
 }

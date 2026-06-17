@@ -190,6 +190,54 @@ public class BranchBankController {
         return branchBankService.exportToCsv();
     }
 
+    // POST /test/api/v1/branchbank/schedule-inactivate/{bankId}
+    @Operation(summary = "Schedule inactivation for branch bank (30s demo / 30min production)")
+    @PostMapping(value = "/schedule-inactivate/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> scheduleInactivate(
+            @PathVariable Long bankId,
+            Authentication authentication) {
+        String scheduledBy = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Schedule inactivate for branch bank {} by {}", bankId, scheduledBy);
+        return branchBankService.scheduleInactivate(bankId, scheduledBy);
+    }
+
+    // POST /test/api/v1/branchbank/undo-inactivate/{bankId}
+    @Operation(summary = "Undo scheduled inactivation for branch bank")
+    @PostMapping(value = "/undo-inactivate/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> undoInactivate(
+            @PathVariable Long bankId,
+            Authentication authentication) {
+        String undoneBy = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Undo inactivate for branch bank {} by {}", bankId, undoneBy);
+        return branchBankService.undoInactivate(bankId, undoneBy);
+    }
+
+    // POST /test/api/v1/branchbank/schedule-reactivate/{bankId}
+    @Operation(summary = "Schedule reactivation for branch bank (30s demo / 1hr production)")
+    @PostMapping(value = "/schedule-reactivate/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> scheduleReactivate(
+            @PathVariable Long bankId,
+            Authentication authentication) {
+        String scheduledBy = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Schedule reactivate for branch bank {} by {}", bankId, scheduledBy);
+        return branchBankService.scheduleReactivate(bankId, scheduledBy);
+    }
+
+    // POST /test/api/v1/branchbank/undo-reactivate/{bankId}
+    @Operation(summary = "Undo scheduled reactivation for branch bank")
+    @PostMapping(value = "/undo-reactivate/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> undoReactivate(
+            @PathVariable Long bankId,
+            Authentication authentication) {
+        String undoneBy = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Undo reactivate for branch bank {} by {}", bankId, undoneBy);
+        return branchBankService.undoReactivate(bankId, undoneBy);
+    }
+
     // GET /test/api/v1/branchbank/get-by-code/{bankCode}
     // Used by BranchAdmin sidebar to display bank logo + short name
     @Operation(summary = "Get branch bank by bank code")

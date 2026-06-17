@@ -86,4 +86,46 @@ public interface EmailService {
                                            String bankName, String bankCode,
                                            String updatedAt,
                                            Map<String, List<String>> changesBySections);
+
+    /**
+     * Sent when an admin schedules inactivation (INACTIVE_PENDING).
+     * Tells the contact: your account will be inactivated at inactivateAt unless cancelled.
+     */
+    void sendInactivatePendingWarning(String toEmail, String contactName,
+                                      String entityName, String entityCode,
+                                      String inactivateAt);
+
+    /**
+     * Sent when admin undoes a pending inactivation.
+     * Account restored to its previous (ACTIVE) status.
+     */
+    void sendInactivateCancelled(String toEmail, String contactName,
+                                 String entityName, String entityCode);
+
+    /**
+     * Sent when the inactivation window expires and status flips to INACTIVE automatically.
+     */
+    void sendInactivatedNotification(String toEmail, String contactName,
+                                     String entityName, String entityCode);
+
+    /**
+     * Sent when an admin schedules reactivation (ACTIVE_PENDING).
+     * Tells the contact: your account will be reactivated at reactivateAt.
+     */
+    void sendReactivatePendingNotification(String toEmail, String contactName,
+                                           String entityName, String entityCode,
+                                           String reactivateAt);
+
+    /**
+     * Sent when admin undoes a pending reactivation.
+     * Account restored to INACTIVE.
+     */
+    void sendReactivateCancelled(String toEmail, String contactName,
+                                 String entityName, String entityCode);
+
+    /**
+     * Sent when the reactivation window expires and status flips to ACTIVE automatically.
+     */
+    void sendReactivatedNotification(String toEmail, String contactName,
+                                     String entityName, String entityCode);
 }

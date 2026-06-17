@@ -44,4 +44,10 @@ public interface MainAdminService {
     // OTP verify ke baad bank status → ACTIVE karo
     ResponseEntity<RestWithStatusList> activateBank(String email);
 
+    ResponseEntity<RestWithStatusList> scheduleInactivate(Long id, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoInactivate(Long id, String undoneBy);
+    ResponseEntity<RestWithStatusList> scheduleReactivate(Long id, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoReactivate(Long id, String undoneBy);
+    ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy);
 }

@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,4 +30,9 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
            "(LOWER(u.username) LIKE LOWER(CONCAT('%', :term, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :term, '%')))")
     List<AddUser> searchByCreator(@Param("createdBy") String createdBy, @Param("term") String term);
+
+    // Scheduler queries for auto-transitions
+    List<AddUser> findByStatusAndInactivateScheduledAtBefore(AddUser.UserStatus status, LocalDateTime cutoff);
+    List<AddUser> findByStatusAndReactivateScheduledAtBefore(AddUser.UserStatus status, LocalDateTime cutoff);
+    List<AddUser> findByStatusAndBlockScheduledAtBefore(AddUser.UserStatus status, LocalDateTime cutoff);
 }

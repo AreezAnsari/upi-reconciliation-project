@@ -142,14 +142,15 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 				menuRequest.getMenuName(), menuRequest.getRoleId(), menuRequest.getParentMenuCode());
 		KalAdmin userData = KalAdminRepository.findByUserName(userDetails.getUsername()).get();
 		ReconMenuMaster createdUser = null;
+		String createdBy = userDetails.getUsername();
 		if (menuWithName == null) {
-			createdUser = createMenu(menuRequest);
+			createdUser = createMenu(menuRequest, createdBy);
 		} else if (menuWithName.getParentMenuCode().equalsIgnoreCase(menuRequest.getParentMenuCode())
 				|| menuWithName.getMenuName().equalsIgnoreCase(menuRequest.getMenuName())) {
 			restWithStatusList = new RestWithStatusList("FAILURE", "Menu already exists for this role", null);
 			return new ResponseEntity<>(restWithStatusList, HttpStatus.BAD_REQUEST);
 		} else {
-			createdUser = createMenu(menuRequest);
+			createdUser = createMenu(menuRequest, createdBy);
 		}
 
 		ReconFileDetailsMaster getFileData = fileDetailsMasterRepository
@@ -170,7 +171,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 		return new ResponseEntity<>(restWithStatusList, HttpStatus.CREATED);
 	}
 
-	private ReconMenuMaster createMenu(ReconMenuMasterDto menuRequest) {
+	private ReconMenuMaster createMenu(ReconMenuMasterDto menuRequest, String createdBy) {
 		ReconMenuMaster addNewMenu = new ReconMenuMaster();
 		if (menuRequest.getMenuType().equalsIgnoreCase("MASTER")) {
 			addNewMenu.setMenuType(menuRequest.getMenuType());
@@ -179,7 +180,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 			addNewMenu.setInsertUserId(menuRequest.getUserId());
 			addNewMenu.setMenuProcessId(menuRequest.getMenuProcessId());
 			addNewMenu.setMenuUrl(menuRequest.getMenuUrl());
-			addNewMenu.setCreatedBy(null);
+			addNewMenu.setCreatedBy(createdBy);
 			addNewMenu.setCreatedDate(new Date());
 			addNewMenu.setInsertDate(new Date());
 			addNewMenu.setProcessType(menuRequest.getProcessType());
@@ -194,7 +195,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 			addNewMenu.setInsertUserId(menuRequest.getUserId());
 			addNewMenu.setMenuProcessId(menuRequest.getMenuProcessId());
 			addNewMenu.setMenuUrl(menuRequest.getMenuUrl());
-			addNewMenu.setCreatedBy(null);
+			addNewMenu.setCreatedBy(createdBy);
 			addNewMenu.setCreatedDate(new Date());
 			addNewMenu.setInsertDate(new Date());
 			addNewMenu.setProcessType(menuRequest.getProcessType());
@@ -209,7 +210,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 			addNewMenu.setMenuProcessId(menuRequest.getMenuProcessId());
 			addNewMenu.setMenuUrl(menuRequest.getMenuUrl());
 			addNewMenu.setMasterMenuParent(menuRequest.getMasterMenuParent());
-			addNewMenu.setCreatedBy(null);
+			addNewMenu.setCreatedBy(createdBy);
 			addNewMenu.setCreatedDate(new Date());
 			addNewMenu.setInsertDate(new Date());
 			addNewMenu.setProcessType(menuRequest.getProcessType());

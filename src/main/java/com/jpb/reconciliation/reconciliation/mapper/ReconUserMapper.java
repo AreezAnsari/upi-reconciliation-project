@@ -55,7 +55,7 @@ public class ReconUserMapper {
 		roleDto.setRoleId(role.getRoleId());
 		roleDto.setRoleCode(role.getRoleCode());
 		roleDto.setCreatedAt(LocalDateTime.now());
-		roleDto.setCreatedBy(role.getRoleName());
+		roleDto.setCreatedBy(role.getCreatedBy());
 		return roleDto;
 	}
 

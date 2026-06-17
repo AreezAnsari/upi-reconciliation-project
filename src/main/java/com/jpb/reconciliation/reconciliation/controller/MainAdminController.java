@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
@@ -85,4 +86,33 @@ public class MainAdminController {
                 bankCode,
                 username);
     }
+
+    @PostMapping("/schedule-inactivate/{id}")
+    public ResponseEntity<RestWithStatusList> scheduleInactivate(
+            @PathVariable Long id, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return mainAdminService.scheduleInactivate(id, by);
+    }
+
+    @PostMapping("/undo-inactivate/{id}")
+    public ResponseEntity<RestWithStatusList> undoInactivate(
+            @PathVariable Long id, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return mainAdminService.undoInactivate(id, by);
+    }
+
+    @PostMapping("/schedule-reactivate/{id}")
+    public ResponseEntity<RestWithStatusList> scheduleReactivate(
+            @PathVariable Long id, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return mainAdminService.scheduleReactivate(id, by);
+    }
+
+    @PostMapping("/undo-reactivate/{id}")
+    public ResponseEntity<RestWithStatusList> undoReactivate(
+            @PathVariable Long id, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return mainAdminService.undoReactivate(id, by);
+    }
+
 }

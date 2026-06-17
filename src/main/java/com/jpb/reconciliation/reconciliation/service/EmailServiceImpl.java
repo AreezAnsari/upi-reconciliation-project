@@ -1014,6 +1014,198 @@ public class EmailServiceImpl implements EmailService {
             + "</table></td></tr></table></body></html>";
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND INACTIVATE PENDING WARNING
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendInactivatePendingWarning(String toEmail, String contactName,
+                                              String entityName, String entityCode,
+                                              String inactivateAt) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Inactivation Scheduled: " + entityName);
+            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
+                    "INACTIVE_PENDING", "Inactivation Scheduled",
+                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been scheduled for <strong>inactivation</strong>. "
+                    + "It will be marked <strong>INACTIVE</strong> at " + sanitize(inactivateAt) + ". "
+                    + "If this was done in error, please contact your administrator to cancel immediately.",
+                    "#6366f1", "⏸");
+            helper.setText(body, true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Inactivate-pending warning sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Inactivate-pending warning — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND INACTIVATE CANCELLED
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendInactivateCancelled(String toEmail, String contactName,
+                                         String entityName, String entityCode) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Inactivation Cancelled: " + entityName);
+            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
+                    "ACTIVE", "Inactivation Cancelled",
+                    "The scheduled inactivation for your account (<strong>" + sanitize(entityCode) + "</strong>) has been <strong>cancelled</strong> by the administrator. "
+                    + "Your account remains <strong>ACTIVE</strong>.",
+                    "#22c55e", "✅");
+            helper.setText(body, true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Inactivate-cancelled sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Inactivate-cancelled — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND INACTIVATED NOTIFICATION (auto-process fired)
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendInactivatedNotification(String toEmail, String contactName,
+                                             String entityName, String entityCode) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Account Inactivated: " + entityName);
+            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
+                    "INACTIVE", "Account Inactivated",
+                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been <strong>INACTIVATED</strong>. "
+                    + "You will not be able to access the platform. Please contact your administrator for reactivation.",
+                    "#6366f1", "⏸");
+            helper.setText(body, true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Inactivated notification sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Inactivated notification — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND REACTIVATE PENDING NOTIFICATION
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendReactivatePendingNotification(String toEmail, String contactName,
+                                                   String entityName, String entityCode,
+                                                   String reactivateAt) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Reactivation Scheduled: " + entityName);
+            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
+                    "ACTIVE_PENDING", "Reactivation Scheduled",
+                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been scheduled for <strong>reactivation</strong>. "
+                    + "It will be marked <strong>ACTIVE</strong> at " + sanitize(reactivateAt) + ". "
+                    + "No action is needed from your side.",
+                    "#22c55e", "🔄");
+            helper.setText(body, true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Reactivate-pending sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Reactivate-pending — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND REACTIVATE CANCELLED
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendReactivateCancelled(String toEmail, String contactName,
+                                         String entityName, String entityCode) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Reactivation Cancelled: " + entityName);
+            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
+                    "INACTIVE", "Reactivation Cancelled",
+                    "The scheduled reactivation for your account (<strong>" + sanitize(entityCode) + "</strong>) has been <strong>cancelled</strong> by the administrator. "
+                    + "Your account remains <strong>INACTIVE</strong>.",
+                    "#6366f1", "⏸");
+            helper.setText(body, true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Reactivate-cancelled sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Reactivate-cancelled — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND REACTIVATED NOTIFICATION (auto-process fired)
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendReactivatedNotification(String toEmail, String contactName,
+                                             String entityName, String entityCode) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Account Reactivated: " + entityName);
+            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
+                    "ACTIVE", "Account Reactivated",
+                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been successfully <strong>REACTIVATED</strong>. "
+                    + "You can now log in to ReconXpert.Ai using your credentials.",
+                    "#22c55e", "✅");
+            helper.setText(body, true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Reactivated notification sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Reactivated notification — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Generic pending/transition email
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildStatusPendingHtml(String contactName, String entityName, String entityCode,
+                                           String newStatus, String title, String message,
+                                           String accentColor, String icon) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
+            + "<div style='background:rgba(0,0,0,0.03);border-left:4px solid " + accentColor + ";border-radius:8px;padding:20px 24px;margin:20px 0;'>"
+            + "<p style='margin:0 0 6px;font-size:18px;'>" + icon + " <strong style='color:" + accentColor + ";'>" + sanitize(title) + "</strong></p>"
+            + "<p style='margin:0;font-size:13px;color:#475569;'>" + message + "</p>"
+            + "</div>"
+            + "<p style='font-size:13px;color:#64748b;'>Organisation: <strong>" + sanitize(entityName) + "</strong> | Code: <strong>" + sanitize(entityCode) + "</strong></p>"
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;margin-top:16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not reply to this email. Contact your administrator for any queries.</p>"
+            + "</div>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+            + "</table></td></tr></table></body></html>";
+    }
+
     // Prevent XSS — sanitize user input before putting in HTML
     private String sanitize(String input) {
         if (input == null) return "";

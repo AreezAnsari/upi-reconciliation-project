@@ -80,4 +80,6 @@ public class BranchAdminController {
     public ResponseEntity<RestWithStatusList> resetPassword(@RequestBody ResetPasswordRequest request) {
         return branchAdminService.resetPassword(request);
     }
+
 }
+

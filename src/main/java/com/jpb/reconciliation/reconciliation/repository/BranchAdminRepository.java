@@ -1,5 +1,7 @@
 package com.jpb.reconciliation.reconciliation.repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -23,4 +25,13 @@ public interface BranchAdminRepository extends JpaRepository<BranchAdmin, Long> 
     Optional<BranchAdmin> findFirstByEmailAndStatusNotOrderByIdDesc(String email, String status);
 
     Optional<BranchAdmin> findFirstByUsername(String username);
+
+    // Scheduler: auto-inactivate INACTIVE_PENDING whose window has passed
+    List<BranchAdmin> findByStatusAndInactivateScheduledAtBefore(String status, LocalDateTime cutoff);
+
+    // Scheduler: auto-reactivate ACTIVE_PENDING whose window has passed
+    List<BranchAdmin> findByStatusAndReactivateScheduledAtBefore(String status, LocalDateTime cutoff);
+
+    // Scheduler: auto-block BLOCK_PENDING whose window has passed
+    List<BranchAdmin> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);
 }

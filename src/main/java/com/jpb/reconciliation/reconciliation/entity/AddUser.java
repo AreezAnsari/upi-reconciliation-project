@@ -24,7 +24,7 @@ public class AddUser {
     }
 
     public enum UserStatus {
-        REQUEST, ACTIVE, INACTIVE, BLOCK, RETIRED
+        REQUEST, ACTIVE, INACTIVE_PENDING, INACTIVE, ACTIVE_PENDING, BLOCK_PENDING, BLOCK, RETIRED
     }
 
     @Id
@@ -90,6 +90,27 @@ public class AddUser {
 
     @Column(name = "DEFAULT_PASSWORD", length = 100)
     private String defaultPassword; // stores BCrypt hash, same as MainBank
+
+    // ─── Inactivate Schedule (ACTIVE → INACTIVE_PENDING → INACTIVE after 30min/30s demo) ──
+    @Column(name = "INACTIVATE_SCHEDULED_AT")
+    private LocalDateTime inactivateScheduledAt;
+
+    @Column(name = "PRE_INACTIVATE_STATUS", length = 20)
+    private String preInactivateStatus;
+
+    // ─── Reactivate Schedule (INACTIVE → ACTIVE_PENDING → ACTIVE after 1hr/30s demo) ──────
+    @Column(name = "REACTIVATE_SCHEDULED_AT")
+    private LocalDateTime reactivateScheduledAt;
+
+    @Column(name = "PRE_REACTIVATE_STATUS", length = 20)
+    private String preReactivateStatus;
+
+    // ─── Block Schedule (INACTIVE→BLOCK=1hr, ACTIVE→BLOCK=4hr / 30s demo) ──────────────
+    @Column(name = "BLOCK_SCHEDULED_AT")
+    private LocalDateTime blockScheduledAt;
+
+    @Column(name = "PRE_BLOCK_STATUS", length = 20)
+    private String preBlockStatus;
 
     @Column(name = "CREATED_BY", length = 100)
     private String createdBy;

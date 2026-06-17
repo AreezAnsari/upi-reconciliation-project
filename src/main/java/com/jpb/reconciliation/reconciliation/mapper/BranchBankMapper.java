@@ -103,6 +103,10 @@ public class BranchBankMapper {
         dto.setBlockScheduledAt(entity.getBlockScheduledAt());
         dto.setBlockScheduledBy(entity.getBlockScheduledBy());
         dto.setPreBlockStatus(entity.getPreBlockStatus());
+        dto.setInactivateScheduledAt(entity.getInactivateScheduledAt());
+        dto.setPreInactivateStatus(entity.getPreInactivateStatus());
+        dto.setReactivateScheduledAt(entity.getReactivateScheduledAt());
+        dto.setPreReactivateStatus(entity.getPreReactivateStatus());
         dto.setBranchAdminId(entity.getBranchAdminId());
 
         dto.setBranchNameFull(entity.getBranchNameFull());

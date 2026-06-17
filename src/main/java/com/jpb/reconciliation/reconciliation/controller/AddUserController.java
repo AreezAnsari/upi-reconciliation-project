@@ -67,6 +67,54 @@ public class AddUserController {
         return userService.deactivateUser(id);
     }
 
+    // POST /api/v1/user/{id}/schedule-inactivate
+    @PostMapping("/{id}/schedule-inactivate")
+    public RestWithStatusList scheduleInactivate(@PathVariable Long id,
+                                                  Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.scheduleInactivateUser(id, by);
+    }
+
+    // POST /api/v1/user/{id}/undo-inactivate
+    @PostMapping("/{id}/undo-inactivate")
+    public RestWithStatusList undoInactivate(@PathVariable Long id,
+                                              Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.undoInactivateUser(id, by);
+    }
+
+    // POST /api/v1/user/{id}/schedule-reactivate
+    @PostMapping("/{id}/schedule-reactivate")
+    public RestWithStatusList scheduleReactivate(@PathVariable Long id,
+                                                  Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.scheduleReactivateUser(id, by);
+    }
+
+    // POST /api/v1/user/{id}/undo-reactivate
+    @PostMapping("/{id}/undo-reactivate")
+    public RestWithStatusList undoReactivate(@PathVariable Long id,
+                                              Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.undoReactivateUser(id, by);
+    }
+
+    // POST /api/v1/user/{id}/schedule-block
+    @PostMapping("/{id}/schedule-block")
+    public RestWithStatusList scheduleBlock(@PathVariable Long id,
+                                             Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.scheduleBlockUser(id, by);
+    }
+
+    // POST /api/v1/user/{id}/undo-block
+    @PostMapping("/{id}/undo-block")
+    public RestWithStatusList undoBlock(@PathVariable Long id,
+                                         Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.undoBlockUser(id, by);
+    }
+
     private RestWithStatusList forbidden() {
         return RestWithStatusList.builder()
                 .status("FAILURE")

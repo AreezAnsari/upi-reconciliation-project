@@ -13,9 +13,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -27,6 +30,7 @@ public class AddUserServiceImpl implements AddUserService {
     private final AddUserRepository    userRepository;
     private final AdminContextResolver contextResolver;
     private final PasswordEncoder      passwordEncoder;
+    private final EmailService         emailService;
 
     @Override
     public RestWithStatusList createUser(AddUserRequest request, Authentication authentication) {
@@ -210,6 +214,195 @@ public class AddUserServiceImpl implements AddUserService {
                 .statusMsg("Search completed")
                 .data(new java.util.ArrayList<>(users))
                 .build();
+    }
+
+    // ── Schedule / Undo status transitions ───────────────────────────────────────
+
+    @Override
+    public RestWithStatusList scheduleInactivateUser(Long id, String scheduledBy) {
+        Optional<AddUser> opt = userRepository.findById(id);
+        if (!opt.isPresent()) return fail("User not found: " + id);
+        AddUser user = opt.get();
+        if (user.getStatus() != AddUser.UserStatus.ACTIVE)
+            return fail("User must be ACTIVE to schedule inactivation. Current: " + user.getStatus());
+
+        user.setPreInactivateStatus(user.getStatus().name());
+        user.setStatus(AddUser.UserStatus.INACTIVE_PENDING);
+        user.setInactivateScheduledAt(LocalDateTime.now());
+        user.setReactivateScheduledAt(null);
+        user.setPreReactivateStatus(null);
+        userRepository.save(user);
+
+        String inactivateAt = user.getInactivateScheduledAt()
+                .plusSeconds(30)  // DEMO: 30s — production: plusMinutes(30)
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+        try {
+            if (user.getEmail() != null) {
+                emailService.sendInactivatePendingWarning(user.getEmail(),
+                        user.getFullName(), user.getUsername(), user.getUsername(), inactivateAt);
+            }
+        } catch (Exception e) {
+            log.warn("[INACTIVATE-WARN] Email failed for user {}: {}", user.getUsername(), e.getMessage());
+        }
+
+        return ok("Inactivation scheduled. User will be INACTIVE in 30 seconds.");
+    }
+
+    @Override
+    public RestWithStatusList undoInactivateUser(Long id, String undoneBy) {
+        Optional<AddUser> opt = userRepository.findById(id);
+        if (!opt.isPresent()) return fail("User not found: " + id);
+        AddUser user = opt.get();
+        if (user.getStatus() != AddUser.UserStatus.INACTIVE_PENDING)
+            return fail("No scheduled inactivation found for this user.");
+
+        AddUser.UserStatus restored = user.getPreInactivateStatus() != null
+                ? AddUser.UserStatus.valueOf(user.getPreInactivateStatus())
+                : AddUser.UserStatus.ACTIVE;
+        user.setStatus(restored);
+        user.setInactivateScheduledAt(null);
+        user.setPreInactivateStatus(null);
+        userRepository.save(user);
+
+        try {
+            if (user.getEmail() != null) {
+                emailService.sendInactivateCancelled(user.getEmail(),
+                        user.getFullName(), user.getUsername(), user.getUsername());
+            }
+        } catch (Exception e) {
+            log.warn("[UNDO-INACTIVATE] Email failed for user {}: {}", user.getUsername(), e.getMessage());
+        }
+
+        return ok("Inactivation cancelled. User restored to " + restored + ".");
+    }
+
+    @Override
+    public RestWithStatusList scheduleReactivateUser(Long id, String scheduledBy) {
+        Optional<AddUser> opt = userRepository.findById(id);
+        if (!opt.isPresent()) return fail("User not found: " + id);
+        AddUser user = opt.get();
+        if (user.getStatus() != AddUser.UserStatus.INACTIVE)
+            return fail("User must be INACTIVE to schedule reactivation. Current: " + user.getStatus());
+
+        user.setPreReactivateStatus(user.getStatus().name());
+        user.setStatus(AddUser.UserStatus.ACTIVE_PENDING);
+        user.setReactivateScheduledAt(LocalDateTime.now());
+        user.setInactivateScheduledAt(null);
+        user.setPreInactivateStatus(null);
+        userRepository.save(user);
+
+        String reactivateAt = user.getReactivateScheduledAt()
+                .plusSeconds(30)  // DEMO: 30s — production: plusHours(1)
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+        try {
+            if (user.getEmail() != null) {
+                emailService.sendReactivatePendingNotification(user.getEmail(),
+                        user.getFullName(), user.getUsername(), user.getUsername(), reactivateAt);
+            }
+        } catch (Exception e) {
+            log.warn("[REACTIVATE-PEND] Email failed for user {}: {}", user.getUsername(), e.getMessage());
+        }
+
+        return ok("Reactivation scheduled. User will be ACTIVE in 30 seconds.");
+    }
+
+    @Override
+    public RestWithStatusList undoReactivateUser(Long id, String undoneBy) {
+        Optional<AddUser> opt = userRepository.findById(id);
+        if (!opt.isPresent()) return fail("User not found: " + id);
+        AddUser user = opt.get();
+        if (user.getStatus() != AddUser.UserStatus.ACTIVE_PENDING)
+            return fail("No scheduled reactivation found for this user.");
+
+        AddUser.UserStatus restored = user.getPreReactivateStatus() != null
+                ? AddUser.UserStatus.valueOf(user.getPreReactivateStatus())
+                : AddUser.UserStatus.INACTIVE;
+        user.setStatus(restored);
+        user.setReactivateScheduledAt(null);
+        user.setPreReactivateStatus(null);
+        userRepository.save(user);
+
+        try {
+            if (user.getEmail() != null) {
+                emailService.sendReactivateCancelled(user.getEmail(),
+                        user.getFullName(), user.getUsername(), user.getUsername());
+            }
+        } catch (Exception e) {
+            log.warn("[UNDO-REACTIVATE] Email failed for user {}: {}", user.getUsername(), e.getMessage());
+        }
+
+        return ok("Reactivation cancelled. User restored to " + restored + ".");
+    }
+
+    @Override
+    public RestWithStatusList scheduleBlockUser(Long id, String scheduledBy) {
+        Optional<AddUser> opt = userRepository.findById(id);
+        if (!opt.isPresent()) return fail("User not found: " + id);
+        AddUser user = opt.get();
+        if (user.getStatus() == AddUser.UserStatus.BLOCK)
+            return fail("User is already permanently BLOCKED.");
+        if (user.getStatus() == AddUser.UserStatus.BLOCK_PENDING)
+            return fail("Block is already scheduled for this user.");
+
+        user.setPreBlockStatus(user.getStatus().name());
+        user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
+        user.setBlockScheduledAt(LocalDateTime.now());
+        user.setInactivateScheduledAt(null);
+        user.setPreInactivateStatus(null);
+        user.setReactivateScheduledAt(null);
+        user.setPreReactivateStatus(null);
+        userRepository.save(user);
+
+        // window depends on prior status: ACTIVE→BLOCK=4hr/30s, INACTIVE→BLOCK=1hr/30s (same 30s demo)
+        String blockAt = user.getBlockScheduledAt()
+                .plusSeconds(30)  // DEMO: 30s — production: ACTIVE→plusHours(4), INACTIVE→plusHours(1)
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+        try {
+            if (user.getEmail() != null) {
+                emailService.sendInactivatePendingWarning(user.getEmail(),
+                        user.getFullName(), user.getUsername(), user.getUsername(), blockAt);
+            }
+        } catch (Exception e) {
+            log.warn("[BLOCK-WARN] Email failed for user {}: {}", user.getUsername(), e.getMessage());
+        }
+
+        return ok("Block scheduled. User will be permanently BLOCKED in 30 seconds.");
+    }
+
+    @Override
+    public RestWithStatusList undoBlockUser(Long id, String undoneBy) {
+        Optional<AddUser> opt = userRepository.findById(id);
+        if (!opt.isPresent()) return fail("User not found: " + id);
+        AddUser user = opt.get();
+        if (user.getStatus() != AddUser.UserStatus.BLOCK_PENDING)
+            return fail("No scheduled block found for this user.");
+
+        AddUser.UserStatus restored = user.getPreBlockStatus() != null
+                ? AddUser.UserStatus.valueOf(user.getPreBlockStatus())
+                : AddUser.UserStatus.INACTIVE;
+        user.setStatus(restored);
+        user.setBlockScheduledAt(null);
+        user.setPreBlockStatus(null);
+        userRepository.save(user);
+
+        try {
+            if (user.getEmail() != null) {
+                emailService.sendInactivateCancelled(user.getEmail(),
+                        user.getFullName(), user.getUsername(), user.getUsername());
+            }
+        } catch (Exception e) {
+            log.warn("[UNDO-BLOCK] Email failed for user {}: {}", user.getUsername(), e.getMessage());
+        }
+
+        return ok("Block cancelled. User restored to " + restored + ".");
+    }
+
+    private RestWithStatusList ok(String msg) {
+        return RestWithStatusList.builder().status("SUCCESS").statusMsg(msg).data(Collections.emptyList()).build();
+    }
+
+    private RestWithStatusList fail(String msg) {
+        return RestWithStatusList.builder().status("FAILURE").statusMsg(msg).data(Collections.emptyList()).build();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────

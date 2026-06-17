@@ -119,7 +119,7 @@ public class KalAdminServiceImpl implements KalAdminService {
         KalAdmin.setApprovedYn("Y");              // Admin — no approval needed
         KalAdmin.setRole(adminRole);
         KalAdmin.setCreatedAt(LocalDateTime.now());
-        KalAdmin.setCreatedBy("SYSTEM");
+        KalAdmin.setCreatedBy(dto.getUsername().trim().toLowerCase());
 
         KalAdminPasswordManager pwdManager = new KalAdminPasswordManager();
         pwdManager.setUserPassword(encodedPassword);

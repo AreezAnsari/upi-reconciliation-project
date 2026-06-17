@@ -23,4 +23,16 @@ public interface AddUserService {
     RestWithStatusList getUsersByBankCode(String bankCode);
 
     RestWithStatusList getUsersByBranchCode(String branchCode);
+
+    RestWithStatusList scheduleInactivateUser(Long id, String scheduledBy);
+
+    RestWithStatusList undoInactivateUser(Long id, String undoneBy);
+
+    RestWithStatusList scheduleReactivateUser(Long id, String scheduledBy);
+
+    RestWithStatusList undoReactivateUser(Long id, String undoneBy);
+
+    RestWithStatusList scheduleBlockUser(Long id, String scheduledBy);
+
+    RestWithStatusList undoBlockUser(Long id, String undoneBy);
 }

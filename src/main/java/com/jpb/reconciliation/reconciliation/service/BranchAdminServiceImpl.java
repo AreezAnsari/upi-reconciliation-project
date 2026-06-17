@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
+import javax.transaction.Transactional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -655,5 +657,142 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         sb.append(local.charAt(local.length() - 1));
         sb.append('@').append(domain);
         return sb.toString();
+    }
+
+    // ── Schedule / Undo status transitions for Branch Admin ─────────────────
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleInactivate(Long id, String scheduledBy) {
+        Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"ACTIVE".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin must be ACTIVE to schedule inactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
+        }
+        admin.setPreInactivateStatus(admin.getStatus());
+        admin.setStatus("INACTIVE_PENDING");
+        admin.setInactivateScheduledAt(LocalDateTime.now());
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        branchAdminRepository.save(admin);
+        logger.info("Inactivation scheduled for branch admin {} by {}", id, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation scheduled. Branch admin will be INACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoInactivate(Long id, String undoneBy) {
+        Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"INACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled inactivation found for this branch admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreInactivateStatus() != null ? admin.getPreInactivateStatus() : "ACTIVE";
+        admin.setStatus(restored);
+        admin.setInactivateScheduledAt(null);
+        admin.setPreInactivateStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        branchAdminRepository.save(admin);
+        logger.info("Inactivation undone for branch admin {} by {}. Restored to {}", id, undoneBy, restored);
+        List<Object> data = new ArrayList<>();
+        data.add(admin);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation cancelled. Branch admin restored to " + restored + ".", data), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleReactivate(Long id, String scheduledBy) {
+        Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"INACTIVE".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin must be INACTIVE to schedule reactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
+        }
+        admin.setPreReactivateStatus(admin.getStatus());
+        admin.setStatus("ACTIVE_PENDING");
+        admin.setReactivateScheduledAt(LocalDateTime.now());
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        branchAdminRepository.save(admin);
+        logger.info("Reactivation scheduled for branch admin {} by {}", id, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation scheduled. Branch admin will be ACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoReactivate(Long id, String undoneBy) {
+        Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"ACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled reactivation found for this branch admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreReactivateStatus() != null ? admin.getPreReactivateStatus() : "INACTIVE";
+        admin.setStatus(restored);
+        admin.setReactivateScheduledAt(null);
+        admin.setPreReactivateStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        branchAdminRepository.save(admin);
+        logger.info("Reactivation undone for branch admin {} by {}. Restored to {}", id, undoneBy, restored);
+        List<Object> data = new ArrayList<>();
+        data.add(admin);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation cancelled. Branch admin restored to " + restored + ".", data), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy) {
+        Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if ("BLOCKED".equalsIgnoreCase(admin.getStatus()) || "BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin is already blocked or pending block.", null), HttpStatus.OK);
+        }
+        admin.setPreBlockStatus(admin.getStatus());
+        admin.setStatus("BLOCK_PENDING");
+        admin.setBlockScheduledAt(LocalDateTime.now());
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        branchAdminRepository.save(admin);
+        logger.info("Block scheduled for branch admin {} by {}", id, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Branch admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy) {
+        Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled block found for this branch admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreBlockStatus() != null ? admin.getPreBlockStatus() : "INACTIVE";
+        admin.setStatus(restored);
+        admin.setBlockScheduledAt(null);
+        admin.setPreBlockStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        branchAdminRepository.save(admin);
+        logger.info("Block undone for branch admin {} by {}. Restored to {}", id, undoneBy, restored);
+        List<Object> data = new ArrayList<>();
+        data.add(admin);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Branch admin restored to " + restored + ".", data), HttpStatus.OK);
     }
 }
