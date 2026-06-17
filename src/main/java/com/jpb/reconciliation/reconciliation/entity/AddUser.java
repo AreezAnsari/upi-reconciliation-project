@@ -91,23 +91,26 @@ public class AddUser {
     @Column(name = "DEFAULT_PASSWORD", length = 100)
     private String defaultPassword; // stores BCrypt hash, same as MainBank
 
-    // ─── Inactivate Schedule (ACTIVE → INACTIVE_PENDING → INACTIVE after 30min/30s demo) ──
+    // ─── Inactivate Schedule ──
     @Column(name = "INACTIVATE_SCHEDULED_AT")
     private LocalDateTime inactivateScheduledAt;
 
-    @Column(name = "PRE_INACTIVATE_STATUS", length = 20)
-    private String preInactivateStatus;
+    @Column(name = "INACTIVATE_SCHEDULED_BY", length = 100)
+    private String inactivateScheduledBy;
 
-    // ─── Reactivate Schedule (INACTIVE → ACTIVE_PENDING → ACTIVE after 1hr/30s demo) ──────
+    // ─── Reactivate Schedule ──
     @Column(name = "REACTIVATE_SCHEDULED_AT")
     private LocalDateTime reactivateScheduledAt;
 
-    @Column(name = "PRE_REACTIVATE_STATUS", length = 20)
-    private String preReactivateStatus;
+    @Column(name = "REACTIVATE_SCHEDULED_BY", length = 100)
+    private String reactivateScheduledBy;
 
-    // ─── Block Schedule (INACTIVE→BLOCK=1hr, ACTIVE→BLOCK=4hr / 30s demo) ──────────────
+    // ─── Block Schedule ──
     @Column(name = "BLOCK_SCHEDULED_AT")
     private LocalDateTime blockScheduledAt;
+
+    @Column(name = "BLOCK_SCHEDULED_BY", length = 100)
+    private String blockScheduledBy;
 
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;

@@ -24,8 +24,10 @@ import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyEmailResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
+import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
@@ -37,6 +39,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     @Autowired private BranchAdminRepository branchAdminRepository;
     @Autowired private BranchBankRepository branchBankRepository;
+    @Autowired private AddUserRepository addUserRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private OtpService otpService;
     @Autowired private EmailService emailService;
@@ -672,9 +675,11 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         if (!"ACTIVE".equalsIgnoreCase(admin.getStatus())) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin must be ACTIVE to schedule inactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
         }
-        admin.setPreInactivateStatus(admin.getStatus());
         admin.setStatus("INACTIVE_PENDING");
         admin.setInactivateScheduledAt(LocalDateTime.now());
+        admin.setInactivateScheduledBy(scheduledBy);
+        admin.setReactivateScheduledAt(null);
+        admin.setReactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
@@ -693,17 +698,16 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         if (!"INACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled inactivation found for this branch admin.", null), HttpStatus.OK);
         }
-        String restored = admin.getPreInactivateStatus() != null ? admin.getPreInactivateStatus() : "ACTIVE";
-        admin.setStatus(restored);
+        admin.setStatus("ACTIVE");
         admin.setInactivateScheduledAt(null);
-        admin.setPreInactivateStatus(null);
+        admin.setInactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
-        logger.info("Inactivation undone for branch admin {} by {}. Restored to {}", id, undoneBy, restored);
+        logger.info("Inactivation undone for branch admin {} by {}. Restored to ACTIVE", id, undoneBy);
         List<Object> data = new ArrayList<>();
         data.add(admin);
-        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation cancelled. Branch admin restored to " + restored + ".", data), HttpStatus.OK);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation cancelled. Branch admin restored to ACTIVE.", data), HttpStatus.OK);
     }
 
     @Override
@@ -717,9 +721,11 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         if (!"INACTIVE".equalsIgnoreCase(admin.getStatus())) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin must be INACTIVE to schedule reactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
         }
-        admin.setPreReactivateStatus(admin.getStatus());
         admin.setStatus("ACTIVE_PENDING");
         admin.setReactivateScheduledAt(LocalDateTime.now());
+        admin.setReactivateScheduledBy(scheduledBy);
+        admin.setInactivateScheduledAt(null);
+        admin.setInactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
@@ -738,17 +744,16 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         if (!"ACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled reactivation found for this branch admin.", null), HttpStatus.OK);
         }
-        String restored = admin.getPreReactivateStatus() != null ? admin.getPreReactivateStatus() : "INACTIVE";
-        admin.setStatus(restored);
+        admin.setStatus("INACTIVE");
         admin.setReactivateScheduledAt(null);
-        admin.setPreReactivateStatus(null);
+        admin.setReactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
-        logger.info("Reactivation undone for branch admin {} by {}. Restored to {}", id, undoneBy, restored);
+        logger.info("Reactivation undone for branch admin {} by {}. Restored to INACTIVE", id, undoneBy);
         List<Object> data = new ArrayList<>();
         data.add(admin);
-        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation cancelled. Branch admin restored to " + restored + ".", data), HttpStatus.OK);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation cancelled. Branch admin restored to INACTIVE.", data), HttpStatus.OK);
     }
 
     @Override
@@ -765,9 +770,38 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setPreBlockStatus(admin.getStatus());
         admin.setStatus("BLOCK_PENDING");
         admin.setBlockScheduledAt(LocalDateTime.now());
+        admin.setBlockScheduledBy(scheduledBy);
+        admin.setInactivateScheduledAt(null);
+        admin.setInactivateScheduledBy(null);
+        admin.setReactivateScheduledAt(null);
+        admin.setReactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
+
+        // If parent BranchBank is ACTIVE → cascade BLOCK_PENDING to users under this branch
+        try {
+            Optional<BranchBank> parentBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            if (parentBranchOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBranchOpt.get().getStatus())) {
+                List<AddUser> branchUsers = addUserRepository.findByBranchCode(admin.getBranchCode());
+                for (AddUser user : branchUsers) {
+                    if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                        user.setPreBlockStatus(user.getStatus().name());
+                        user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
+                        user.setBlockScheduledAt(LocalDateTime.now());
+                        user.setBlockScheduledBy(scheduledBy);
+                        user.setInactivateScheduledAt(null);
+                        user.setInactivateScheduledBy(null);
+                        user.setReactivateScheduledAt(null);
+                        user.setReactivateScheduledBy(null);
+                        addUserRepository.save(user);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("scheduleBlock branch admin: user cascade failed for branch {}: {}", admin.getBranchCode(), e.getMessage());
+        }
+
         logger.info("Block scheduled for branch admin {} by {}", id, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Branch admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }

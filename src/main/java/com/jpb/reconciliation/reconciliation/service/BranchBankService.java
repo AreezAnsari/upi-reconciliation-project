@@ -42,14 +42,6 @@ public interface BranchBankService {
 
     ResponseEntity<RestWithStatusList> undoBlock(Long bankId, String undoneBy);
 
-    ResponseEntity<RestWithStatusList> scheduleInactivate(Long bankId, String scheduledBy);
-
-    ResponseEntity<RestWithStatusList> undoInactivate(Long bankId, String undoneBy);
-
-    ResponseEntity<RestWithStatusList> scheduleReactivate(Long bankId, String scheduledBy);
-
-    ResponseEntity<RestWithStatusList> undoReactivate(Long bankId, String undoneBy);
-
     ResponseEntity<byte[]> getLogoImage(String bankCode);
 
     ResponseEntity<RestWithStatusList> getBankByCode(String bankCode);

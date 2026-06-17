@@ -58,17 +58,20 @@ public class BranchAdmin {
     @Column(name = "INACTIVATE_SCHEDULED_AT")
     private LocalDateTime inactivateScheduledAt;
 
-    @Column(name = "PRE_INACTIVATE_STATUS", length = 20)
-    private String preInactivateStatus;
+    @Column(name = "INACTIVATE_SCHEDULED_BY", length = 100)
+    private String inactivateScheduledBy;
 
     @Column(name = "REACTIVATE_SCHEDULED_AT")
     private LocalDateTime reactivateScheduledAt;
 
-    @Column(name = "PRE_REACTIVATE_STATUS", length = 20)
-    private String preReactivateStatus;
+    @Column(name = "REACTIVATE_SCHEDULED_BY", length = 100)
+    private String reactivateScheduledBy;
 
     @Column(name = "BLOCK_SCHEDULED_AT")
     private LocalDateTime blockScheduledAt;
+
+    @Column(name = "BLOCK_SCHEDULED_BY", length = 100)
+    private String blockScheduledBy;
 
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;

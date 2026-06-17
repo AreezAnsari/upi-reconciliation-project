@@ -226,11 +226,11 @@ public class AddUserServiceImpl implements AddUserService {
         if (user.getStatus() != AddUser.UserStatus.ACTIVE)
             return fail("User must be ACTIVE to schedule inactivation. Current: " + user.getStatus());
 
-        user.setPreInactivateStatus(user.getStatus().name());
         user.setStatus(AddUser.UserStatus.INACTIVE_PENDING);
         user.setInactivateScheduledAt(LocalDateTime.now());
+        user.setInactivateScheduledBy(scheduledBy);
         user.setReactivateScheduledAt(null);
-        user.setPreReactivateStatus(null);
+        user.setReactivateScheduledBy(null);
         userRepository.save(user);
 
         String inactivateAt = user.getInactivateScheduledAt()
@@ -256,12 +256,9 @@ public class AddUserServiceImpl implements AddUserService {
         if (user.getStatus() != AddUser.UserStatus.INACTIVE_PENDING)
             return fail("No scheduled inactivation found for this user.");
 
-        AddUser.UserStatus restored = user.getPreInactivateStatus() != null
-                ? AddUser.UserStatus.valueOf(user.getPreInactivateStatus())
-                : AddUser.UserStatus.ACTIVE;
-        user.setStatus(restored);
+        user.setStatus(AddUser.UserStatus.ACTIVE);
         user.setInactivateScheduledAt(null);
-        user.setPreInactivateStatus(null);
+        user.setInactivateScheduledBy(null);
         userRepository.save(user);
 
         try {
@@ -273,7 +270,7 @@ public class AddUserServiceImpl implements AddUserService {
             log.warn("[UNDO-INACTIVATE] Email failed for user {}: {}", user.getUsername(), e.getMessage());
         }
 
-        return ok("Inactivation cancelled. User restored to " + restored + ".");
+        return ok("Inactivation cancelled. User restored to ACTIVE.");
     }
 
     @Override
@@ -284,11 +281,11 @@ public class AddUserServiceImpl implements AddUserService {
         if (user.getStatus() != AddUser.UserStatus.INACTIVE)
             return fail("User must be INACTIVE to schedule reactivation. Current: " + user.getStatus());
 
-        user.setPreReactivateStatus(user.getStatus().name());
         user.setStatus(AddUser.UserStatus.ACTIVE_PENDING);
         user.setReactivateScheduledAt(LocalDateTime.now());
+        user.setReactivateScheduledBy(scheduledBy);
         user.setInactivateScheduledAt(null);
-        user.setPreInactivateStatus(null);
+        user.setInactivateScheduledBy(null);
         userRepository.save(user);
 
         String reactivateAt = user.getReactivateScheduledAt()
@@ -314,12 +311,9 @@ public class AddUserServiceImpl implements AddUserService {
         if (user.getStatus() != AddUser.UserStatus.ACTIVE_PENDING)
             return fail("No scheduled reactivation found for this user.");
 
-        AddUser.UserStatus restored = user.getPreReactivateStatus() != null
-                ? AddUser.UserStatus.valueOf(user.getPreReactivateStatus())
-                : AddUser.UserStatus.INACTIVE;
-        user.setStatus(restored);
+        user.setStatus(AddUser.UserStatus.INACTIVE);
         user.setReactivateScheduledAt(null);
-        user.setPreReactivateStatus(null);
+        user.setReactivateScheduledBy(null);
         userRepository.save(user);
 
         try {
@@ -331,7 +325,7 @@ public class AddUserServiceImpl implements AddUserService {
             log.warn("[UNDO-REACTIVATE] Email failed for user {}: {}", user.getUsername(), e.getMessage());
         }
 
-        return ok("Reactivation cancelled. User restored to " + restored + ".");
+        return ok("Reactivation cancelled. User restored to INACTIVE.");
     }
 
     @Override
@@ -347,10 +341,11 @@ public class AddUserServiceImpl implements AddUserService {
         user.setPreBlockStatus(user.getStatus().name());
         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
         user.setBlockScheduledAt(LocalDateTime.now());
+        user.setBlockScheduledBy(scheduledBy);
         user.setInactivateScheduledAt(null);
-        user.setPreInactivateStatus(null);
+        user.setInactivateScheduledBy(null);
         user.setReactivateScheduledAt(null);
-        user.setPreReactivateStatus(null);
+        user.setReactivateScheduledBy(null);
         userRepository.save(user);
 
         // window depends on prior status: ACTIVE→BLOCK=4hr/30s, INACTIVE→BLOCK=1hr/30s (same 30s demo)

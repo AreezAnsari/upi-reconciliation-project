@@ -56,10 +56,4 @@ public interface BranchBankRepository extends JpaRepository<BranchBank, Long> {
     // Auto-block scheduler: find BLOCK_PENDING whose window has passed
     List<BranchBank> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);
 
-    // Auto-inactivate scheduler: find INACTIVE_PENDING whose 30min/30s window has passed
-    List<BranchBank> findByStatusAndInactivateScheduledAtBefore(String status, LocalDateTime cutoff);
-
-    // Auto-reactivate scheduler: find ACTIVE_PENDING whose 1hr/30s window has passed
-    List<BranchBank> findByStatusAndReactivateScheduledAtBefore(String status, LocalDateTime cutoff);
-
 }

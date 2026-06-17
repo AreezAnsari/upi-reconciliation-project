@@ -171,25 +171,7 @@ public class BranchBank {
     @Column(name = "status", nullable = false, length = 20)
     private String status = "PENDING";
 
-    // ─── Inactive cooldown — 30s must pass before re-activation ─────────────────
-    @Column(name = "inactivated_at")
-    private LocalDateTime inactivatedAt;
-
-    // ─── Inactivate Schedule (ACTIVE → INACTIVE_PENDING → INACTIVE after 30min/30s demo) ──
-    @Column(name = "inactivate_scheduled_at")
-    private LocalDateTime inactivateScheduledAt;
-
-    @Column(name = "pre_inactivate_status", length = 20)
-    private String preInactivateStatus;
-
-    // ─── Reactivate Schedule (INACTIVE → ACTIVE_PENDING → ACTIVE after 1hr/30s demo) ──────
-    @Column(name = "reactivate_scheduled_at")
-    private LocalDateTime reactivateScheduledAt;
-
-    @Column(name = "pre_reactivate_status", length = 20)
-    private String preReactivateStatus;
-
-    // ─── Block Schedule (same as MainBank) ────────────────────────────────────
+    // ─── Block Schedule ────────────────────────────────────────────────────────
     @Column(name = "block_scheduled_at")
     private LocalDateTime blockScheduledAt;
 

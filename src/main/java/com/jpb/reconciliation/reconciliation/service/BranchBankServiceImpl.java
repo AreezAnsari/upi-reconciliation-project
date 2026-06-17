@@ -54,7 +54,9 @@ import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
+import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Service
@@ -83,6 +85,9 @@ public class BranchBankServiceImpl implements BranchBankService {
 
     @Autowired
     private BranchAdminRepository branchAdminRepository;
+
+    @Autowired
+    private AddUserRepository addUserRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -532,25 +537,6 @@ public class BranchBankServiceImpl implements BranchBankService {
         if (!allowed.contains(newStatus)) {
             return bad("Cannot change status from '" + currentStatus + "' to '" + newStatus
                     + "'. Allowed transitions: " + allowed);
-        }
-
-        // ── INACTIVE → ACTIVE: 30s cooldown (DEMO — change to 30 mins in production) ──
-        if ("ACTIVE".equals(newStatus) && "INACTIVE".equals(currentStatus)) {
-            LocalDateTime inactivatedAt = bank .getInactivatedAt();
-            if (inactivatedAt != null) {
-                LocalDateTime allowedAfter = inactivatedAt.plusSeconds(30);
-                if (LocalDateTime.now().isBefore(allowedAfter)) {
-                    long secsLeft = java.time.Duration.between(LocalDateTime.now(), allowedAfter).getSeconds();
-                    logger.warn("[ACTIVE-BLOCK] Branch bank {} — only {}s since inactivation (need 30s)", bankId, secsLeft);
-                    return bad("Cannot mark Active yet. Branch bank was recently made Inactive. Please wait "
-                            + secsLeft + " more second(s).");
-                }
-            }
-        }
-
-        // ── Set inactivatedAt when going INACTIVE ──
-        if ("INACTIVE".equals(newStatus)) {
-            bank .setInactivatedAt(LocalDateTime.now());
         }
 
         bank .setStatus(newStatus);
@@ -1208,19 +1194,62 @@ public class BranchBankServiceImpl implements BranchBankService {
         bnk.setStatus("BLOCK_PENDING");
         bnk.setBlockScheduledAt(LocalDateTime.now());
         bnk.setBlockScheduledBy(scheduledBy);
-        bnk.setInactivateScheduledAt(null);
-        bnk.setPreInactivateStatus(null);
-        bnk.setReactivateScheduledAt(null);
-        bnk.setPreReactivateStatus(null);
         bnk.setUpdatedAt(LocalDateTime.now());
         branchBankRepository.save(bnk);
 
-        // Sync BLOCK_PENDING to BRANCH_ADMIN
+        // Sync BLOCK_PENDING to BRANCH_ADMIN (always)
         try {
             branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
-                .ifPresent(ba -> { ba.setStatus("BLOCK_PENDING"); ba.setBlockedBy(scheduledBy); ba.setInactivateScheduledAt(null); ba.setPreInactivateStatus(null); ba.setReactivateScheduledAt(null); ba.setPreReactivateStatus(null); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(scheduledBy); branchAdminRepository.save(ba); });
+                .ifPresent(ba -> {
+                    if (!"BLOCKED".equalsIgnoreCase(ba.getStatus()) && !"BLOCK_PENDING".equalsIgnoreCase(ba.getStatus())) {
+                        ba.setPreBlockStatus(ba.getStatus());
+                        ba.setStatus("BLOCK_PENDING");
+                        ba.setBlockScheduledAt(LocalDateTime.now());
+                        ba.setBlockScheduledBy(scheduledBy);
+                        ba.setBlockedBy(scheduledBy);
+                        ba.setInactivateScheduledAt(null);
+                        ba.setInactivateScheduledBy(null);
+                        ba.setReactivateScheduledAt(null);
+                        ba.setReactivateScheduledBy(null);
+                        ba.setUpdatedAt(LocalDateTime.now());
+                        ba.setUpdatedBy(scheduledBy);
+                        branchAdminRepository.save(ba);
+                    }
+                });
         } catch (Exception e) {
             logger.warn("scheduleBlock: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
+        }
+
+        // Check parent bank status — cascade to users if parent bank is ACTIVE
+        boolean parentActive = false;
+        if (bnk.getParentBankId() != null) {
+            try {
+                Optional<MainBank> parentBankOpt = mainBankRepository.findById(bnk.getParentBankId());
+                parentActive = parentBankOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBankOpt.get().getStatus());
+            } catch (Exception e) {
+                logger.warn("scheduleBlock: parent bank lookup failed for branch {}: {}", bnk.getBranchCode(), e.getMessage());
+            }
+        }
+        if (parentActive) {
+            try {
+                List<AddUser> branchUsers = addUserRepository.findByBranchCode(bnk.getBranchCode());
+                for (AddUser user : branchUsers) {
+                    if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                        user.setPreBlockStatus(user.getStatus().name());
+                        user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
+                        user.setBlockScheduledAt(LocalDateTime.now());
+                        user.setBlockScheduledBy(scheduledBy);
+                        user.setInactivateScheduledAt(null);
+                        user.setInactivateScheduledBy(null);
+                        user.setReactivateScheduledAt(null);
+                        user.setReactivateScheduledBy(null);
+                        addUserRepository.save(user);
+                    }
+                }
+                logger.info("scheduleBlock: cascaded BLOCK_PENDING to {} user(s) in branch {}", branchUsers.size(), bnk.getBranchCode());
+            } catch (Exception e) {
+                logger.warn("scheduleBlock: user cascade failed for branch {}: {}", bnk.getBranchCode(), e.getMessage());
+            }
         }
 
         logger.info("Block scheduled for branch bank {} by {} at {}",
@@ -1309,230 +1338,6 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block has been cancelled. Branch bank status restored to '" + restoredStatus + "'.",
-                new ArrayList<>()));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // SCHEDULE INACTIVATE  (ACTIVE → INACTIVE_PENDING → INACTIVE after 30s demo)
-    // ─────────────────────────────────────────────────────────────────────────
-    @Override
-    @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleInactivate(Long bankId, String scheduledBy) {
-
-        Optional<BranchBank> opt = branchBankRepository.findById(bankId);
-        if (!opt.isPresent()) {
-            return bad("Branch bank not found with ID: " + bankId);
-        }
-
-        BranchBank bnk = opt.get();
-
-        if (!"ACTIVE".equals(bnk.getStatus()) && !"VERIFIED".equals(bnk.getStatus())) {
-            return bad("Branch bank must be ACTIVE to schedule inactivation. Current status: " + bnk.getStatus());
-        }
-
-        bnk.setPreInactivateStatus(bnk.getStatus());
-        bnk.setStatus("INACTIVE_PENDING");
-        bnk.setInactivateScheduledAt(LocalDateTime.now());
-        bnk.setReactivateScheduledAt(null);
-        bnk.setPreReactivateStatus(null);
-        bnk.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(bnk);
-
-        // Sync INACTIVE_PENDING to BRANCH_ADMIN
-        try {
-            branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
-                .ifPresent(ba -> { ba.setStatus("INACTIVE_PENDING"); ba.setInactivatedBy(scheduledBy); ba.setReactivateScheduledAt(null); ba.setPreReactivateStatus(null); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(scheduledBy); branchAdminRepository.save(ba); });
-        } catch (Exception e) {
-            logger.warn("scheduleInactivate: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        logger.info("Inactivation scheduled for branch bank {} by {} at {}", bankId, scheduledBy, bnk.getInactivateScheduledAt());
-
-        String inactivateAt = bnk.getInactivateScheduledAt()
-                .plusSeconds(30)   // DEMO: 30s — production: plusMinutes(30)
-                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
-
-        try {
-            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
-                emailService.sendInactivatePendingWarning(
-                        bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
-                        bnk.getBranchNameFull(),
-                        bnk.getBranchCode(),
-                        inactivateAt
-                );
-            }
-        } catch (Exception e) {
-            logger.warn("[INACTIVATE-WARN] Email failed for branch bank {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Inactivation scheduled. Branch bank will be INACTIVE in 30 seconds. You can undo this within 30 seconds.",
-                new ArrayList<>()));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // UNDO INACTIVATE
-    // ─────────────────────────────────────────────────────────────────────────
-    @Override
-    @Transactional
-    public ResponseEntity<RestWithStatusList> undoInactivate(Long bankId, String undoneBy) {
-
-        Optional<BranchBank> opt = branchBankRepository.findById(bankId);
-        if (!opt.isPresent()) {
-            return bad("Branch bank not found with ID: " + bankId);
-        }
-
-        BranchBank bnk = opt.get();
-
-        if (!"INACTIVE_PENDING".equals(bnk.getStatus())) {
-            return bad("No scheduled inactivation found for this branch bank.");
-        }
-
-        String restoredStatus = bnk.getPreInactivateStatus() != null ? bnk.getPreInactivateStatus() : "ACTIVE";
-        bnk.setStatus(restoredStatus);
-        bnk.setInactivateScheduledAt(null);
-        bnk.setPreInactivateStatus(null);
-        bnk.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(bnk);
-
-        final String finalRestored = restoredStatus;
-        try {
-            branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
-                .ifPresent(ba -> { ba.setStatus(finalRestored); ba.setInactivatedBy(null); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(undoneBy); branchAdminRepository.save(ba); });
-        } catch (Exception e) {
-            logger.warn("undoInactivate: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        logger.info("Inactivation undone for branch bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);
-
-        try {
-            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
-                emailService.sendInactivateCancelled(
-                        bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
-                        bnk.getBranchNameFull(),
-                        bnk.getBranchCode()
-                );
-            }
-        } catch (Exception e) {
-            logger.warn("[UNDO-INACTIVATE] Email failed for {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Inactivation cancelled. Branch bank status restored to '" + restoredStatus + "'.",
-                new ArrayList<>()));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // SCHEDULE REACTIVATE  (INACTIVE → ACTIVE_PENDING → ACTIVE after 30s demo / 1hr production)
-    // ─────────────────────────────────────────────────────────────────────────
-    @Override
-    @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleReactivate(Long bankId, String scheduledBy) {
-
-        Optional<BranchBank> opt = branchBankRepository.findById(bankId);
-        if (!opt.isPresent()) {
-            return bad("Branch bank not found with ID: " + bankId);
-        }
-
-        BranchBank bnk = opt.get();
-
-        if (!"INACTIVE".equals(bnk.getStatus())) {
-            return bad("Branch bank must be INACTIVE to schedule reactivation. Current status: " + bnk.getStatus());
-        }
-
-        bnk.setPreReactivateStatus(bnk.getStatus());
-        bnk.setStatus("ACTIVE_PENDING");
-        bnk.setReactivateScheduledAt(LocalDateTime.now());
-        bnk.setInactivateScheduledAt(null);
-        bnk.setPreInactivateStatus(null);
-        bnk.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(bnk);
-
-        // Sync ACTIVE_PENDING to BRANCH_ADMIN
-        try {
-            branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
-                .ifPresent(ba -> { ba.setStatus("ACTIVE_PENDING"); ba.setInactivatedBy(null); ba.setInactivateScheduledAt(null); ba.setPreInactivateStatus(null); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(scheduledBy); branchAdminRepository.save(ba); });
-        } catch (Exception e) {
-            logger.warn("scheduleReactivate: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        logger.info("Reactivation scheduled for branch bank {} by {} at {}", bankId, scheduledBy, bnk.getReactivateScheduledAt());
-
-        String reactivateAt = bnk.getReactivateScheduledAt()
-                .plusSeconds(30)   // DEMO: 30s — production: plusHours(1)
-                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
-
-        try {
-            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
-                emailService.sendReactivatePendingNotification(
-                        bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
-                        bnk.getBranchNameFull(),
-                        bnk.getBranchCode(),
-                        reactivateAt
-                );
-            }
-        } catch (Exception e) {
-            logger.warn("[REACTIVATE-PEND] Email failed for branch bank {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Reactivation scheduled. Branch bank will become ACTIVE in 30 seconds. You can undo this within 30 seconds.",
-                new ArrayList<>()));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // UNDO REACTIVATE
-    // ─────────────────────────────────────────────────────────────────────────
-    @Override
-    @Transactional
-    public ResponseEntity<RestWithStatusList> undoReactivate(Long bankId, String undoneBy) {
-
-        Optional<BranchBank> opt = branchBankRepository.findById(bankId);
-        if (!opt.isPresent()) {
-            return bad("Branch bank not found with ID: " + bankId);
-        }
-
-        BranchBank bnk = opt.get();
-
-        if (!"ACTIVE_PENDING".equals(bnk.getStatus())) {
-            return bad("No scheduled reactivation found for this branch bank.");
-        }
-
-        String restoredStatus = bnk.getPreReactivateStatus() != null ? bnk.getPreReactivateStatus() : "INACTIVE";
-        bnk.setStatus(restoredStatus);
-        bnk.setReactivateScheduledAt(null);
-        bnk.setPreReactivateStatus(null);
-        bnk.setUpdatedAt(LocalDateTime.now());
-        branchBankRepository.save(bnk);
-
-        final String finalRestored = restoredStatus;
-        try {
-            branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
-                .ifPresent(ba -> { ba.setStatus(finalRestored); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(undoneBy); branchAdminRepository.save(ba); });
-        } catch (Exception e) {
-            logger.warn("undoReactivate: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        logger.info("Reactivation undone for branch bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);
-
-        try {
-            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
-                emailService.sendReactivateCancelled(
-                        bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
-                        bnk.getBranchNameFull(),
-                        bnk.getBranchCode()
-                );
-            }
-        } catch (Exception e) {
-            logger.warn("[UNDO-REACTIVATE] Email failed for {}: {}", bnk.getBranchCode(), e.getMessage());
-        }
-
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Reactivation cancelled. Branch bank status restored to '" + restoredStatus + "'.",
                 new ArrayList<>()));
     }
 
