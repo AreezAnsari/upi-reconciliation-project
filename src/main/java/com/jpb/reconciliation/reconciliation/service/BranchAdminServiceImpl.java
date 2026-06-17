@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -683,6 +684,15 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            String inactivateAt = admin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendInactivatePendingWarning(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), inactivateAt);
+        } catch (Exception e) {
+            logger.warn("scheduleInactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Inactivation scheduled for branch admin {} by {}", id, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation scheduled. Branch admin will be INACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -704,6 +714,14 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode());
+        } catch (Exception e) {
+            logger.warn("undoInactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Inactivation undone for branch admin {} by {}. Restored to ACTIVE", id, undoneBy);
         List<Object> data = new ArrayList<>();
         data.add(admin);
@@ -729,6 +747,15 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            String reactivateAt = admin.getReactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendReactivatePendingNotification(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), reactivateAt);
+        } catch (Exception e) {
+            logger.warn("scheduleReactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Reactivation scheduled for branch admin {} by {}", id, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation scheduled. Branch admin will be ACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -750,6 +777,14 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            emailService.sendReactivateCancelled(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode());
+        } catch (Exception e) {
+            logger.warn("undoReactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Reactivation undone for branch admin {} by {}. Restored to INACTIVE", id, undoneBy);
         List<Object> data = new ArrayList<>();
         data.add(admin);
@@ -779,10 +814,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
 
-        // If parent BranchBank is ACTIVE → cascade BLOCK_PENDING to users under this branch
+        // Chain cascade only when admin was ACTIVE; INACTIVE admin → individual block only
         try {
             Optional<BranchBank> parentBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
-            if (parentBranchOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBranchOpt.get().getStatus())) {
+            if ("ACTIVE".equalsIgnoreCase(admin.getPreBlockStatus()) && parentBranchOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBranchOpt.get().getStatus())) {
                 List<AddUser> branchUsers = addUserRepository.findByBranchCode(admin.getBranchCode());
                 for (AddUser user : branchUsers) {
                     if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
@@ -802,6 +837,15 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             logger.warn("scheduleBlock branch admin: user cascade failed for branch {}: {}", admin.getBranchCode(), e.getMessage());
         }
 
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), blockAt);
+        } catch (Exception e) {
+            logger.warn("scheduleBlock: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Block scheduled for branch admin {} by {}", id, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Branch admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -824,9 +868,241 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), restored);
+        } catch (Exception e) {
+            logger.warn("undoBlock: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Block undone for branch admin {} by {}. Restored to {}", id, undoneBy, restored);
         List<Object> data = new ArrayList<>();
         data.add(admin);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Branch admin restored to " + restored + ".", data), HttpStatus.OK);
+    }
+
+    // ─── BranchBank-ID based operations (for KalAdmin Admin Status page) ─────────
+
+    private Optional<BranchAdmin> findAdminByBranchBankId(Long branchBankId) {
+        Optional<BranchBank> branchOpt = branchBankRepository.findById(branchBankId);
+        if (!branchOpt.isPresent()) return Optional.empty();
+        BranchBank branch = branchOpt.get();
+        return branchAdminRepository.findByBranchCodeAndUsername(branch.getBranchCode(), branch.getBranchAdminId());
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleInactivateByBranchBankId(Long branchBankId, String scheduledBy) {
+        Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"ACTIVE".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin must be ACTIVE to schedule inactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
+        }
+        admin.setStatus("INACTIVE_PENDING");
+        admin.setInactivateScheduledAt(LocalDateTime.now());
+        admin.setInactivateScheduledBy(scheduledBy);
+        admin.setReactivateScheduledAt(null);
+        admin.setReactivateScheduledBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            String inactivateAt = admin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendInactivatePendingWarning(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), inactivateAt);
+        } catch (Exception e) {
+            logger.warn("scheduleInactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Inactivation scheduled for branch admin (branch {}) by {}", branchBankId, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation scheduled. Branch admin will be INACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoInactivateByBranchBankId(Long branchBankId, String undoneBy) {
+        Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"INACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled inactivation found for this branch admin.", null), HttpStatus.OK);
+        }
+        admin.setStatus("ACTIVE");
+        admin.setInactivateScheduledAt(null);
+        admin.setInactivateScheduledBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode());
+        } catch (Exception e) {
+            logger.warn("undoInactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Inactivation undone for branch admin (branch {}) by {}", branchBankId, undoneBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation cancelled. Branch admin restored to ACTIVE.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleReactivateByBranchBankId(Long branchBankId, String scheduledBy) {
+        Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"INACTIVE".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin must be INACTIVE to schedule reactivation. Current: " + admin.getStatus(), null), HttpStatus.OK);
+        }
+        admin.setStatus("ACTIVE_PENDING");
+        admin.setReactivateScheduledAt(LocalDateTime.now());
+        admin.setReactivateScheduledBy(scheduledBy);
+        admin.setInactivateScheduledAt(null);
+        admin.setInactivateScheduledBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            String reactivateAt = admin.getReactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendReactivatePendingNotification(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), reactivateAt);
+        } catch (Exception e) {
+            logger.warn("scheduleReactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Reactivation scheduled for branch admin (branch {}) by {}", branchBankId, scheduledBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation scheduled. Branch admin will be ACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoReactivateByBranchBankId(Long branchBankId, String undoneBy) {
+        Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"ACTIVE_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled reactivation found for this branch admin.", null), HttpStatus.OK);
+        }
+        admin.setStatus("INACTIVE");
+        admin.setReactivateScheduledAt(null);
+        admin.setReactivateScheduledBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            emailService.sendReactivateCancelled(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode());
+        } catch (Exception e) {
+            logger.warn("undoReactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Reactivation undone for branch admin (branch {}) by {}", branchBankId, undoneBy);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation cancelled. Branch admin restored to INACTIVE.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleBlockByBranchBankId(Long branchBankId, String scheduledBy) {
+        Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if ("BLOCKED".equalsIgnoreCase(admin.getStatus()) || "BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin is already blocked or pending block.", null), HttpStatus.OK);
+        }
+        String preStatus = admin.getStatus();
+        admin.setPreBlockStatus(preStatus);
+        admin.setStatus("BLOCK_PENDING");
+        admin.setBlockScheduledAt(LocalDateTime.now());
+        admin.setBlockScheduledBy(scheduledBy);
+        admin.setInactivateScheduledAt(null);
+        admin.setInactivateScheduledBy(null);
+        admin.setReactivateScheduledAt(null);
+        admin.setReactivateScheduledBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        branchAdminRepository.save(admin);
+
+        // Chain cascade only when admin was ACTIVE; INACTIVE → individual block only
+        if ("ACTIVE".equalsIgnoreCase(preStatus)) {
+            try {
+                Optional<BranchBank> parentBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                if (parentBranchOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBranchOpt.get().getStatus())) {
+                    List<AddUser> branchUsers = addUserRepository.findByBranchCode(admin.getBranchCode());
+                    for (AddUser user : branchUsers) {
+                        if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                            user.setPreBlockStatus(user.getStatus().name());
+                            user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
+                            user.setBlockScheduledAt(LocalDateTime.now());
+                            user.setBlockScheduledBy(scheduledBy);
+                            user.setInactivateScheduledAt(null);
+                            user.setInactivateScheduledBy(null);
+                            user.setReactivateScheduledAt(null);
+                            user.setReactivateScheduledBy(null);
+                            addUserRepository.save(user);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("scheduleBlockByBranchBankId: user cascade failed for branch {}: {}", branchBankId, e.getMessage());
+            }
+        }
+
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), blockAt);
+        } catch (Exception e) {
+            logger.warn("scheduleBlockByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Block scheduled for branch admin (branch {}) by {}. Pre-status: {}", branchBankId, scheduledBy, preStatus);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Branch admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoBlockByBranchBankId(Long branchBankId, String undoneBy) {
+        Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
+        }
+        BranchAdmin admin = opt.get();
+        if (!"BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled block found for this branch admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreBlockStatus() != null ? admin.getPreBlockStatus() : "INACTIVE";
+        admin.setStatus(restored);
+        admin.setBlockScheduledAt(null);
+        admin.setBlockScheduledBy(null);
+        admin.setPreBlockStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        branchAdminRepository.save(admin);
+        try {
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
+                    branchName, admin.getBranchCode(), restored);
+        } catch (Exception e) {
+            logger.warn("undoBlockByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Block undone for branch admin (branch {}) by {}. Restored to {}", branchBankId, undoneBy, restored);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Branch admin restored to " + restored + ".", new ArrayList<>()), HttpStatus.OK);
     }
 }

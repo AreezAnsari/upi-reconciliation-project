@@ -76,9 +76,4 @@ public class MainAdmin {
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;
 
-    @Column(name = "INACTIVATED_BY", length = 100)
-    private String inactivatedBy;
-
-    @Column(name = "BLOCKED_BY", length = 100)
-    private String blockedBy;
 }

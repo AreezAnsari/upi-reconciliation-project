@@ -50,4 +50,6 @@ public interface MainAdminService {
     ResponseEntity<RestWithStatusList> undoReactivate(Long id, String undoneBy);
     ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy);
     ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy);
+    ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoBlockByBankId(Long bankId, String undoneBy);
 }

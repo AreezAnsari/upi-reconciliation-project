@@ -1062,6 +1062,9 @@ public class MainBankServiceImpl implements MainBankService {
         List<MainBankDTO> dtos = new ArrayList<>();
         for (MainBank bnk : list) {
             MainBankDTO dto = MainBankMapper.mapToDTO(bnk);
+            mainAdminRepository.findByBankCodeAndUsername(
+                    bnk.getBankCode(), bnk.getBankAdminId())
+                .ifPresent(admin -> dto.setAdminStatus(admin.getStatus()));
             List<MainBankProduct> prods = mainBankProductRepository.findByBankId(bnk.getBankId());
             if (!prods.isEmpty()) {
                 Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
@@ -1178,7 +1181,7 @@ public class MainBankServiceImpl implements MainBankService {
             try {
                 branchAdminRepository.findByBranchCodeAndUsername(
                         branch.getBranchCode(), branch.getBranchAdminId())
-                    .ifPresent(ba -> dto.setAdminId(ba.getId()));
+                    .ifPresent(ba -> { dto.setAdminId(ba.getId()); dto.setAdminStatus(ba.getStatus()); });
             } catch (Exception e) {
                 logger.warn("getBranchBank: adminId lookup failed for {}: {}",
                         branch.getBranchCode(), e.getMessage());

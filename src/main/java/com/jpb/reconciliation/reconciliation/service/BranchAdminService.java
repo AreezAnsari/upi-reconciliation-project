@@ -25,4 +25,11 @@ public interface BranchAdminService {
     ResponseEntity<RestWithStatusList> undoReactivate(Long id, String undoneBy);
     ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy);
     ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy);
+
+    ResponseEntity<RestWithStatusList> scheduleInactivateByBranchBankId(Long branchBankId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoInactivateByBranchBankId(Long branchBankId, String undoneBy);
+    ResponseEntity<RestWithStatusList> scheduleReactivateByBranchBankId(Long branchBankId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoReactivateByBranchBankId(Long branchBankId, String undoneBy);
+    ResponseEntity<RestWithStatusList> scheduleBlockByBranchBankId(Long branchBankId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> undoBlockByBranchBankId(Long branchBankId, String undoneBy);
 }

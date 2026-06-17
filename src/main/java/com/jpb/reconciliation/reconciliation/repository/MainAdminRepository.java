@@ -48,5 +48,5 @@ public interface MainAdminRepository
     List<MainAdmin> findByStatusAndReactivateScheduledAtBefore(String status, LocalDateTime cutoff);
 
     // Scheduler: auto-block BLOCK_PENDING whose window has passed
-    List<MainAdmin> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);
+    List<MainAdmin> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);   
 }

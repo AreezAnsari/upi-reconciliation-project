@@ -21,6 +21,7 @@ public class MainBankDTO {
     private String blockScheduledBy;        // who scheduled the block
     private String preBlockStatus;          // status before block was scheduled
     private String bankAdminId;             // bank admin username (e.g. areez.ansari)
+    private String adminStatus;             // status from Bank_Admin table (MainAdmin.status)
 
     // ─── Step 1: Bank Details ────────────────────────────────────────
     private String bankNameFull;   // required
@@ -127,6 +128,9 @@ public class MainBankDTO {
 
     public String getBankAdminId() { return bankAdminId; }
     public void setBankAdminId(String bankAdminId) { this.bankAdminId = bankAdminId; }
+
+    public String getAdminStatus() { return adminStatus; }
+    public void setAdminStatus(String adminStatus) { this.adminStatus = adminStatus; }
 
     public String getBankNameFull() { return bankNameFull; }
     public void setBankNameFull(String bankNameFull) { this.bankNameFull = bankNameFull; }

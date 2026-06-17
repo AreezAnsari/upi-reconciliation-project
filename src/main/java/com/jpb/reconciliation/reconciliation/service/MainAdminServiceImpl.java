@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -938,12 +939,18 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus("INACTIVE_PENDING");
         admin.setInactivateScheduledAt(LocalDateTime.now());
         admin.setInactivateScheduledBy(scheduledBy);
-        admin.setInactivatedBy(scheduledBy);
         admin.setReactivateScheduledAt(null);
         admin.setReactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
+        try {
+            String inactivateAt = admin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendInactivatePendingWarning(admin.getEmail(), admin.getUsername(),
+                    bank.getBankNameFull(), bank.getBankCode(), inactivateAt);
+        } catch (Exception e) {
+            logger.warn("scheduleInactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Inactivation scheduled for bank admin {} (bank {}) by {}", admin.getUsername(), bankId, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation scheduled. Bank admin will be INACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -967,10 +974,15 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus("ACTIVE");
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
-        admin.setInactivatedBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         mainAdminRepository.save(admin);
+        try {
+            emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
+                    bank.getBankNameFull(), bank.getBankCode());
+        } catch (Exception e) {
+            logger.warn("undoInactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Inactivation undone for bank admin {} (bank {}) by {}. Restored to ACTIVE", admin.getUsername(), bankId, undoneBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Inactivation cancelled. Restored to ACTIVE.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -994,12 +1006,18 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus("ACTIVE_PENDING");
         admin.setReactivateScheduledAt(LocalDateTime.now());
         admin.setReactivateScheduledBy(scheduledBy);
-        admin.setInactivatedBy(null);
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
+        try {
+            String reactivateAt = admin.getReactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendReactivatePendingNotification(admin.getEmail(), admin.getUsername(),
+                    bank.getBankNameFull(), bank.getBankCode(), reactivateAt);
+        } catch (Exception e) {
+            logger.warn("scheduleReactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Reactivation scheduled for bank admin {} (bank {}) by {}", admin.getUsername(), bankId, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation scheduled. Bank admin will be ACTIVE in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -1026,6 +1044,12 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         mainAdminRepository.save(admin);
+        try {
+            emailService.sendReactivateCancelled(admin.getEmail(), admin.getUsername(),
+                    bank.getBankNameFull(), bank.getBankCode());
+        } catch (Exception e) {
+            logger.warn("undoReactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Reactivation undone for bank admin {} (bank {}) by {}. Restored to INACTIVE", admin.getUsername(), bankId, undoneBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Reactivation cancelled. Restored to INACTIVE.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -1045,7 +1069,6 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus("BLOCK_PENDING");
         admin.setBlockScheduledAt(LocalDateTime.now());
         admin.setBlockScheduledBy(scheduledBy);
-        admin.setBlockedBy(scheduledBy);
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setReactivateScheduledAt(null);
@@ -1054,9 +1077,9 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
 
-        // If parent bank is ACTIVE → cascade BLOCK_PENDING to all branch admins + users under this bank
+        // Chain cascade only when admin was ACTIVE; INACTIVE admin → individual block only
         Optional<MainBank> parentBankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
-        if (parentBankOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBankOpt.get().getStatus())) {
+        if ("ACTIVE".equalsIgnoreCase(admin.getPreBlockStatus()) && parentBankOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBankOpt.get().getStatus())) {
             MainBank parentBank = parentBankOpt.get();
             // Cascade to branch admins
             try {
@@ -1104,6 +1127,14 @@ public class MainAdminServiceImpl implements MainAdminService {
             }
         }
 
+        try {
+            String bankName = parentBankOpt.isPresent() ? parentBankOpt.get().getBankNameFull() : admin.getBankCode();
+            String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
+                    bankName, admin.getBankCode(), blockAt);
+        } catch (Exception e) {
+            logger.warn("scheduleBlock: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Block scheduled for bank admin {} by {}", id, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Bank admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -1123,13 +1154,144 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus(restored);
         admin.setBlockScheduledAt(null);
         admin.setPreBlockStatus(null);
-        admin.setBlockedBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         mainAdminRepository.save(admin);
+        try {
+            Optional<MainBank> bankForEmailOpt = mainBankRepository.findByBankCode(admin.getBankCode());
+            String bankName = bankForEmailOpt.isPresent() ? bankForEmailOpt.get().getBankNameFull() : admin.getBankCode();
+            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
+                    bankName, admin.getBankCode(), restored);
+        } catch (Exception e) {
+            logger.warn("undoBlock: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         logger.info("Block undone for bank admin {} by {}. Restored to {}", id, undoneBy, restored);
         List<Object> data = new ArrayList<>();
         data.add(admin);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Bank admin restored to " + restored + ".", data), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy) {
+        Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
+        if (!bankOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
+        }
+        MainBank bank = bankOpt.get();
+        Optional<MainAdmin> opt = mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found for bank: " + bankId, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if ("BLOCKED".equalsIgnoreCase(admin.getStatus()) || "BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin is already blocked or pending block.", null), HttpStatus.OK);
+        }
+        String preStatus = admin.getStatus();
+        admin.setPreBlockStatus(preStatus);
+        admin.setStatus("BLOCK_PENDING");
+        admin.setBlockScheduledAt(LocalDateTime.now());
+        admin.setBlockScheduledBy(scheduledBy);
+        admin.setInactivateScheduledAt(null);
+        admin.setInactivateScheduledBy(null);
+        admin.setReactivateScheduledAt(null);
+        admin.setReactivateScheduledBy(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(scheduledBy);
+        mainAdminRepository.save(admin);
+
+        // Chain cascade only when admin was ACTIVE; INACTIVE → individual block only
+        if ("ACTIVE".equalsIgnoreCase(preStatus)) {
+            Optional<MainBank> parentBankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
+            if (parentBankOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBankOpt.get().getStatus())) {
+                MainBank parentBank = parentBankOpt.get();
+                try {
+                    List<com.jpb.reconciliation.reconciliation.entity.BranchBank> branches =
+                            branchBankRepository.findByParentBankId(parentBank.getBankId());
+                    for (com.jpb.reconciliation.reconciliation.entity.BranchBank branch : branches) {
+                        branchAdminRepository.findByBranchCodeAndUsername(branch.getBranchCode(), branch.getBranchAdminId())
+                            .ifPresent(ba -> {
+                                if (!"BLOCKED".equalsIgnoreCase(ba.getStatus()) && !"BLOCK_PENDING".equalsIgnoreCase(ba.getStatus())) {
+                                    ba.setPreBlockStatus(ba.getStatus());
+                                    ba.setStatus("BLOCK_PENDING");
+                                    ba.setBlockScheduledAt(LocalDateTime.now());
+                                    ba.setBlockScheduledBy(scheduledBy);
+                                    ba.setInactivateScheduledAt(null);
+                                    ba.setInactivateScheduledBy(null);
+                                    ba.setReactivateScheduledAt(null);
+                                    ba.setReactivateScheduledBy(null);
+                                    ba.setUpdatedAt(LocalDateTime.now());
+                                    ba.setUpdatedBy(scheduledBy);
+                                    branchAdminRepository.save(ba);
+                                }
+                            });
+                    }
+                } catch (Exception e) {
+                    logger.warn("scheduleBlockByBankId: branch admin cascade failed for bank {}: {}", admin.getBankCode(), e.getMessage());
+                }
+                try {
+                    List<AddUser> users = addUserRepository.findByBankCode(admin.getBankCode());
+                    for (AddUser user : users) {
+                        if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                            user.setPreBlockStatus(user.getStatus().name());
+                            user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
+                            user.setBlockScheduledAt(LocalDateTime.now());
+                            user.setBlockScheduledBy(scheduledBy);
+                            user.setInactivateScheduledAt(null);
+                            user.setInactivateScheduledBy(null);
+                            user.setReactivateScheduledAt(null);
+                            user.setReactivateScheduledBy(null);
+                            addUserRepository.save(user);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn("scheduleBlockByBankId: user cascade failed for bank {}: {}", admin.getBankCode(), e.getMessage());
+                }
+            }
+        }
+
+        try {
+            String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
+                    bank.getBankNameFull(), bank.getBankCode(), blockAt);
+        } catch (Exception e) {
+            logger.warn("scheduleBlockByBankId: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Block scheduled for bank admin (bank {}) by {}. Pre-status: {}", bankId, scheduledBy, preStatus);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Bank admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> undoBlockByBankId(Long bankId, String undoneBy) {
+        Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
+        if (!bankOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
+        }
+        MainBank bank = bankOpt.get();
+        Optional<MainAdmin> opt = mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+        if (!opt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found for bank: " + bankId, null), HttpStatus.OK);
+        }
+        MainAdmin admin = opt.get();
+        if (!"BLOCK_PENDING".equalsIgnoreCase(admin.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No scheduled block found for this bank admin.", null), HttpStatus.OK);
+        }
+        String restored = admin.getPreBlockStatus() != null ? admin.getPreBlockStatus() : "INACTIVE";
+        admin.setStatus(restored);
+        admin.setBlockScheduledAt(null);
+        admin.setBlockScheduledBy(null);
+        admin.setPreBlockStatus(null);
+        admin.setUpdatedAt(LocalDateTime.now());
+        admin.setUpdatedBy(undoneBy);
+        mainAdminRepository.save(admin);
+        try {
+            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
+                    bank.getBankNameFull(), bank.getBankCode(), restored);
+        } catch (Exception e) {
+            logger.warn("undoBlockByBankId: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        logger.info("Block undone for bank admin (bank {}) by {}. Restored to {}", bankId, undoneBy, restored);
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Bank admin restored to " + restored + ".", new ArrayList<>()), HttpStatus.OK);
     }
 }

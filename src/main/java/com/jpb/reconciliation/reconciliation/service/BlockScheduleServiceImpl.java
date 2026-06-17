@@ -400,6 +400,13 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             mainAdminRepository.save(admin);
             logger.info("Auto-inactivated bank admin: {} ({})", admin.getUsername(), admin.getId());
+            try {
+                Optional<MainBank> bankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
+                String bankName = bankOpt.isPresent() ? bankOpt.get().getBankNameFull() : admin.getBankCode();
+                emailService.sendInactivatedNotification(admin.getEmail(), admin.getUsername(), bankName, admin.getBankCode());
+            } catch (Exception e) {
+                logger.warn("Auto-inactivate email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── MainAdmin (BANK_ADMIN): ACTIVE_PENDING → ACTIVE ──
@@ -413,6 +420,13 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             mainAdminRepository.save(admin);
             logger.info("Auto-reactivated bank admin: {} ({})", admin.getUsername(), admin.getId());
+            try {
+                Optional<MainBank> bankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
+                String bankName = bankOpt.isPresent() ? bankOpt.get().getBankNameFull() : admin.getBankCode();
+                emailService.sendReactivatedNotification(admin.getEmail(), admin.getUsername(), bankName, admin.getBankCode());
+            } catch (Exception e) {
+                logger.warn("Auto-reactivate email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── MainAdmin (BANK_ADMIN): BLOCK_PENDING → BLOCKED ──
@@ -428,6 +442,14 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             mainAdminRepository.save(admin);
             logger.info("Auto-blocked bank admin: {} ({})", admin.getUsername(), admin.getId());
+            try {
+                Optional<MainBank> bankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
+                String bankName = bankOpt.isPresent() ? bankOpt.get().getBankNameFull() : admin.getBankCode();
+                emailService.sendStatusChangeNotification(admin.getEmail(), admin.getUsername(),
+                        bankName, admin.getBankCode(), "BLOCK_PENDING", "BLOCKED");
+            } catch (Exception e) {
+                logger.warn("Auto-block email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── BranchAdmin (BRANCH_ADMIN): INACTIVE_PENDING → INACTIVE ──
@@ -439,6 +461,13 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             branchAdminRepository.save(admin);
             logger.info("Auto-inactivated branch admin: {} ({})", admin.getUsername(), admin.getId());
+            try {
+                Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                emailService.sendInactivatedNotification(admin.getEmail(), admin.getUsername(), branchName, admin.getBranchCode());
+            } catch (Exception e) {
+                logger.warn("Auto-inactivate email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── BranchAdmin (BRANCH_ADMIN): ACTIVE_PENDING → ACTIVE ──
@@ -452,6 +481,13 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             branchAdminRepository.save(admin);
             logger.info("Auto-reactivated branch admin: {} ({})", admin.getUsername(), admin.getId());
+            try {
+                Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                emailService.sendReactivatedNotification(admin.getEmail(), admin.getUsername(), branchName, admin.getBranchCode());
+            } catch (Exception e) {
+                logger.warn("Auto-reactivate email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── BranchAdmin (BRANCH_ADMIN): BLOCK_PENDING → BLOCKED ──
@@ -467,6 +503,14 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             branchAdminRepository.save(admin);
             logger.info("Auto-blocked branch admin: {} ({})", admin.getUsername(), admin.getId());
+            try {
+                Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                emailService.sendStatusChangeNotification(admin.getEmail(), admin.getUsername(),
+                        branchName, admin.getBranchCode(), "BLOCK_PENDING", "BLOCKED");
+            } catch (Exception e) {
+                logger.warn("Auto-block email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
     }
 

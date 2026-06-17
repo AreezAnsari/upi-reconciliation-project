@@ -284,9 +284,14 @@ public class BranchBankServiceImpl implements BranchBankService {
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No bank s found.", new ArrayList<>()));
         }
 
-        List<Object> data = list.stream()
-                .map(BranchBankMapper::mapToDTO)
-                .collect(Collectors.toList());
+        List<Object> data = new ArrayList<>();
+        for (BranchBank branch : list) {
+            BranchBankDTO dto = BranchBankMapper.mapToDTO(branch);
+            branchAdminRepository.findByBranchCodeAndUsername(
+                    branch.getBranchCode(), branch.getBranchAdminId())
+                .ifPresent(ba -> dto.setAdminStatus(ba.getStatus()));
+            data.add(dto);
+        }
         logger.info("[GetAllBranchBanks] Fetched {} branch bank(s) for parentId={}", list.size(), parentbankId);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
@@ -1206,7 +1211,6 @@ public class BranchBankServiceImpl implements BranchBankService {
                         ba.setStatus("BLOCK_PENDING");
                         ba.setBlockScheduledAt(LocalDateTime.now());
                         ba.setBlockScheduledBy(scheduledBy);
-                        ba.setBlockedBy(scheduledBy);
                         ba.setInactivateScheduledAt(null);
                         ba.setInactivateScheduledBy(null);
                         ba.setReactivateScheduledAt(null);
@@ -1230,7 +1234,7 @@ public class BranchBankServiceImpl implements BranchBankService {
                 logger.warn("scheduleBlock: parent bank lookup failed for branch {}: {}", bnk.getBranchCode(), e.getMessage());
             }
         }
-        if (parentActive) {
+        if (parentActive && "ACTIVE".equalsIgnoreCase(bnk.getPreBlockStatus())) {
             try {
                 List<AddUser> branchUsers = addUserRepository.findByBranchCode(bnk.getBranchCode());
                 for (AddUser user : branchUsers) {
@@ -1314,7 +1318,7 @@ public class BranchBankServiceImpl implements BranchBankService {
         final String finalRestored = restoredStatus;
         try {
             branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
-                .ifPresent(ba -> { ba.setStatus(finalRestored); ba.setBlockedBy(null); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(undoneBy); branchAdminRepository.save(ba); });
+                .ifPresent(ba -> { ba.setStatus(finalRestored); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(undoneBy); branchAdminRepository.save(ba); });
         } catch (Exception e) {
             logger.warn("undoBlock: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
         }

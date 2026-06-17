@@ -115,4 +115,18 @@ public class MainAdminController {
         return mainAdminService.undoReactivate(id, by);
     }
 
+    @PostMapping("/schedule-block-by-bank/{bankId}")
+    public ResponseEntity<RestWithStatusList> scheduleBlockByBankId(
+            @PathVariable Long bankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return mainAdminService.scheduleBlockByBankId(bankId, by);
+    }
+
+    @PostMapping("/undo-block-by-bank/{bankId}")
+    public ResponseEntity<RestWithStatusList> undoBlockByBankId(
+            @PathVariable Long bankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return mainAdminService.undoBlockByBankId(bankId, by);
+    }
+
 }

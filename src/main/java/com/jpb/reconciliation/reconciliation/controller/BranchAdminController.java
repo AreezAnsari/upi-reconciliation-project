@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import com.jpb.reconciliation.reconciliation.dto.BranchAdminSetPasswordDto;
@@ -79,6 +80,50 @@ public class BranchAdminController {
     @PostMapping("/reset-password")
     public ResponseEntity<RestWithStatusList> resetPassword(@RequestBody ResetPasswordRequest request) {
         return branchAdminService.resetPassword(request);
+    }
+
+    // ─── Branch Admin status by BranchBank ID (KalAdmin Admin Status page) ───
+
+    @PostMapping("/schedule-inactivate-admin/{branchBankId}")
+    public ResponseEntity<RestWithStatusList> scheduleInactivateAdmin(
+            @PathVariable Long branchBankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return branchAdminService.scheduleInactivateByBranchBankId(branchBankId, by);
+    }
+
+    @PostMapping("/undo-inactivate-admin/{branchBankId}")
+    public ResponseEntity<RestWithStatusList> undoInactivateAdmin(
+            @PathVariable Long branchBankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return branchAdminService.undoInactivateByBranchBankId(branchBankId, by);
+    }
+
+    @PostMapping("/schedule-reactivate-admin/{branchBankId}")
+    public ResponseEntity<RestWithStatusList> scheduleReactivateAdmin(
+            @PathVariable Long branchBankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return branchAdminService.scheduleReactivateByBranchBankId(branchBankId, by);
+    }
+
+    @PostMapping("/undo-reactivate-admin/{branchBankId}")
+    public ResponseEntity<RestWithStatusList> undoReactivateAdmin(
+            @PathVariable Long branchBankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return branchAdminService.undoReactivateByBranchBankId(branchBankId, by);
+    }
+
+    @PostMapping("/schedule-block-admin/{branchBankId}")
+    public ResponseEntity<RestWithStatusList> scheduleBlockAdmin(
+            @PathVariable Long branchBankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return branchAdminService.scheduleBlockByBranchBankId(branchBankId, by);
+    }
+
+    @PostMapping("/undo-block-admin/{branchBankId}")
+    public ResponseEntity<RestWithStatusList> undoBlockAdmin(
+            @PathVariable Long branchBankId, Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return branchAdminService.undoBlockByBranchBankId(branchBankId, by);
     }
 
 }

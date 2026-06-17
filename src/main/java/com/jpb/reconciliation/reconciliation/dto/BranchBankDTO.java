@@ -19,6 +19,7 @@ public class BranchBankDTO {
     private LocalDateTime reactivateScheduledAt; // when reactivation was scheduled (ACTIVE_PENDING countdown)
     private Long adminId;                    // numeric PK of BRANCH_ADMIN record
     private String branchAdminId;           // branch admin username (e.g. areez.ansari)
+    private String adminStatus;             // status from Branch_Admin table (BranchAdmin.status)
     private String blockScheduledBy;        // who scheduled the block
     private String preBlockStatus;          // status before block was scheduled
     private String preInactivateStatus;     // status before INACTIVE_PENDING was set
@@ -109,6 +110,9 @@ public class BranchBankDTO {
 
     public String getBranchAdminId() { return branchAdminId; }
     public void setBranchAdminId(String branchAdminId) { this.branchAdminId = branchAdminId; }
+
+    public String getAdminStatus() { return adminStatus; }
+    public void setAdminStatus(String adminStatus) { this.adminStatus = adminStatus; }
 
     public String getBlockScheduledBy() { return blockScheduledBy; }
     public void setBlockScheduledBy(String blockScheduledBy) { this.blockScheduledBy = blockScheduledBy; }
