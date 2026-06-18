@@ -178,6 +178,9 @@ public class BranchBank {
     @Column(name = "block_scheduled_by", length = 100)
     private String blockScheduledBy;
 
+    @Column(name = "block_reason", length = 500)
+    private String blockReason;
+
     // Original status before BLOCK_PENDING — restored on undo
     // Also used to differentiate block window: ACTIVE→BLOCK = 4hr, INACTIVE→BLOCK = 1hr
     @Column(name = "pre_block_status", length = 20)

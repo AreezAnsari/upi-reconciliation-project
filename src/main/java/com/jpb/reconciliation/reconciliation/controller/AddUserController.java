@@ -102,9 +102,10 @@ public class AddUserController {
     // POST /api/v1/user/{id}/schedule-block
     @PostMapping("/{id}/schedule-block")
     public RestWithStatusList scheduleBlock(@PathVariable Long id,
+                                             @org.springframework.web.bind.annotation.RequestParam(value = "reason", required = false, defaultValue = "") String reason,
                                              Authentication authentication) {
         String by = authentication != null ? authentication.getName() : "UNKNOWN";
-        return userService.scheduleBlockUser(id, by);
+        return userService.scheduleBlockUser(id, by, reason);
     }
 
     // POST /api/v1/user/{id}/undo-block

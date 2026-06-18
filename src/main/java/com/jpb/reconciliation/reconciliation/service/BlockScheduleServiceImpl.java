@@ -56,7 +56,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     // ─────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy, String reason) {
 
         Optional<MainBank> opt = mainBankRepository.findById(bankId);
         if (!opt.isPresent()) {
@@ -78,6 +78,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         bnk.setStatus("BLOCK_PENDING");
         bnk.setBlockScheduledAt(LocalDateTime.now());
         bnk.setBlockScheduledBy(scheduledBy);
+        bnk.setBlockReason(reason);
         bnk.setUpdatedAt(LocalDateTime.now());
 
         mainBankRepository.save(bnk);
@@ -98,14 +99,18 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     branch.setStatus("BLOCK_PENDING");
                     branch.setBlockScheduledAt(LocalDateTime.now());
                     branch.setBlockScheduledBy(scheduledBy);
+                    branch.setBlockReason(reason);
                     branch.setUpdatedAt(LocalDateTime.now());
                     branchBankRepository.save(branch);
+                    final String blockReasonVal = reason;
                     branchAdminRepository.findByBranchCodeAndUsername(branch.getBranchCode(), branch.getBranchAdminId())
                         .ifPresent(ba -> {
                             if (!"BLOCKED".equalsIgnoreCase(ba.getStatus()) && !"BLOCK_PENDING".equalsIgnoreCase(ba.getStatus())) {
                                 ba.setPreBlockStatus(ba.getStatus());
                                 ba.setStatus("BLOCK_PENDING");
                                 ba.setBlockScheduledAt(LocalDateTime.now());
+                                ba.setBlockScheduledBy(scheduledBy);
+                                ba.setBlockReason(blockReasonVal);
                                 ba.setInactivateScheduledAt(null);
                                 ba.setInactivateScheduledBy(null);
                                 ba.setReactivateScheduledAt(null);
@@ -129,6 +134,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                     user.setBlockScheduledAt(LocalDateTime.now());
                     user.setBlockScheduledBy(scheduledBy);
+                    user.setBlockReason(reason);
                     user.setInactivateScheduledAt(null);
                     user.setInactivateScheduledBy(null);
                     user.setReactivateScheduledAt(null);
@@ -198,6 +204,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         bnk.setStatus(restoredStatus);
         bnk.setBlockScheduledAt(null);
         bnk.setBlockScheduledBy(null);
+        bnk.setBlockReason(null);
         bnk.setPreBlockStatus(null);
         bnk.setUpdatedAt(LocalDateTime.now());
 

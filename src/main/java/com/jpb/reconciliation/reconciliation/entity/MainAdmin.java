@@ -73,6 +73,9 @@ public class MainAdmin {
     @Column(name = "BLOCK_SCHEDULED_BY", length = 100)
     private String blockScheduledBy;
 
+    @Column(name = "BLOCK_REASON", length = 500)
+    private String blockReason;
+
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;
 

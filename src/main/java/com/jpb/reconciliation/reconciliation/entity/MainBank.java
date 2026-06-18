@@ -214,6 +214,9 @@ public class MainBank {
     @Column(name = "block_scheduled_by", length = 100)
     private String blockScheduledBy;
 
+    @Column(name = "block_reason", length = 500)
+    private String blockReason;
+
     // Status before block was scheduled (for undo within 30s/24hr window)
     @Column(name = "pre_block_status", length = 20)
     private String preBlockStatus;

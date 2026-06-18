@@ -48,8 +48,8 @@ public interface MainAdminService {
     ResponseEntity<RestWithStatusList> undoInactivate(Long id, String undoneBy);
     ResponseEntity<RestWithStatusList> scheduleReactivate(Long id, String scheduledBy);
     ResponseEntity<RestWithStatusList> undoReactivate(Long id, String undoneBy);
-    ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy);
+    ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy, String reason);
     ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy);
-    ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy);
+    ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy, String reason);
     ResponseEntity<RestWithStatusList> undoBlockByBankId(Long bankId, String undoneBy);
 }

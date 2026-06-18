@@ -19,6 +19,7 @@ public class MainBankDTO {
     private LocalDateTime updatedAt;         // last audit timestamp
     private String updatedBy;               // who last modified
     private String blockScheduledBy;        // who scheduled the block
+    private String blockReason;             // reason for block
     private String preBlockStatus;          // status before block was scheduled
     private String bankAdminId;             // bank admin username (e.g. areez.ansari)
     private String adminStatus;             // status from Bank_Admin table (MainAdmin.status)
@@ -122,6 +123,9 @@ public class MainBankDTO {
 
     public String getBlockScheduledBy() { return blockScheduledBy; }
     public void setBlockScheduledBy(String blockScheduledBy) { this.blockScheduledBy = blockScheduledBy; }
+
+    public String getBlockReason() { return blockReason; }
+    public void setBlockReason(String blockReason) { this.blockReason = blockReason; }
 
     public String getPreBlockStatus() { return preBlockStatus; }
     public void setPreBlockStatus(String preBlockStatus) { this.preBlockStatus = preBlockStatus; }

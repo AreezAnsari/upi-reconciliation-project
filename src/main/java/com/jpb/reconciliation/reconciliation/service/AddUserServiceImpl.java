@@ -329,7 +329,7 @@ public class AddUserServiceImpl implements AddUserService {
     }
 
     @Override
-    public RestWithStatusList scheduleBlockUser(Long id, String scheduledBy) {
+    public RestWithStatusList scheduleBlockUser(Long id, String scheduledBy, String reason) {
         Optional<AddUser> opt = userRepository.findById(id);
         if (!opt.isPresent()) return fail("User not found: " + id);
         AddUser user = opt.get();
@@ -342,6 +342,7 @@ public class AddUserServiceImpl implements AddUserService {
         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
         user.setBlockScheduledAt(LocalDateTime.now());
         user.setBlockScheduledBy(scheduledBy);
+        user.setBlockReason(reason);
         user.setInactivateScheduledAt(null);
         user.setInactivateScheduledBy(null);
         user.setReactivateScheduledAt(null);

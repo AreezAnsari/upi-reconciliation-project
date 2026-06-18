@@ -1206,6 +1206,124 @@ public class EmailServiceImpl implements EmailService {
             + "</table></td></tr></table></body></html>";
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND REPLACEMENT OUTGOING NOTIFICATION (to old admin/user)
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendReplacementOutgoingNotification(String toEmail, String contactName,
+                                                     String entityCode, String replacedBy, String reason) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Your Account Has Been Replaced: " + sanitize(entityCode));
+            helper.setText(buildReplacementOutgoingHtml(contactName, entityCode, replacedBy, reason), true);
+            mailSender.send(message);
+            logger.info("Replacement outgoing email sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Replacement outgoing — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // SEND REPLACEMENT WELCOME (to new admin/user with credentials)
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendReplacementWelcome(String toEmail, String contactName,
+                                        String entityCode, String username, String tempPassword) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — You Have Been Assigned as Replacement: " + sanitize(entityCode));
+            helper.setText(buildReplacementWelcomeHtml(contactName, entityCode, username, tempPassword), true);
+            mailSender.send(message);
+            logger.info("Replacement welcome email sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Replacement welcome — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML — Replacement Outgoing (old admin/user)
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildReplacementOutgoingHtml(String contactName, String entityCode,
+                                                 String replacedBy, String reason) {
+        String safeReason = (reason != null && !reason.trim().isEmpty()) ? sanitize(reason) : "No reason provided";
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>This is to inform you that your account on ReconXpert.Ai has been handed over to a replacement. Your account is now <strong>INACTIVE</strong>.</p>"
+            + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:8px;padding:20px 24px;margin:0 0 24px;'>"
+            + "<p style='margin:0 0 6px;font-size:15px;font-weight:bold;color:#b91c1c;'>&#x26A0; Account Replaced</p>"
+            + "<table cellpadding='0' cellspacing='0' width='100%'>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Entity Code:</td><td style='font-size:13px;color:#1e293b;font-weight:bold;'>" + sanitize(entityCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Replaced By:</td><td style='font-size:13px;color:#1e293b;font-weight:bold;'>" + sanitize(replacedBy) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Reason:</td><td style='font-size:13px;color:#1e293b;'>" + safeReason + "</td></tr>"
+            + "</table></div>"
+            + "<p style='font-size:13px;color:#64748b;margin:0 0 16px;'>If you believe this is an error, please contact your KalInfotech administrator immediately.</p>"
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not reply to this email.</p>"
+            + "</div>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>&#169; KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+            + "</table></td></tr></table></body></html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML — Replacement Welcome (new admin/user with credentials)
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildReplacementWelcomeHtml(String contactName, String entityCode,
+                                                String username, String tempPassword) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>You have been assigned as a replacement on ReconXpert.Ai. Your account is now <strong>ACTIVE</strong>. Please find your login credentials below.</p>"
+            + "<div style='background:#f0fdf4;border-left:4px solid #16a34a;border-radius:8px;padding:24px;margin:0 0 24px;'>"
+            + "<p style='margin:0 0 16px;font-size:15px;font-weight:bold;color:#15803d;'>&#x2705; Your Login Credentials</p>"
+            + "<table cellpadding='0' cellspacing='0' width='100%'>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:6px 0;width:140px;'>Entity Code:</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:bold;'>" + sanitize(entityCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:6px 0;'>Username:</td>"
+            + "<td style='font-size:14px;color:#1e293b;font-weight:bold;letter-spacing:1px;'>" + sanitize(username) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:6px 0;'>Temporary Password:</td>"
+            + "<td><span style='background:#1a1a2e;color:#d4a843;font-size:15px;font-weight:bold;letter-spacing:2px;padding:4px 12px;border-radius:6px;display:inline-block;'>" + sanitize(tempPassword) + "</span></td></tr>"
+            + "</table></div>"
+            + "<div style='background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;padding:12px 16px;margin:0 0 16px;'>"
+            + "<p style='margin:0;font-size:13px;color:#1e40af;'><strong>&#128274; Security:</strong> Please change your password immediately after your first login using the Forgot Password option.</p>"
+            + "</div>"
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not share your credentials with anyone. Do not reply to this email.</p>"
+            + "</div>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>&#169; KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+            + "</table></td></tr></table></body></html>";
+    }
+
     // Prevent XSS — sanitize user input before putting in HTML
     private String sanitize(String input) {
         if (input == null) return "";

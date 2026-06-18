@@ -793,7 +793,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy, String reason) {
         Optional<BranchAdmin> opt = branchAdminRepository.findById(id);
         if (!opt.isPresent()) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found: " + id, null), HttpStatus.OK);
@@ -806,6 +806,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setStatus("BLOCK_PENDING");
         admin.setBlockScheduledAt(LocalDateTime.now());
         admin.setBlockScheduledBy(scheduledBy);
+        admin.setBlockReason(reason);
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setReactivateScheduledAt(null);
@@ -825,6 +826,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                         user.setBlockScheduledAt(LocalDateTime.now());
                         user.setBlockScheduledBy(scheduledBy);
+                        user.setBlockReason(reason);
                         user.setInactivateScheduledAt(null);
                         user.setInactivateScheduledBy(null);
                         user.setReactivateScheduledAt(null);
@@ -1015,7 +1017,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlockByBranchBankId(Long branchBankId, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlockByBranchBankId(Long branchBankId, String scheduledBy, String reason) {
         Optional<BranchAdmin> opt = findAdminByBranchBankId(branchBankId);
         if (!opt.isPresent()) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Branch admin not found for branch: " + branchBankId, null), HttpStatus.OK);
@@ -1029,6 +1031,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setStatus("BLOCK_PENDING");
         admin.setBlockScheduledAt(LocalDateTime.now());
         admin.setBlockScheduledBy(scheduledBy);
+        admin.setBlockReason(reason);
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setReactivateScheduledAt(null);
@@ -1049,6 +1052,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                             user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                             user.setBlockScheduledAt(LocalDateTime.now());
                             user.setBlockScheduledBy(scheduledBy);
+                            user.setBlockReason(reason);
                             user.setInactivateScheduledAt(null);
                             user.setInactivateScheduledBy(null);
                             user.setReactivateScheduledAt(null);
@@ -1090,6 +1094,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setStatus(restored);
         admin.setBlockScheduledAt(null);
         admin.setBlockScheduledBy(null);
+        admin.setBlockReason(null);
         admin.setPreBlockStatus(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);

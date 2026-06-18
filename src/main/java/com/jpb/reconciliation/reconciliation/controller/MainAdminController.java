@@ -117,9 +117,11 @@ public class MainAdminController {
 
     @PostMapping("/schedule-block-by-bank/{bankId}")
     public ResponseEntity<RestWithStatusList> scheduleBlockByBankId(
-            @PathVariable Long bankId, Authentication authentication) {
+            @PathVariable Long bankId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "reason", required = false, defaultValue = "") String reason,
+            Authentication authentication) {
         String by = authentication != null ? authentication.getName() : "UNKNOWN";
-        return mainAdminService.scheduleBlockByBankId(bankId, by);
+        return mainAdminService.scheduleBlockByBankId(bankId, by, reason);
     }
 
     @PostMapping("/undo-block-by-bank/{bankId}")

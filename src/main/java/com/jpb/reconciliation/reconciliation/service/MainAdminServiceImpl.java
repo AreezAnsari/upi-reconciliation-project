@@ -1056,7 +1056,7 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long id, String scheduledBy, String reason) {
         Optional<MainAdmin> opt = mainAdminRepository.findById(id);
         if (!opt.isPresent()) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank admin not found: " + id, null), HttpStatus.OK);
@@ -1069,6 +1069,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus("BLOCK_PENDING");
         admin.setBlockScheduledAt(LocalDateTime.now());
         admin.setBlockScheduledBy(scheduledBy);
+        admin.setBlockReason(reason);
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setReactivateScheduledAt(null);
@@ -1082,6 +1083,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         if ("ACTIVE".equalsIgnoreCase(admin.getPreBlockStatus()) && parentBankOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBankOpt.get().getStatus())) {
             MainBank parentBank = parentBankOpt.get();
             // Cascade to branch admins
+            final String blockReasonVal = reason;
             try {
                 List<com.jpb.reconciliation.reconciliation.entity.BranchBank> branches =
                         branchBankRepository.findByParentBankId(parentBank.getBankId());
@@ -1093,6 +1095,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                                 ba.setStatus("BLOCK_PENDING");
                                 ba.setBlockScheduledAt(LocalDateTime.now());
                                 ba.setBlockScheduledBy(scheduledBy);
+                                ba.setBlockReason(blockReasonVal);
                                 ba.setInactivateScheduledAt(null);
                                 ba.setInactivateScheduledBy(null);
                                 ba.setReactivateScheduledAt(null);
@@ -1115,6 +1118,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                         user.setBlockScheduledAt(LocalDateTime.now());
                         user.setBlockScheduledBy(scheduledBy);
+                        user.setBlockReason(reason);
                         user.setInactivateScheduledAt(null);
                         user.setInactivateScheduledBy(null);
                         user.setReactivateScheduledAt(null);
@@ -1173,7 +1177,7 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy, String reason) {
         Optional<MainBank> bankOpt = mainBankRepository.findById(bankId);
         if (!bankOpt.isPresent()) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Bank not found: " + bankId, null), HttpStatus.OK);
@@ -1192,6 +1196,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus("BLOCK_PENDING");
         admin.setBlockScheduledAt(LocalDateTime.now());
         admin.setBlockScheduledBy(scheduledBy);
+        admin.setBlockReason(reason);
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setReactivateScheduledAt(null);
@@ -1205,6 +1210,7 @@ public class MainAdminServiceImpl implements MainAdminService {
             Optional<MainBank> parentBankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
             if (parentBankOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBankOpt.get().getStatus())) {
                 MainBank parentBank = parentBankOpt.get();
+                final String blockReasonVal = reason;
                 try {
                     List<com.jpb.reconciliation.reconciliation.entity.BranchBank> branches =
                             branchBankRepository.findByParentBankId(parentBank.getBankId());
@@ -1216,6 +1222,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                                     ba.setStatus("BLOCK_PENDING");
                                     ba.setBlockScheduledAt(LocalDateTime.now());
                                     ba.setBlockScheduledBy(scheduledBy);
+                                    ba.setBlockReason(blockReasonVal);
                                     ba.setInactivateScheduledAt(null);
                                     ba.setInactivateScheduledBy(null);
                                     ba.setReactivateScheduledAt(null);
@@ -1237,6 +1244,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                             user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                             user.setBlockScheduledAt(LocalDateTime.now());
                             user.setBlockScheduledBy(scheduledBy);
+                            user.setBlockReason(reason);
                             user.setInactivateScheduledAt(null);
                             user.setInactivateScheduledBy(null);
                             user.setReactivateScheduledAt(null);
@@ -1281,6 +1289,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setStatus(restored);
         admin.setBlockScheduledAt(null);
         admin.setBlockScheduledBy(null);
+        admin.setBlockReason(null);
         admin.setPreBlockStatus(null);
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);

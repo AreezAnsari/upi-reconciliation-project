@@ -21,6 +21,7 @@ public class BranchBankDTO {
     private String branchAdminId;           // branch admin username (e.g. areez.ansari)
     private String adminStatus;             // status from Branch_Admin table (BranchAdmin.status)
     private String blockScheduledBy;        // who scheduled the block
+    private String blockReason;             // reason for block
     private String preBlockStatus;          // status before block was scheduled
     private String preInactivateStatus;     // status before INACTIVE_PENDING was set
     private String preReactivateStatus;     // status before ACTIVE_PENDING was set
@@ -116,6 +117,9 @@ public class BranchBankDTO {
 
     public String getBlockScheduledBy() { return blockScheduledBy; }
     public void setBlockScheduledBy(String blockScheduledBy) { this.blockScheduledBy = blockScheduledBy; }
+
+    public String getBlockReason() { return blockReason; }
+    public void setBlockReason(String blockReason) { this.blockReason = blockReason; }
 
     public String getPreBlockStatus() { return preBlockStatus; }
     public void setPreBlockStatus(String preBlockStatus) { this.preBlockStatus = preBlockStatus; }

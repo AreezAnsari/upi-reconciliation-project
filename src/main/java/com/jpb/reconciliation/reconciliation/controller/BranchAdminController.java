@@ -114,9 +114,11 @@ public class BranchAdminController {
 
     @PostMapping("/schedule-block-admin/{branchBankId}")
     public ResponseEntity<RestWithStatusList> scheduleBlockAdmin(
-            @PathVariable Long branchBankId, Authentication authentication) {
+            @PathVariable Long branchBankId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "reason", required = false, defaultValue = "") String reason,
+            Authentication authentication) {
         String by = authentication != null ? authentication.getName() : "UNKNOWN";
-        return branchAdminService.scheduleBlockByBranchBankId(branchBankId, by);
+        return branchAdminService.scheduleBlockByBranchBankId(branchBankId, by, reason);
     }
 
     @PostMapping("/undo-block-admin/{branchBankId}")

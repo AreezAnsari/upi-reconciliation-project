@@ -32,7 +32,7 @@ public interface AddUserService {
 
     RestWithStatusList undoReactivateUser(Long id, String undoneBy);
 
-    RestWithStatusList scheduleBlockUser(Long id, String scheduledBy);
+    RestWithStatusList scheduleBlockUser(Long id, String scheduledBy, String reason);
 
     RestWithStatusList undoBlockUser(Long id, String undoneBy);
 }

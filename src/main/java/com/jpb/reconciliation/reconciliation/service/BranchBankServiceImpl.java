@@ -601,11 +601,11 @@ public class BranchBankServiceImpl implements BranchBankService {
         }
 
         BranchBank bank= optional.get();
-        bank .setStatus("INACTIVE");
+        bank .setStatus("BLOCKED");
         bank .setUpdatedAt(LocalDateTime.now());
         branchBankRepository.save(bank );
 
-        // Sync INACTIVE to BRANCH_ADMIN
+        // Sync INACTIVE to BRANCH_ADMIN (admin can be INACTIVE, branch entity cannot)
         String deletedByUser = getCurrentUsername();
         try {
             branchAdminRepository.findByBranchCodeAndUsername(
@@ -620,7 +620,7 @@ public class BranchBankServiceImpl implements BranchBankService {
             logger.warn("delete: BRANCH_ADMIN sync failed for {}: {}", bank .getBranchCode(), e.getMessage());
         }
 
-        logger.info("Bank {} soft-deleted (status → INACTIVE)", bankId);
+        logger.info("Bank {} soft-deleted (status → BLOCKED)", bankId);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Bank deactivated successfully.", new ArrayList<>()));
@@ -946,9 +946,13 @@ public class BranchBankServiceImpl implements BranchBankService {
                 logger.warn("getBankByCode: No record found in BRANCH_BANK for code '{}'", branchCode);
                 return bad("Sub-banknot found with code: " + branchCode);
             }
-            logger.info("getBankByCode: Found '{}' for code '{}'", optional.get().getBranchNameFull(), branchCode);
+            BranchBank branch = optional.get();
+            logger.info("getBankByCode: Found '{}' for code '{}'", branch.getBranchNameFull(), branchCode);
+            BranchBankDTO dto = BranchBankMapper.mapToDTO(branch);
+            branchAdminRepository.findByBranchCodeAndUsername(branch.getBranchCode(), branch.getBranchAdminId())
+                .ifPresent(admin -> dto.setAdminStatus(admin.getStatus()));
             List<Object> data = new ArrayList<>();
-            data.add(BranchBankMapper.mapToDTO(optional.get()));
+            data.add(dto);
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Sub-bankfetched.", data));
         } catch (Exception e) {
             logger.error("Error fetching sub-bankby code {}: {}", branchCode, e.getMessage());
@@ -1179,7 +1183,7 @@ public class BranchBankServiceImpl implements BranchBankService {
     // ─────────────────────────────────────────────────────────────────────────
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy) {
+    public ResponseEntity<RestWithStatusList> scheduleBlock(Long bankId, String scheduledBy, String reason) {
 
         Optional<BranchBank> opt = branchBankRepository.findById(bankId);
         if (!opt.isPresent()) {
@@ -1199,10 +1203,12 @@ public class BranchBankServiceImpl implements BranchBankService {
         bnk.setStatus("BLOCK_PENDING");
         bnk.setBlockScheduledAt(LocalDateTime.now());
         bnk.setBlockScheduledBy(scheduledBy);
+        bnk.setBlockReason(reason);
         bnk.setUpdatedAt(LocalDateTime.now());
         branchBankRepository.save(bnk);
 
         // Sync BLOCK_PENDING to BRANCH_ADMIN (always)
+        final String blockReasonVal = reason;
         try {
             branchAdminRepository.findByBranchCodeAndUsername(bnk.getBranchCode(), bnk.getBranchAdminId())
                 .ifPresent(ba -> {
@@ -1211,6 +1217,7 @@ public class BranchBankServiceImpl implements BranchBankService {
                         ba.setStatus("BLOCK_PENDING");
                         ba.setBlockScheduledAt(LocalDateTime.now());
                         ba.setBlockScheduledBy(scheduledBy);
+                        ba.setBlockReason(blockReasonVal);
                         ba.setInactivateScheduledAt(null);
                         ba.setInactivateScheduledBy(null);
                         ba.setReactivateScheduledAt(null);
@@ -1243,6 +1250,7 @@ public class BranchBankServiceImpl implements BranchBankService {
                         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                         user.setBlockScheduledAt(LocalDateTime.now());
                         user.setBlockScheduledBy(scheduledBy);
+                        user.setBlockReason(reason);
                         user.setInactivateScheduledAt(null);
                         user.setInactivateScheduledBy(null);
                         user.setReactivateScheduledAt(null);
@@ -1310,6 +1318,7 @@ public class BranchBankServiceImpl implements BranchBankService {
         bnk.setStatus(restoredStatus);
         bnk.setBlockScheduledAt(null);
         bnk.setBlockScheduledBy(null);
+        bnk.setBlockReason(null);
         bnk.setPreBlockStatus(null);
         bnk.setUpdatedAt(LocalDateTime.now());
         branchBankRepository.save(bnk);

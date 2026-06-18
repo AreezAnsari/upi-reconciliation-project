@@ -128,4 +128,16 @@ public interface EmailService {
      */
     void sendReactivatedNotification(String toEmail, String contactName,
                                      String entityName, String entityCode);
+
+    /**
+     * Sent to the outgoing (original) admin/user when they are replaced.
+     */
+    void sendReplacementOutgoingNotification(String toEmail, String contactName,
+                                             String entityCode, String replacedBy, String reason);
+
+    /**
+     * Sent to the incoming (replacement) admin/user with their login credentials.
+     */
+    void sendReplacementWelcome(String toEmail, String contactName,
+                                String entityCode, String username, String tempPassword);
 }

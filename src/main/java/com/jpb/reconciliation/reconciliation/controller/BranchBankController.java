@@ -155,11 +155,12 @@ public class BranchBankController {
     @PostMapping(value = "/schedule-block/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> scheduleBlock(
             @PathVariable Long bankId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "reason", required = false, defaultValue = "") String reason,
             Authentication authentication) {
         String scheduledBy = (authentication != null && authentication.isAuthenticated())
                 ? authentication.getName() : "UNKNOWN";
         logger.info("Schedule block for branch bank {} by {}", bankId, scheduledBy);
-        return branchBankService.scheduleBlock(bankId, scheduledBy);
+        return branchBankService.scheduleBlock(bankId, scheduledBy, reason);
     }
 
     // POST /test/api/v1/branchbank/undo-block/{bankId}

@@ -213,11 +213,12 @@ public class MainBankController {
     @PostMapping(value = "/schedule-block/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> scheduleBlock(
             @PathVariable Long bankId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "reason", required = false, defaultValue = "") String reason,
             Authentication authentication) {
         String scheduledBy = (authentication != null && authentication.isAuthenticated())
                 ? authentication.getName() : "UNKNOWN";
         logger.info("Schedule block request for bank ID: {} by {}", bankId, scheduledBy);
-        return blockScheduleService.scheduleBlock(bankId, scheduledBy);
+        return blockScheduleService.scheduleBlock(bankId, scheduledBy, reason);
     }
 
     // ─────────────────────────────────────────────

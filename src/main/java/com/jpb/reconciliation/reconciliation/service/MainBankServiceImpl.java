@@ -585,11 +585,11 @@ public class MainBankServiceImpl implements MainBankService {
         }
 
         MainBank bank = optional.get();
-        bank.setStatus("INACTIVE");
+        bank.setStatus("BLOCKED");
         bank.setUpdatedAt(LocalDateTime.now());
         mainBankRepository.save(bank);
 
-        // Sync INACTIVE to BANK_ADMIN
+        // Sync INACTIVE to BANK_ADMIN (admin can be INACTIVE, bank entity cannot)
         String deletedByUser = getCurrentUsername();
         try {
             mainAdminRepository.findByBankCodeAndUsername(
@@ -605,7 +605,7 @@ public class MainBankServiceImpl implements MainBankService {
                     bank.getBankCode(), e.getMessage());
         }
 
-        logger.info("Bank {} soft-deleted (status → INACTIVE)", bankId);
+        logger.info("Bank {} soft-deleted (status → BLOCKED)", bankId);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Bank deactivated successfully.", new ArrayList<>()));
@@ -719,8 +719,12 @@ public class MainBankServiceImpl implements MainBankService {
             if (!optional.isPresent()) {
                 return bad("Bank not found with code: " + bankCode);
             }
+            MainBank bank = optional.get();
+            MainBankDTO dto = MainBankMapper.mapToDTO(bank);
+            mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId())
+                .ifPresent(admin -> dto.setAdminStatus(admin.getStatus()));
             List<Object> data = new ArrayList<>();
-            data.add(MainBankMapper.mapToDTO(optional.get()));
+            data.add(dto);
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank fetched.", data));
         } catch (Exception e) {
             logger.error("Error fetching bank by code {}: {}", bankCode, e.getMessage());
