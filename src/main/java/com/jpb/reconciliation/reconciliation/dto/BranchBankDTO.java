@@ -20,6 +20,9 @@ public class BranchBankDTO {
     private Long adminId;                    // numeric PK of BRANCH_ADMIN record
     private String branchAdminId;           // branch admin username (e.g. areez.ansari)
     private String adminStatus;             // status from Branch_Admin table (BranchAdmin.status)
+    private String replacementStatus;       // ACTIVE / PERMANENT / null — from ADMIN_REPLACEMENT table
+    private String replacedByUsername;      // replacement admin's username
+    private boolean replacementAdminRow;    // true = this row represents the replacement admin (not original)
     private String blockScheduledBy;        // who scheduled the block
     private String blockReason;             // reason for block
     private String preBlockStatus;          // status before block was scheduled
@@ -114,6 +117,15 @@ public class BranchBankDTO {
 
     public String getAdminStatus() { return adminStatus; }
     public void setAdminStatus(String adminStatus) { this.adminStatus = adminStatus; }
+
+    public String getReplacementStatus() { return replacementStatus; }
+    public void setReplacementStatus(String replacementStatus) { this.replacementStatus = replacementStatus; }
+
+    public String getReplacedByUsername() { return replacedByUsername; }
+    public void setReplacedByUsername(String replacedByUsername) { this.replacedByUsername = replacedByUsername; }
+
+    public boolean isReplacementAdminRow() { return replacementAdminRow; }
+    public void setReplacementAdminRow(boolean replacementAdminRow) { this.replacementAdminRow = replacementAdminRow; }
 
     public String getBlockScheduledBy() { return blockScheduledBy; }
     public void setBlockScheduledBy(String blockScheduledBy) { this.blockScheduledBy = blockScheduledBy; }

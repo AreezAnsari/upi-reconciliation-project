@@ -37,4 +37,7 @@ public class AddUserResponse {
     private String createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private String replacementStatus;   // ACTIVE / PERMANENT / null — from ADMIN_REPLACEMENT table
+    private String replacedByUsername;  // replacement user's username
 }

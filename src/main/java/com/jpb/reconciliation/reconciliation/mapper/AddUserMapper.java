@@ -22,7 +22,7 @@ public class AddUserMapper {
                 .role(AddUser.Role.valueOf(req.getRole().toUpperCase()))
                 .roleType(req.getRoleType() != null ? req.getRoleType() : "RECON_USER")
                 .passwordSet(0)
-                .status(AddUser.UserStatus.ACTIVE)
+                .status(AddUser.UserStatus.REQUEST)
                 .createdBy(createdBy)
                 .bankCode(bankCode)
                 .branchCode(branchCode)

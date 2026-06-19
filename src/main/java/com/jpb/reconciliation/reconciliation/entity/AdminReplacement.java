@@ -24,8 +24,22 @@ public class AdminReplacement {
     @Column(name = "ORIGINAL_ENTITY_ID", nullable = false)
     private Long originalEntityId;
 
+    // 0 = sentinel for PENDING records (no replacement created yet); real IDs are > 0
     @Column(name = "REPLACEMENT_ENTITY_ID", nullable = false)
     private Long replacementEntityId;
+
+    // Pending replacement data — populated when status=PENDING, null after finalization
+    @Column(name = "PENDING_EMAIL", length = 255)
+    private String pendingEmail;
+
+    @Column(name = "PENDING_FULL_NAME", length = 255)
+    private String pendingFullName;
+
+    @Column(name = "PENDING_MOBILE", length = 50)
+    private String pendingMobile;
+
+    @Column(name = "PENDING_ORDERED_BY", length = 500)
+    private String pendingOrderedBy;
 
     @Column(name = "REASON", length = 500)
     private String reason;
@@ -81,4 +95,16 @@ public class AdminReplacement {
 
     public String getFinalizedBy() { return finalizedBy; }
     public void setFinalizedBy(String finalizedBy) { this.finalizedBy = finalizedBy; }
+
+    public String getPendingEmail() { return pendingEmail; }
+    public void setPendingEmail(String pendingEmail) { this.pendingEmail = pendingEmail; }
+
+    public String getPendingFullName() { return pendingFullName; }
+    public void setPendingFullName(String pendingFullName) { this.pendingFullName = pendingFullName; }
+
+    public String getPendingMobile() { return pendingMobile; }
+    public void setPendingMobile(String pendingMobile) { this.pendingMobile = pendingMobile; }
+
+    public String getPendingOrderedBy() { return pendingOrderedBy; }
+    public void setPendingOrderedBy(String pendingOrderedBy) { this.pendingOrderedBy = pendingOrderedBy; }
 }

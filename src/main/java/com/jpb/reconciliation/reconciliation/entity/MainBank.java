@@ -177,7 +177,7 @@ public class MainBank {
     @Column(name = "token_expiry")
     private LocalDateTime tokenExpiry;
 
-    // ── Super User Credentials ────────────────────────────────────────────────
+    // ── Bank Admin Credentials ────────────────────────────────────────────────
     @Column(name = "bank_admin_id", length = 100)
     private String bankAdminId;
 

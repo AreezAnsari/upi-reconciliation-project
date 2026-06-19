@@ -5,10 +5,15 @@ import com.jpb.reconciliation.reconciliation.dto.AddUserResponse;
 import com.jpb.reconciliation.reconciliation.dto.AdminContext;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
+import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.mapper.AddUserMapper;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
+import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,10 +32,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AddUserServiceImpl implements AddUserService {
 
-    private final AddUserRepository    userRepository;
-    private final AdminContextResolver contextResolver;
-    private final PasswordEncoder      passwordEncoder;
-    private final EmailService         emailService;
+    private final AddUserRepository        userRepository;
+    private final AdminContextResolver     contextResolver;
+    private final PasswordEncoder          passwordEncoder;
+    private final EmailService             emailService;
+    private final BranchBankRepository     branchBankRepository;
+    private final BranchAdminRepository    branchAdminRepository;
+    private final AdminReplacementRepository replacementRepository;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
 
     @Override
     public RestWithStatusList createUser(AddUserRequest request, Authentication authentication) {
@@ -49,11 +60,15 @@ public class AddUserServiceImpl implements AddUserService {
 
             String rawPassword = generateDefaultPassword();
 
+            // Bank Admin → bankCode only; Branch Admin → bankCode (parent) + branchCode (both)
+            String storedBankCode   = ctx.getBankCode();
+            String storedBranchCode = ctx.getBranchCode();
+
             AddUser user = AddUserMapper.toEntity(
                     request,
                     ctx.getUsername(),
-                    ctx.getBankCode(),
-                    ctx.getBranchCode(),
+                    storedBankCode,
+                    storedBranchCode,
                     passwordEncoder.encode(rawPassword) // BCrypt stored, same as MainBankServiceImpl
             );
             userRepository.save(user);
@@ -61,6 +76,29 @@ public class AddUserServiceImpl implements AddUserService {
             log.info("User created → id={}, username={}, createdBy={}, bankCode={}, branchCode={}",
                     user.getId(), user.getUsername(), user.getCreatedBy(),
                     user.getBankCode(), user.getBranchCode());
+
+            // Send welcome email with credentials (same flow as admin onboarding)
+            // Bank user  : ?bankCode=BANK_CODE
+            // Branch user: ?bankCode=BANK_CODE&branchCode=BRANCH_CODE
+            String verifyLink = user.getBranchCode() != null
+                    ? frontendUrl + "/user-verify?bankCode=" + user.getBankCode()
+                            + "&branchCode=" + user.getBranchCode()
+                            + "&username=" + user.getUsername() + "&mode=verify"
+                    : frontendUrl + "/user-verify?bankCode=" + user.getBankCode()
+                            + "&username=" + user.getUsername() + "&mode=verify";
+            // Code shown in email: Branch Code for branch user, Bank Code for bank user
+            boolean isBranchUser = user.getBranchCode() != null;
+            String displayCode  = isBranchUser ? user.getBranchCode() : user.getBankCode();
+            String codeLabel    = isBranchUser ? "Branch Code" : "Bank Code";
+            emailService.sendUserWelcome(
+                    user.getEmail(),
+                    user.getFullName(),
+                    displayCode,
+                    codeLabel,
+                    user.getUsername(),
+                    rawPassword,
+                    verifyLink
+            );
 
             return RestWithStatusList.builder()
                     .status("SUCCESS")
@@ -81,8 +119,15 @@ public class AddUserServiceImpl implements AddUserService {
     @Override
     public RestWithStatusList getUsersByCreator(Authentication authentication) {
         AdminContext ctx = contextResolver.resolve(authentication);
-        List<AddUserResponse> users = userRepository.findByCreatedBy(ctx.getUsername())
-                .stream()
+        List<AddUser> rawUsers;
+        if (ctx.getBranchCode() != null) {
+            rawUsers = userRepository.findByBranchCode(ctx.getBranchCode());
+        } else if (ctx.getBankCode() != null) {
+            rawUsers = userRepository.findByBankCodeAndBranchCodeIsNull(ctx.getBankCode());
+        } else {
+            rawUsers = userRepository.findByCreatedBy(ctx.getUsername());
+        }
+        List<AddUserResponse> users = rawUsers.stream()
                 .map(AddUserMapper::toResponse)
                 .collect(Collectors.toList());
         return RestWithStatusList.builder()
@@ -145,15 +190,60 @@ public class AddUserServiceImpl implements AddUserService {
                     .data(Collections.emptyList())
                     .build();
         }
-        List<AddUserResponse> users = userRepository.findByBranchCode(branchCode)
-                .stream()
-                .map(AddUserMapper::toResponse)
-                .collect(Collectors.toList());
+
+        // Hierarchy hiding: if BranchAdmin has an active replacement, hide users
+        try {
+            branchBankRepository.findByBranchCode(branchCode).ifPresent(branch -> {
+                if (branch.getBranchAdminId() != null) {
+                    branchAdminRepository.findByBranchCodeAndUsername(
+                            branchCode, branch.getBranchAdminId())
+                        .ifPresent(ba -> {
+                            java.util.List<AdminReplacement> recs = replacementRepository
+                                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                            ba.getId(), "BRANCH_ADMIN",
+                                            Arrays.asList("ACTIVE", "PERMANENT"));
+                            if (!recs.isEmpty()) {
+                                throw new HierarchyHiddenException();
+                            }
+                        });
+                }
+            });
+        } catch (HierarchyHiddenException e) {
+            return RestWithStatusList.builder()
+                    .status("SUCCESS")
+                    .statusMsg("Users fetched successfully")
+                    .data(Collections.emptyList())
+                    .build();
+        } catch (Exception e) {
+            log.warn("getUsersByBranchCode: hierarchy-hide check failed for {}: {}", branchCode, e.getMessage());
+        }
+
+        // Fetch users and enrich with replacement info
+        List<AddUser> rawUsers = userRepository.findByBranchCode(branchCode);
+        List<AddUserResponse> users = new java.util.ArrayList<>();
+        for (AddUser u : rawUsers) {
+            AddUserResponse resp = AddUserMapper.toResponse(u);
+            java.util.List<AdminReplacement> recs = replacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                            u.getId(), "USER", Arrays.asList("ACTIVE", "PERMANENT"));
+            if (!recs.isEmpty()) {
+                AdminReplacement rec = recs.get(0);
+                resp.setReplacementStatus(rec.getStatus());
+                userRepository.findById(rec.getReplacementEntityId())
+                        .ifPresent(rep -> resp.setReplacedByUsername(rep.getUsername()));
+            }
+            users.add(resp);
+        }
+
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Users fetched successfully")
                 .data(new java.util.ArrayList<>(users))
                 .build();
+    }
+
+    private static class HierarchyHiddenException extends RuntimeException {
+        HierarchyHiddenException() { super("hierarchy-hidden"); }
     }
 
     @Override
@@ -205,8 +295,18 @@ public class AddUserServiceImpl implements AddUserService {
     @Override
     public RestWithStatusList searchByCreator(Authentication authentication, String term) {
         AdminContext ctx = contextResolver.resolve(authentication);
-        List<AddUserResponse> users = userRepository.searchByCreator(ctx.getUsername(), term)
-                .stream()
+        List<AddUser> rawUsers;
+        if (ctx.getBranchCode() != null) {
+            rawUsers = userRepository.findByBranchCode(ctx.getBranchCode());
+        } else if (ctx.getBankCode() != null) {
+            rawUsers = userRepository.findByBankCodeAndBranchCodeIsNull(ctx.getBankCode());
+        } else {
+            rawUsers = userRepository.findByCreatedBy(ctx.getUsername());
+        }
+        String lowerTerm = term != null ? term.toLowerCase() : "";
+        List<AddUserResponse> users = rawUsers.stream()
+                .filter(u -> (u.getUsername() != null && u.getUsername().toLowerCase().contains(lowerTerm))
+                          || (u.getEmail() != null && u.getEmail().toLowerCase().contains(lowerTerm)))
                 .map(AddUserMapper::toResponse)
                 .collect(Collectors.toList());
         return RestWithStatusList.builder()
@@ -232,6 +332,7 @@ public class AddUserServiceImpl implements AddUserService {
         user.setReactivateScheduledAt(null);
         user.setReactivateScheduledBy(null);
         userRepository.save(user);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         String inactivateAt = user.getInactivateScheduledAt()
                 .plusSeconds(30)  // DEMO: 30s — production: plusMinutes(30)
@@ -261,6 +362,19 @@ public class AddUserServiceImpl implements AddUserService {
         user.setInactivateScheduledBy(null);
         userRepository.save(user);
 
+        // Cancel any pending replacement since inactivation was undone
+        try {
+            Optional<AdminReplacement> pendingRep = replacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatus(user.getId(), "USER", "PENDING");
+            if (pendingRep.isPresent()) {
+                pendingRep.get().setStatus("CANCELLED");
+                replacementRepository.save(pendingRep.get());
+                log.info("[UNDO-INACTIVATE] Cancelled PENDING replacement for user {} due to undo", user.getUsername());
+            }
+        } catch (Exception e) {
+            log.warn("[UNDO-INACTIVATE] Failed to cancel pending replacement for {}: {}", user.getUsername(), e.getMessage());
+        }
+
         try {
             if (user.getEmail() != null) {
                 emailService.sendInactivateCancelled(user.getEmail(),
@@ -287,6 +401,7 @@ public class AddUserServiceImpl implements AddUserService {
         user.setInactivateScheduledAt(null);
         user.setInactivateScheduledBy(null);
         userRepository.save(user);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         String reactivateAt = user.getReactivateScheduledAt()
                 .plusSeconds(30)  // DEMO: 30s — production: plusHours(1)

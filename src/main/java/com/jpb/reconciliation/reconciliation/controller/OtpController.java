@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.controller;
 
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.MainAdminService;
@@ -41,6 +42,9 @@ public class OtpController {
 
     @Autowired
     private BranchAdminRepository branchAdminRepository;
+
+    @Autowired
+    private BranchBankRepository branchBankRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -100,46 +104,62 @@ public class OtpController {
 
         if (result == OtpVerifyResult.SUCCESS) {
 
-            // ── JWT generate karo email se ──
+            // ── Bank status → ACTIVE (first login ke baad) ──
+            try {
+                mainAdminService.activateBank(email);
+            } catch (Exception e) {
+                System.out.println("Warning: Could not activate bank for "
+                    + email + ": " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            // ── Resolve bankCode, branchCode, and JWT subject by email ──
+            // Bank Admin  → subject = email   (MainAdmin lookup uses email)
+            // Branch Admin → subject = username (avoids collision with BANK_ADMIN email records)
+            String resolvedBankCode   = null;
+            String resolvedBranchCode = null;
+            String jwtSubject         = email; // default for Bank Admin
+
+            java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> mainBankOpt =
+                    mainBankRepository.findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED");
+            if (mainBankOpt.isPresent()) {
+                resolvedBankCode = mainBankOpt.get().getBankCode();
+            } else {
+                java.util.Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> baOpt =
+                        branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
+                if (baOpt.isPresent()) {
+                    resolvedBranchCode = baOpt.get().getBranchCode();
+                    resolvedBankCode = branchBankRepository.findByBranchCode(resolvedBranchCode)
+                            .map(bb -> mainBankRepository.findById(bb.getParentBankId())
+                                    .map(bnk -> bnk.getBankCode())
+                                    .orElse(null))
+                            .orElse(null);
+                    jwtSubject = baOpt.get().getUsername(); // Branch Admin: username as subject
+                }
+            }
+            logger.info("[OTP-VERIFY] bankCode={} branchCode={} jwtSubject={} for {}",
+                    resolvedBankCode, resolvedBranchCode, jwtSubject, maskEmail(email));
+
+            // ── JWT generate karo resolved subject se ──
             UserDetails userDetails = User.builder()
-                    .username(email)
+                    .username(jwtSubject)
                     .password("")
                     .authorities(new ArrayList<>())
                     .build();
 
             String accessToken  = jwtHelper.generateToken(userDetails);
-            String refreshToken = jwtHelper.generateTokenForRefresh(email);
-
-            // ── Bank status → ACTIVE (first login ke baad) ──
-            try {
-                mainAdminService.activateBank(email);
-            } catch (Exception e) {
-                // Abhi ye silently fail ho rha hai — status ACTIVE nhi hoti
-                System.out.println("Warning: Could not activate bank for "
-                    + email + ": " + e.getMessage());
-                e.printStackTrace(); // ← ye add karo taaki full stack trace dikhe
-            }
-
-            // ── Fetch bank code by email — try MainBank first, then BranchAdmin ──
-            // Use findFirstByPrimaryEmailAndStatusNot to skip BLOCKED old records
-            // (re-onboarding creates 2 rows with the same email — BLOCKED old + active new)
-            String bankCode = mainBankRepository
-                    .findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED")
-                    .map(bnk -> bnk.getBankCode())
-                    .orElseGet(() ->
-                        branchAdminRepository.findFirstByEmail(email)
-                            .map(ba -> ba.getBranchCode())
-                            .orElse(null)
-                    );
-            logger.info("[OTP-VERIFY] bankCode resolved for {}: {}", maskEmail(email), bankCode);
+            String refreshToken = jwtHelper.generateTokenForRefresh(jwtSubject);
 
             Map<String, Object> res = new HashMap<>();
-            res.put("success",         true);
-            res.put("message",         "OTP verified successfully.");
-            res.put("accessToken",     accessToken);
-            res.put("refreshToken",    refreshToken);
-            res.put("email",           email);
-            res.put("bankCode", bankCode); // ← "47050033" → frontend stores first 4 as prefix
+            res.put("success",      true);
+            res.put("message",      "OTP verified successfully.");
+            res.put("accessToken",  accessToken);
+            res.put("refreshToken", refreshToken);
+            res.put("email",        email);
+            res.put("bankCode",     resolvedBankCode);
+            if (resolvedBranchCode != null) {
+                res.put("branchCode", resolvedBranchCode);
+            }
 
             return ResponseEntity.ok(res);
 
@@ -226,7 +246,7 @@ public class OtpController {
             String password = request.get("password");
 
             System.out.println("======================================");
-            System.out.println("SUPER USER PASSWORD SET");
+            System.out.println("Bank Admin PASSWORD SET");
             System.out.println("Bank ID  : " + bankId);
             System.out.println("Username : " + username);
             System.out.println("Email    : " + email);

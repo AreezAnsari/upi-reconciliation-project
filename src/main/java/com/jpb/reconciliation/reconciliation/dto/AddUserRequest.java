@@ -39,7 +39,7 @@ public class AddUserRequest {
     private String mobileNumber;
 
     @NotBlank(message = "Role is required")
-    @Pattern(regexp = "MAKER|CHECKER|WORKER|AUDITOR|IT_OPS|SUPERVISOR|RCC_CXO", message = "Invalid role value")
+    @Pattern(regexp = "MAKER|CHECKER|WORKER|AUDITOR|IT_OPS|SUPERVISOR|RCC_CXO|DEFAULT", message = "Invalid role value")
     private String role;
 
     private String roleType;

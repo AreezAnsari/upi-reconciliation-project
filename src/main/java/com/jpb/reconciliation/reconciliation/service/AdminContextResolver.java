@@ -36,7 +36,9 @@ public class AdminContextResolver {
      */
     public boolean isAllowed(Authentication auth) {
         String principal = auth.getName();
-        return findMainAdmin(principal) != null || findBranchAdmin(principal) != null;
+        return findMainAdmin(principal) != null
+            || branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED").isPresent()
+            || branchAdminRepository.findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED").isPresent();
     }
 
     /**
@@ -47,15 +49,38 @@ public class AdminContextResolver {
     public AdminContext resolve(Authentication auth) {
         String principal = auth.getName();
 
-        MainAdmin bankAdmin = findMainAdmin(principal);
-        if (bankAdmin != null) {
-            return new AdminContext(bankAdmin.getUsername(), bankAdmin.getBankCode(), null);
+        // Step 1: Bank Admin JWT subject = email — check MainAdmin by email first.
+        // This must come before any BranchAdmin lookup to prevent a bank admin's
+        // email from accidentally matching a BranchAdmin email record.
+        Optional<MainAdmin> bankAdminByEmail = mainAdminRepository.findFirstByEmail(principal);
+        if (bankAdminByEmail.isPresent()) {
+            MainAdmin ba = bankAdminByEmail.get();
+            return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
         }
 
-        BranchAdmin branchAdmin = findBranchAdmin(principal);
-        if (branchAdmin != null) {
-            String bankCode = resolveBankCodeFromBranch(branchAdmin.getBranchCode());
-            return new AdminContext(branchAdmin.getUsername(), bankCode, branchAdmin.getBranchCode());
+        // Step 2: Branch Admin JWT subject = username — check BranchAdmin by username.
+        Optional<BranchAdmin> branchByUsername = branchAdminRepository
+                .findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED");
+        if (branchByUsername.isPresent()) {
+            BranchAdmin ba = branchByUsername.get();
+            String bankCode = resolveBankCodeFromBranch(ba.getBranchCode());
+            return new AdminContext(ba.getUsername(), bankCode, ba.getBranchCode());
+        }
+
+        // Step 3: MainAdmin by username (fallback)
+        Optional<MainAdmin> bankAdminByUsername = mainAdminRepository.findFirstByUsername(principal);
+        if (bankAdminByUsername.isPresent()) {
+            MainAdmin ba = bankAdminByUsername.get();
+            return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
+        }
+
+        // Step 4: BranchAdmin by email (edge case fallback)
+        Optional<BranchAdmin> branchByEmail = branchAdminRepository
+                .findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED");
+        if (branchByEmail.isPresent()) {
+            BranchAdmin ba = branchByEmail.get();
+            String bankCode = resolveBankCodeFromBranch(ba.getBranchCode());
+            return new AdminContext(ba.getUsername(), bankCode, ba.getBranchCode());
         }
 
         throw new IllegalStateException(
@@ -71,9 +96,9 @@ public class AdminContextResolver {
     }
 
     private BranchAdmin findBranchAdmin(String principal) {
-        Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmail(principal);
+        Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED");
         if (byEmail.isPresent()) return byEmail.get();
-        return branchAdminRepository.findFirstByUsername(principal).orElse(null);
+        return branchAdminRepository.findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED").orElse(null);
     }
 
     private String resolveBankCodeFromBranch(String branchCode) {

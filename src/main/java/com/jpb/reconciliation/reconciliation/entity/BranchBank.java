@@ -192,7 +192,7 @@ public class BranchBank {
     @Column(name = "token_expiry")
     private LocalDateTime tokenExpiry;
 
-    // ── Super User Credentials ────────────────────────────────────────────────
+    // ── Branch Admin Credentials ────────────────────────────────────────────────
     @Column(name = "branch_admin_id", length = 100)
     private String branchAdminId;
 

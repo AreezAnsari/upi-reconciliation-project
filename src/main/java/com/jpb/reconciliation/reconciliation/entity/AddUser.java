@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class AddUser {
 
     public enum Role {
-        MAKER, CHECKER, WORKER, AUDITOR, IT_OPS, SUPERVISOR, RCC_CXO
+        MAKER, CHECKER, WORKER, AUDITOR, IT_OPS, SUPERVISOR, RCC_CXO, DEFAULT
     }
 
     public enum UserType {
@@ -24,7 +24,7 @@ public class AddUser {
     }
 
     public enum UserStatus {
-        REQUEST, ACTIVE, INACTIVE_PENDING, INACTIVE, ACTIVE_PENDING, BLOCK_PENDING, BLOCK, RETIRED
+        REQUEST, VERIFIED, ACTIVE, INACTIVE_PENDING, INACTIVE, ACTIVE_PENDING, BLOCK_PENDING, BLOCK, RETIRED
     }
 
     @Id

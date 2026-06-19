@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,8 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
 
     List<AddUser> findByBranchCode(String branchCode);
 
+    List<AddUser> findByBankCodeAndBranchCodeIsNull(String bankCode);
+
     @Query("SELECT u FROM AddUser u WHERE u.createdBy = :createdBy AND " +
            "(LOWER(u.username) LIKE LOWER(CONCAT('%', :term, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :term, '%')))")
@@ -35,4 +38,7 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
     List<AddUser> findByStatusAndInactivateScheduledAtBefore(AddUser.UserStatus status, LocalDateTime cutoff);
     List<AddUser> findByStatusAndReactivateScheduledAtBefore(AddUser.UserStatus status, LocalDateTime cutoff);
     List<AddUser> findByStatusAndBlockScheduledAtBefore(AddUser.UserStatus status, LocalDateTime cutoff);
+
+    // Quick existence check — used as scheduler pre-check to avoid full queries when nothing is pending
+    boolean existsByStatusIn(Collection<AddUser.UserStatus> statuses);
 }

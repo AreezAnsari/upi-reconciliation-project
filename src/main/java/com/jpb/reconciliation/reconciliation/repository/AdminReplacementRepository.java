@@ -4,6 +4,8 @@ import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -17,4 +19,11 @@ public interface AdminReplacementRepository extends JpaRepository<AdminReplaceme
 
     Optional<AdminReplacement> findByReplacementEntityIdAndEntityTypeAndStatus(
             Long replacementEntityId, String entityType, String status);
+
+    boolean existsByReplacementEntityIdAndEntityTypeAndStatus(
+            Long replacementEntityId, String entityType, String status);
+
+    // Returns any ACTIVE or PERMANENT replacement record for the given original entity
+    List<AdminReplacement> findByOriginalEntityIdAndEntityTypeAndStatusIn(
+            Long originalEntityId, String entityType, Collection<String> statuses);
 }

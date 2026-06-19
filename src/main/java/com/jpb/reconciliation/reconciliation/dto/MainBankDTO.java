@@ -23,6 +23,9 @@ public class MainBankDTO {
     private String preBlockStatus;          // status before block was scheduled
     private String bankAdminId;             // bank admin username (e.g. areez.ansari)
     private String adminStatus;             // status from Bank_Admin table (MainAdmin.status)
+    private String replacementStatus;       // ACTIVE / PERMANENT / null — from ADMIN_REPLACEMENT table
+    private String replacedByUsername;      // replacement admin's username
+    private boolean replacementAdminRow;    // true = this row represents the replacement admin (not the original)
 
     // ─── Step 1: Bank Details ────────────────────────────────────────
     private String bankNameFull;   // required
@@ -135,6 +138,15 @@ public class MainBankDTO {
 
     public String getAdminStatus() { return adminStatus; }
     public void setAdminStatus(String adminStatus) { this.adminStatus = adminStatus; }
+
+    public String getReplacementStatus() { return replacementStatus; }
+    public void setReplacementStatus(String replacementStatus) { this.replacementStatus = replacementStatus; }
+
+    public String getReplacedByUsername() { return replacedByUsername; }
+    public void setReplacedByUsername(String replacedByUsername) { this.replacedByUsername = replacedByUsername; }
+
+    public boolean isReplacementAdminRow() { return replacementAdminRow; }
+    public void setReplacementAdminRow(boolean replacementAdminRow) { this.replacementAdminRow = replacementAdminRow; }
 
     public String getBankNameFull() { return bankNameFull; }
     public void setBankNameFull(String bankNameFull) { this.bankNameFull = bankNameFull; }

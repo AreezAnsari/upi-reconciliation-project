@@ -22,7 +22,7 @@ public class AdminReplacementController {
     @Autowired
     private AdminReplacementService adminReplacementService;
 
-    @Operation(summary = "Replace an INACTIVE admin or user with a new one")
+    @Operation(summary = "Replace an INACTIVE admin or user with a new one (immediate)")
     @PostMapping(value = "/replace", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> replace(
             @RequestBody AdminReplacementRequest request,
@@ -32,5 +32,24 @@ public class AdminReplacementController {
         logger.info("Replacement request: entityType={}, originalId={}, by={}",
                 request.getEntityType(), request.getOriginalEntityId(), replacedBy);
         return adminReplacementService.replace(request, replacedBy);
+    }
+
+    @Operation(summary = "Validate replacement email — lightweight check, no DB write")
+    @PostMapping(value = "/validate-email", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> validateEmail(
+            @RequestBody AdminReplacementRequest request) {
+        return adminReplacementService.validateReplacementEmail(request);
+    }
+
+    @Operation(summary = "Schedule a pending replacement — admin entity created only after INACTIVE transition")
+    @PostMapping(value = "/schedule-pending", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> schedulePending(
+            @RequestBody AdminReplacementRequest request,
+            Authentication authentication) {
+        String scheduledBy = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        logger.info("Pending replacement scheduled: entityType={}, originalId={}, by={}",
+                request.getEntityType(), request.getOriginalEntityId(), scheduledBy);
+        return adminReplacementService.schedulePendingReplacement(request, scheduledBy);
     }
 }

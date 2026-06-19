@@ -13,10 +13,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.CustomUserDetail;
 import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
+import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
@@ -34,6 +36,9 @@ public class CustomUserDetailService implements UserDetailsService {
 
 	@Autowired
 	private BranchAdminRepository branchAdminRepository;
+
+	@Autowired
+	private AddUserRepository addUserRepository;
 
 	/**
 	 * Called by JwtAuthenticationFilter to validate every request's Bearer token.
@@ -104,6 +109,18 @@ public class CustomUserDetailService implements UserDetailsService {
 					.password(ba.getPassword() != null ? ba.getPassword() : "")
 					.authorities(Collections.singletonList(
 							new SimpleGrantedAuthority("ROLE_BRANCH_ADMIN")))
+					.build();
+		}
+
+		// ── Step 7: Org user (AddUser) — by username ──
+		Optional<AddUser> addUserOpt = addUserRepository.findByUsername(username);
+		if (addUserOpt.isPresent()) {
+			AddUser au = addUserOpt.get();
+			logger.debug("loadUserByUsername — org-user found by username: {}", username);
+			return User.builder()
+					.username(au.getUsername())
+					.password(au.getDefaultPassword() != null ? au.getDefaultPassword() : "")
+					.authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")))
 					.build();
 		}
 

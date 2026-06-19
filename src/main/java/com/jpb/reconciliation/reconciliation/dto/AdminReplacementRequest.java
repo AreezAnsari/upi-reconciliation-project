@@ -11,6 +11,7 @@ public class AdminReplacementRequest {
     private String newEmail;
     private String newUsername;
     private String reason;
+    private String orderedBy;
 
     // USER-only fields
     private String fullName;
@@ -38,6 +39,9 @@ public class AdminReplacementRequest {
 
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+
+    public String getOrderedBy() { return orderedBy; }
+    public void setOrderedBy(String orderedBy) { this.orderedBy = orderedBy; }
 
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }

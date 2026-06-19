@@ -17,17 +17,17 @@ public interface EmailService {
     void sendForgotPasswordOtp(String toEmail, String userName, String otpCode, int expiryMins);
 
     /**
-     * Send welcome email to Bank's Primary Contact (Super User)
+     * Send welcome email to Bank's Primary Contact (Bank Admin)
      * after KalInfotech Admin successfully onboards the bank.
-     * Includes: Bank Code, Super User ID, Default Password, Verify Link.
+     * Includes: Bank Code, Bank Admin ID, Default Password, Verify Link.
      */
     void sendBankAdminWelcome(String toEmail, String superUserName,
                               String bankName, String bankCode,
-                              String superUserId, String defaultPassword,
+                              String BankAdminId, String defaultPassword,
                               String verifyLink);
 
     /**
-     * Send status change notification email to Bank's Super User
+     * Send status change notification email to Bank's Admin
      * whenever KalInfotech Admin changes the bank status.
      * e.g. ACTIVE → INACTIVE, BLOCKED, etc.
      */
@@ -46,7 +46,7 @@ public interface EmailService {
                                             String parentBankName, String parentBankCode);
 
     /**
-     * Send block warning email to Bank's Super User when admin schedules permanent block.
+     * Send block warning email to Bank's Admin when admin schedules permanent block.
      * Tells them: account will be permanently blocked in 24 hours, contact admin to cancel.
      */
     void sendBlockWarning(String toEmail, String superUserName,
@@ -54,7 +54,7 @@ public interface EmailService {
                           String blockAt);
 
     /**
-     * Send block cancelled email to Bank's Super User when admin undoes block.
+     * Send block cancelled email to Bank's Admin when admin undoes block.
      */
     void sendBlockCancelled(String toEmail, String superUserName,
                             String bankName, String bankCode,
@@ -131,13 +131,46 @@ public interface EmailService {
 
     /**
      * Sent to the outgoing (original) admin/user when they are replaced.
+     * replacementFullName and replacementEmail describe who has taken over.
+     * orderedBy is who authorised the replacement (from the HandoverModal form).
      */
     void sendReplacementOutgoingNotification(String toEmail, String contactName,
-                                             String entityCode, String replacedBy, String reason);
+                                             String entityCode, String replacedBy, String reason,
+                                             String replacementFullName, String replacementEmail,
+                                             String orderedBy);
 
     /**
      * Sent to the incoming (replacement) admin/user with their login credentials.
      */
     void sendReplacementWelcome(String toEmail, String contactName,
                                 String entityCode, String username, String tempPassword);
+
+    /**
+     * Sent to replacement MainAdmin or BranchAdmin — onboarding-style email with verify link.
+     * Includes: Bank Code, User ID, Default Password, Verify Email & Set Password button.
+     */
+    void sendReplacementAdminWelcome(String toEmail, String contactName,
+                                     String bankCode, String userId,
+                                     String defaultPassword, String verifyLink);
+
+    /**
+     * Sent to the temporary replacement (B) when original admin (A) is reactivated
+     * and B's tenure ends automatically.
+     */
+    void sendReplacementTenureEnded(String toEmail, String contactName);
+
+    /**
+     * Sent to replacement (B) when original admin (A) is permanently blocked —
+     * B is now the permanent admin.
+     */
+    void sendReplacementBecamePermanent(String toEmail, String contactName);
+
+    /**
+     * Sent to a newly created user (REC_USER) after an admin adds them via AddUser.
+     * Includes: Bank Code or Branch Code (codeLabel), Username, Default Password, Verify Link.
+     * verifyLink points to /user-verify?bankCode=&username= (branch users also get &branchCode=)
+     */
+    void sendUserWelcome(String toEmail, String fullName,
+                         String code, String codeLabel, String username,
+                         String defaultPassword, String verifyLink);
 }

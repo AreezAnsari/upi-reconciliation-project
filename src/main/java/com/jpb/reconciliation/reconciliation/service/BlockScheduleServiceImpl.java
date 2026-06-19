@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,11 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
+import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
@@ -49,6 +52,29 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
 
     @Autowired
     private EmailService emailService;
+
+    @Autowired
+    private AdminReplacementRepository adminReplacementRepository;
+
+    @Autowired
+    private AdminReplacementService adminReplacementService;
+
+    // Set to true when any pending status is scheduled anywhere in the app.
+    // The scheduler checks this before touching the DB — 0 queries when idle.
+    static volatile boolean hasPendingWork = false;
+
+    public static void flagPendingWork() {
+        hasPendingWork = true;
+    }
+
+    @javax.annotation.PostConstruct
+    public void initPendingFlag() {
+        hasPendingWork =
+            addUserRepository.existsByStatusIn(Arrays.asList(
+                AddUser.UserStatus.INACTIVE_PENDING, AddUser.UserStatus.ACTIVE_PENDING, AddUser.UserStatus.BLOCK_PENDING)) ||
+            mainAdminRepository.existsByStatusIn(Arrays.asList("INACTIVE_PENDING", "ACTIVE_PENDING", "BLOCK_PENDING")) ||
+            branchAdminRepository.existsByStatusIn(Arrays.asList("INACTIVE_PENDING", "ACTIVE_PENDING", "BLOCK_PENDING"));
+    }
 
     // ─────────────────────────────────────────────
     // SCHEDULE BLOCK — Admin ne "Yes" kiya block popup mein
@@ -145,6 +171,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         } catch (Exception e) {
             logger.warn("scheduleBlock: user cascade failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
         }
+        hasPendingWork = true;
         logger.info("Block scheduled for bank {} by {} at {}",
                 bankId, scheduledBy, bnk.getBlockScheduledAt());
 
@@ -153,17 +180,17 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                 .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
                 .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
 
-        // ── Send warning email to Bank Super User ──
+        // ── Send warning email to Bank Admin ──
         try {
             if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
                 emailService.sendBlockWarning(
                         bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Super User",
+                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Bank Admin",
                         bnk.getBankNameFull(),
                         bnk.getBankCode(),
                         blockAtFormatted
                 );
-                logger.info("[BLOCK-WARN] Warning email sent to bank super user: {}", bnk.getPrimaryEmail());
+                logger.info("[BLOCK-WARN] Warning email sent to Bank Admin: {}", bnk.getPrimaryEmail());
             }
         } catch (Exception e) {
             logger.warn("[BLOCK-WARN] Warning email failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
@@ -220,17 +247,17 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         }
         logger.info("Block undone for bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);
 
-        // ── Send cancellation email to Bank Super User ──
+        // ── Send cancellation email to Bank Admin ──
         try {
             if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
                 emailService.sendBlockCancelled(
                         bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Super User",
+                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Bank Admin",
                         bnk.getBankNameFull(),
                         bnk.getBankCode(),
                         restoredStatus
                 );
-                logger.info("[UNDO-BLOCK] Cancellation email sent to super user: {}", bnk.getPrimaryEmail());
+                logger.info("[UNDO-BLOCK] Cancellation email sent to Bank Admin: {}", bnk.getPrimaryEmail());
             }
         } catch (Exception e) {
             logger.warn("[UNDO-BLOCK] Cancellation email failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
@@ -247,7 +274,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     // AUTO-BLOCK — Runs every hour, checks 30s/24hr window
     // Permanently blocks banks AND branch banks whose window has passed
     // ─────────────────────────────────────────────
-    @Scheduled(fixedRate = 3600000)   // DEMO: every 5s — change to 3600000 for production (1 hr)
+    @Scheduled(fixedRate = 3600000)   // every 1 hour — change to lower value for demo/testing
     @Transactional
     public void autoBlockScheduledBanks() {
         LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);   // DEMO: 30s — change to minusHours(24) for production
@@ -277,7 +304,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
                         emailService.sendStatusChangeNotification(
                             bnk.getPrimaryEmail(),
-                            bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Super User",
+                            bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Bank Admin",
                             bnk.getBankNameFull(),
                             bnk.getBankCode(),
                             "BLOCK_PENDING",
@@ -316,7 +343,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
                         emailService.sendStatusChangeNotification(
                             bnk.getPrimaryEmail(),
-                            bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Super User",
+                            bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Bank Admin",
                             bnk.getBranchNameFull(),
                             bnk.getBranchCode(),
                             "BLOCK_PENDING",
@@ -338,6 +365,8 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     @Scheduled(fixedRate = 5000)
     @Transactional
     public void autoProcessPendingStatuses() {
+        if (!hasPendingWork) return;
+
         LocalDateTime cutoff = LocalDateTime.now().minusSeconds(30);  // DEMO: 30s window
 
         // ── AddUser: INACTIVE_PENDING → INACTIVE ──
@@ -355,6 +384,17 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-inactivate email failed for user {}: {}", user.getUsername(), e.getMessage());
             }
+            // Finalize any pending replacement now that user is INACTIVE
+            try {
+                Optional<AdminReplacement> pendingRep = adminReplacementRepository
+                        .findByOriginalEntityIdAndEntityTypeAndStatus(user.getId(), "USER", "PENDING");
+                if (pendingRep.isPresent()) {
+                    adminReplacementService.finalizeUserPending(pendingRep.get());
+                    logger.info("Pending replacement finalized for user: {}", user.getUsername());
+                }
+            } catch (Exception e) {
+                logger.warn("Pending replacement finalization failed for user {}: {}", user.getUsername(), e.getMessage());
+            }
         }
 
         // ── AddUser: ACTIVE_PENDING → ACTIVE ──
@@ -366,6 +406,32 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             user.setInactivateScheduledBy(null);
             addUserRepository.save(user);
             logger.info("Auto-reactivated user: {} ({})", user.getUsername(), user.getId());
+            // Auto-INACTIVE the temporary replacement and RESTORE the record
+            Optional<AdminReplacement> activeRep = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatus(user.getId(), "USER", "ACTIVE");
+            if (activeRep.isPresent()) {
+                AdminReplacement rep = activeRep.get();
+                rep.setStatus("RESTORED");
+                adminReplacementRepository.save(rep);
+                if (rep.getReplacementEntityId() > 0L) {
+                    Optional<AddUser> repUserOpt = addUserRepository.findById(rep.getReplacementEntityId());
+                    if (repUserOpt.isPresent()) {
+                        AddUser repUser = repUserOpt.get();
+                        repUser.setStatus(AddUser.UserStatus.INACTIVE);
+                        repUser.setInactivateScheduledAt(null);
+                        repUser.setInactivateScheduledBy(null);
+                        addUserRepository.save(repUser);
+                        logger.info("Auto-inactivated replacement user: {} as original {} reactivated", repUser.getUsername(), user.getUsername());
+                        try {
+                            if (repUser.getEmail() != null) {
+                                emailService.sendReplacementTenureEnded(repUser.getEmail(), repUser.getFullName() != null ? repUser.getFullName() : repUser.getUsername());
+                            }
+                        } catch (Exception ex) {
+                            logger.warn("Tenure-ended email failed for {}: {}", repUser.getUsername(), ex.getMessage());
+                        }
+                    }
+                }
+            }
             try {
                 if (user.getEmail() != null) {
                     emailService.sendReactivatedNotification(user.getEmail(),
@@ -414,6 +480,17 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-inactivate email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
             }
+            // Finalize any pending replacement now that admin is INACTIVE
+            try {
+                Optional<AdminReplacement> pendingRep = adminReplacementRepository
+                        .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "PENDING");
+                if (pendingRep.isPresent()) {
+                    adminReplacementService.finalizeMainAdminPending(pendingRep.get());
+                    logger.info("Pending replacement finalized for bank admin: {}", admin.getUsername());
+                }
+            } catch (Exception e) {
+                logger.warn("Pending replacement finalization failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── MainAdmin (BANK_ADMIN): ACTIVE_PENDING → ACTIVE ──
@@ -427,6 +504,30 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             mainAdminRepository.save(admin);
             logger.info("Auto-reactivated bank admin: {} ({})", admin.getUsername(), admin.getId());
+            // Auto-INACTIVE the temporary replacement and RESTORE the record
+            Optional<AdminReplacement> activeRep = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "ACTIVE");
+            if (activeRep.isPresent()) {
+                AdminReplacement rep = activeRep.get();
+                rep.setStatus("RESTORED");
+                adminReplacementRepository.save(rep);
+                if (rep.getReplacementEntityId() > 0L) {
+                    Optional<MainAdmin> repAdminOpt = mainAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        MainAdmin repAdmin = repAdminOpt.get();
+                        repAdmin.setStatus("INACTIVE");
+                        repAdmin.setUpdatedAt(LocalDateTime.now());
+                        repAdmin.setUpdatedBy("SYSTEM");
+                        mainAdminRepository.save(repAdmin);
+                        logger.info("Auto-inactivated replacement bank admin: {} as original {} reactivated", repAdmin.getUsername(), admin.getUsername());
+                        try {
+                            emailService.sendReplacementTenureEnded(repAdmin.getEmail(), repAdmin.getUsername());
+                        } catch (Exception ex) {
+                            logger.warn("Tenure-ended email failed for {}: {}", repAdmin.getUsername(), ex.getMessage());
+                        }
+                    }
+                }
+            }
             try {
                 Optional<MainBank> bankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
                 String bankName = bankOpt.isPresent() ? bankOpt.get().getBankNameFull() : admin.getBankCode();
@@ -457,6 +558,31 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-block email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
             }
+            // When original is permanently blocked → replacement becomes PERMANENT admin
+            try {
+                Optional<AdminReplacement> activeRepOpt = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "ACTIVE");
+                if (activeRepOpt.isPresent()) {
+                    AdminReplacement rep = activeRepOpt.get();
+                    rep.setStatus("PERMANENT");
+                    adminReplacementRepository.save(rep);
+                    logger.info("Replacement for bank admin {} promoted to PERMANENT", admin.getUsername());
+                    if (rep.getReplacementEntityId() > 0L) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> repAdminOpt =
+                            mainAdminRepository.findById(rep.getReplacementEntityId());
+                        if (repAdminOpt.isPresent()) {
+                            com.jpb.reconciliation.reconciliation.entity.MainAdmin repAdmin = repAdminOpt.get();
+                            try {
+                                emailService.sendReplacementBecamePermanent(repAdmin.getEmail(), repAdmin.getUsername());
+                            } catch (Exception ex) {
+                                logger.warn("Permanent-promotion email failed for {}: {}", repAdmin.getUsername(), ex.getMessage());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Replacement PERMANENT promotion failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── BranchAdmin (BRANCH_ADMIN): INACTIVE_PENDING → INACTIVE ──
@@ -475,6 +601,17 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-inactivate email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
             }
+            // Finalize any pending replacement now that branch admin is INACTIVE
+            try {
+                Optional<AdminReplacement> pendingRep = adminReplacementRepository
+                        .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "BRANCH_ADMIN", "PENDING");
+                if (pendingRep.isPresent()) {
+                    adminReplacementService.finalizeBranchAdminPending(pendingRep.get());
+                    logger.info("Pending replacement finalized for branch admin: {}", admin.getUsername());
+                }
+            } catch (Exception e) {
+                logger.warn("Pending replacement finalization failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
 
         // ── BranchAdmin (BRANCH_ADMIN): ACTIVE_PENDING → ACTIVE ──
@@ -488,6 +625,31 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             admin.setUpdatedBy("SYSTEM");
             branchAdminRepository.save(admin);
             logger.info("Auto-reactivated branch admin: {} ({})", admin.getUsername(), admin.getId());
+            // Auto-INACTIVE the temporary replacement and RESTORE the record
+            Optional<AdminReplacement> activeRep = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "BRANCH_ADMIN", "ACTIVE");
+            if (activeRep.isPresent()) {
+                AdminReplacement rep = activeRep.get();
+                rep.setStatus("RESTORED");
+                adminReplacementRepository.save(rep);
+                if (rep.getReplacementEntityId() > 0L) {
+                    Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> repAdminOpt =
+                        branchAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        com.jpb.reconciliation.reconciliation.entity.BranchAdmin repAdmin = repAdminOpt.get();
+                        repAdmin.setStatus("INACTIVE");
+                        repAdmin.setUpdatedAt(LocalDateTime.now());
+                        repAdmin.setUpdatedBy("SYSTEM");
+                        branchAdminRepository.save(repAdmin);
+                        logger.info("Auto-inactivated replacement branch admin: {} as original {} reactivated", repAdmin.getUsername(), admin.getUsername());
+                        try {
+                            emailService.sendReplacementTenureEnded(repAdmin.getEmail(), repAdmin.getUsername());
+                        } catch (Exception ex) {
+                            logger.warn("Tenure-ended email failed for {}: {}", repAdmin.getUsername(), ex.getMessage());
+                        }
+                    }
+                }
+            }
             try {
                 Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
                 String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
@@ -518,7 +680,39 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-block email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
             }
+            // When original branch admin is permanently blocked → replacement becomes PERMANENT
+            try {
+                Optional<AdminReplacement> activeRepOpt = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "BRANCH_ADMIN", "ACTIVE");
+                if (activeRepOpt.isPresent()) {
+                    AdminReplacement rep = activeRepOpt.get();
+                    rep.setStatus("PERMANENT");
+                    adminReplacementRepository.save(rep);
+                    logger.info("Replacement for branch admin {} promoted to PERMANENT", admin.getUsername());
+                    if (rep.getReplacementEntityId() > 0L) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> repAdminOpt =
+                            branchAdminRepository.findById(rep.getReplacementEntityId());
+                        if (repAdminOpt.isPresent()) {
+                            com.jpb.reconciliation.reconciliation.entity.BranchAdmin repAdmin = repAdminOpt.get();
+                            try {
+                                emailService.sendReplacementBecamePermanent(repAdmin.getEmail(), repAdmin.getUsername());
+                            } catch (Exception ex) {
+                                logger.warn("Permanent-promotion email failed for {}: {}", repAdmin.getUsername(), ex.getMessage());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Replacement PERMANENT promotion failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+            }
         }
+
+        // Reset flag if nothing pending remains — next ticks will be query-free until something is scheduled
+        hasPendingWork =
+            addUserRepository.existsByStatusIn(Arrays.asList(
+                AddUser.UserStatus.INACTIVE_PENDING, AddUser.UserStatus.ACTIVE_PENDING, AddUser.UserStatus.BLOCK_PENDING)) ||
+            mainAdminRepository.existsByStatusIn(Arrays.asList("INACTIVE_PENDING", "ACTIVE_PENDING", "BLOCK_PENDING")) ||
+            branchAdminRepository.existsByStatusIn(Arrays.asList("INACTIVE_PENDING", "ACTIVE_PENDING", "BLOCK_PENDING"));
     }
 
     // ─────────────────────────────────────────────

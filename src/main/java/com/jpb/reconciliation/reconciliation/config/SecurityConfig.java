@@ -54,6 +54,9 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create-user")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create")).permitAll()
 
+                // User Auth (onboarding + login flow — no JWT required)
+                .requestMatchers(new AntPathRequestMatcher("/api/v1/user/auth/**")).permitAll()
+
                 // Google OAuth
                 .requestMatchers(new AntPathRequestMatcher("/authentication/app")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/google")).permitAll()
@@ -101,6 +104,7 @@ public class SecurityConfig {
 
                 // ✅ IMPORTANT FIX FOR OTP VERIFY
                 .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()
+
 
                 .anyRequest().authenticated()
             )

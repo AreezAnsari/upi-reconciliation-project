@@ -38,12 +38,14 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.MainBankDTO;
 import com.jpb.reconciliation.reconciliation.dto.MainBankDTO.ProductDateEntry;
 import com.jpb.reconciliation.reconciliation.dto.BranchBankDTO;
+import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBankProduct;
 import com.jpb.reconciliation.reconciliation.mapper.BranchBankMapper;
 import com.jpb.reconciliation.reconciliation.mapper.MainBankMapper;
 import com.jpb.reconciliation.reconciliation.entity.BranchBankProduct;
+import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
@@ -83,6 +85,9 @@ public class MainBankServiceImpl implements MainBankService {
 
     @Autowired
     private BranchAdminRepository branchAdminRepository;
+
+    @Autowired
+    private AdminReplacementRepository replacementRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -141,8 +146,8 @@ public class MainBankServiceImpl implements MainBankService {
         }
         logger.info("Bank code: {}", bankCode);
 
-        // Generate Super User ID — unique within this bank
-        String superUserId = generateBankAdminId(dto.getPrimaryFullName(), bankCode);
+        // Generate Bank Admin ID — unique within this bank
+        String bankAdminId = generateBankAdminId(dto.getPrimaryFullName(), bankCode);
 
         // Generate Default Password
         String defaultPassword = generateDefaultPassword();
@@ -156,8 +161,8 @@ public class MainBankServiceImpl implements MainBankService {
         bank.setCreatedAt(LocalDateTime.now());
         bank.setCreatedBy(createdBy);  // logged-in admin username from JWT
 
-        // Super User Credentials
-        bank.setBankAdminId(superUserId);
+        // Bank Admin Credentials
+        bank.setBankAdminId(bankAdminId);
         bank.setDefaultPassword(passwordEncoder.encode(defaultPassword)); // BCrypt stored
 
         // Verification Token
@@ -171,7 +176,7 @@ public class MainBankServiceImpl implements MainBankService {
 
         // =========================================================
         // SEND WELCOME EMAIL
-        // BANK_ADMIN insert happens only after Super User sets new password
+        // BANK_ADMIN insert happens only after Bank Admin sets new password
         // =========================================================
 
         String verifyLink =
@@ -179,7 +184,7 @@ public class MainBankServiceImpl implements MainBankService {
                 + "/verify-email?bankCode="
                 + bankCode
                 + "&username="
-                + superUserId;
+                + bankAdminId;
 
         try {
 
@@ -188,7 +193,7 @@ public class MainBankServiceImpl implements MainBankService {
                     dto.getPrimaryFullName(),
                     dto.getBankNameFull(),
                     bankCode,
-                    superUserId,
+                    bankAdminId,
                     defaultPassword,
                     verifyLink
             );
@@ -196,7 +201,7 @@ public class MainBankServiceImpl implements MainBankService {
             logger.info(
                     "Welcome email dispatched to: {} | userId: {} | bank: {}",
                     dto.getPrimaryEmail(),
-                    superUserId,
+                    bankAdminId,
                     dto.getBankNameFull()
             );
 
@@ -213,13 +218,13 @@ public class MainBankServiceImpl implements MainBankService {
                 "Bank created: {} | Code: {} | BankAdminId: {}",
                 dto.getBankNameFull(),
                 bankCode,
-                superUserId
+                bankAdminId
         );
         saveProductDates(bank.getBankId(), dto, createdBy);
 
         List<Object> data = new ArrayList<>();
 
-        // defaultPassword is sent to Super User via email — admin response should not expose it
+        // defaultPassword is sent to Bank Admin via email — admin response should not expose it
         MainBankDTO responseDto = MainBankMapper.mapToDTO(bank);
         responseDto.setDefaultPassword("--");
         data.add(responseDto);
@@ -531,7 +536,7 @@ public class MainBankServiceImpl implements MainBankService {
         bank.setUpdatedAt(LocalDateTime.now());
         mainBankRepository.save(bank);
 
-        // Sync status to BANK_ADMIN (record exists only after Super User sets password)
+        // Sync status to BANK_ADMIN (record exists only after Bank Admin sets password)
         String updatedByUser = getCurrentUsername();
         try {
             mainAdminRepository.findByBankCodeAndUsername(
@@ -550,12 +555,12 @@ public class MainBankServiceImpl implements MainBankService {
 
         logger.info("bank {} status updated: {} → {}", bankId, currentStatus, upperStatus);
 
-        // ── Send status change notification email to Super User ──
+        // ── Send status change notification email to Bank Admin ──
         try {
             if (bank.getPrimaryEmail() != null && !bank.getPrimaryEmail().isEmpty()) {
                 emailService.sendStatusChangeNotification(
                     bank.getPrimaryEmail(),
-                    bank.getPrimaryFullName() != null ? bank.getPrimaryFullName() : "Super User",
+                    bank.getPrimaryFullName() != null ? bank.getPrimaryFullName() : "Bank Admin",
                     bank.getBankNameFull(),
                     bank.getBankCode(),
                     currentStatus,
@@ -722,7 +727,17 @@ public class MainBankServiceImpl implements MainBankService {
             MainBank bank = optional.get();
             MainBankDTO dto = MainBankMapper.mapToDTO(bank);
             mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId())
-                .ifPresent(admin -> dto.setAdminStatus(admin.getStatus()));
+                .ifPresent(admin -> {
+                    // If an active replacement exists, report their status — not the (INACTIVE) original's
+                    Optional<AdminReplacement> activeRep = replacementRepository
+                            .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "ACTIVE");
+                    if (activeRep.isPresent() && activeRep.get().getReplacementEntityId() != null) {
+                        mainAdminRepository.findById(activeRep.get().getReplacementEntityId())
+                                .ifPresent(rep -> dto.setAdminStatus(rep.getStatus()));
+                    } else {
+                        dto.setAdminStatus(admin.getStatus());
+                    }
+                });
             List<Object> data = new ArrayList<>();
             data.add(dto);
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank fetched.", data));
@@ -791,6 +806,42 @@ public class MainBankServiceImpl implements MainBankService {
     // PRIVATE HELPERS
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // REPLACEMENT INFO HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void enrichReplacementInfo(Long originalAdminId, String entityType,
+                                        MainBankDTO dto, Object unused) {
+        java.util.List<AdminReplacement> recs = replacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                        originalAdminId, entityType, Arrays.asList("ACTIVE", "PERMANENT"));
+        if (recs.isEmpty()) return;
+        AdminReplacement rec = recs.get(0);
+        dto.setReplacementStatus(rec.getStatus());
+        try {
+            mainAdminRepository.findById(rec.getReplacementEntityId())
+                .ifPresent(rep -> dto.setReplacedByUsername(rep.getUsername()));
+        } catch (Exception e) {
+            logger.warn("enrichReplacementInfo: could not resolve replacement username: {}", e.getMessage());
+        }
+    }
+
+    private void enrichReplacementInfoBranch(Long originalAdminId, String entityType,
+                                              BranchBankDTO dto) {
+        java.util.List<AdminReplacement> recs = replacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                        originalAdminId, entityType, Arrays.asList("ACTIVE", "PERMANENT"));
+        if (recs.isEmpty()) return;
+        AdminReplacement rec = recs.get(0);
+        dto.setReplacementStatus(rec.getStatus());
+        try {
+            branchAdminRepository.findById(rec.getReplacementEntityId())
+                .ifPresent(rep -> dto.setReplacedByUsername(rep.getUsername()));
+        } catch (Exception e) {
+            logger.warn("enrichReplacementInfoBranch: could not resolve replacement username: {}", e.getMessage());
+        }
+    }
+
     // Bank code: Epoch seconds (last 6 digits) + 2 random digits = always 8 digits
     private String generateBankCode() {
         String code;
@@ -802,7 +853,7 @@ public class MainBankServiceImpl implements MainBankService {
         return code;
     }
 
-    // Super User ID: firstname.lastname — unique within the given bank
+    // Bank Admin ID: firstname.lastname — unique within the given bank
     private String generateBankAdminId(String fullName, String bankCode) {
         if (fullName == null || fullName.trim().isEmpty()) return "user";
 
@@ -958,7 +1009,7 @@ public class MainBankServiceImpl implements MainBankService {
 
             String[] headers = {
                 "S.No", "Bank Code", "Bank Name (Full)",
-                "Bank Name (Short)", "Bank Type", "Super User ID",
+                "Bank Name (Short)", "Bank Type", "Bank Admin ID",
                 "Primary Email", "Primary Mobile", "Status", "Created At"
             };
 
@@ -1018,7 +1069,7 @@ public class MainBankServiceImpl implements MainBankService {
 
         StringBuilder csv = new StringBuilder();
         csv.append("S.No,Bank Code,Bank Name (Full),Bank Name (Short),")
-           .append("Bank Type,Super User ID,Primary Email,Primary Mobile,Status,Created At\n");
+           .append("Bank Type,Bank Admin ID,Primary Email,Primary Mobile,Status,Created At\n");
 
         int sno = 1;
         for (MainBank bnk : banks) {
@@ -1065,26 +1116,62 @@ public class MainBankServiceImpl implements MainBankService {
         List<MainBank> list = mainBankRepository.findByCreatedBy(username);
         List<MainBankDTO> dtos = new ArrayList<>();
         for (MainBank bnk : list) {
-            MainBankDTO dto = MainBankMapper.mapToDTO(bnk);
-            mainAdminRepository.findByBankCodeAndUsername(
-                    bnk.getBankCode(), bnk.getBankAdminId())
-                .ifPresent(admin -> dto.setAdminStatus(admin.getStatus()));
-            List<MainBankProduct> prods = mainBankProductRepository.findByBankId(bnk.getBankId());
-            if (!prods.isEmpty()) {
-                Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
-                for (MainBankProduct p : prods) {
-                    ProductDateEntry entry = new ProductDateEntry();
-                    entry.setValidFrom(p.getValidFrom());
-                    entry.setValidTo(p.getValidTo());
-                    productDates.put(p.getProductName(), entry);
+            final MainBankDTO dto = MainBankMapper.mapToDTO(bnk);
+            Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origAdminOpt =
+                mainAdminRepository.findByBankCodeAndUsername(bnk.getBankCode(), bnk.getBankAdminId());
+            if (origAdminOpt.isPresent()) {
+                com.jpb.reconciliation.reconciliation.entity.MainAdmin origAdmin = origAdminOpt.get();
+                dto.setAdminStatus(origAdmin.getStatus());
+                enrichReplacementInfo(origAdmin.getId(), "MAIN_ADMIN", dto, null);
+
+                // Add a separate row for the active replacement admin
+                List<AdminReplacement> repRecs = replacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                        origAdmin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                if (!repRecs.isEmpty()) {
+                    AdminReplacement repRec = repRecs.get(0);
+                    if (repRec.getReplacementEntityId() != null && repRec.getReplacementEntityId() > 0L) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> repAdminOpt =
+                            mainAdminRepository.findById(repRec.getReplacementEntityId());
+                        if (repAdminOpt.isPresent()) {
+                            com.jpb.reconciliation.reconciliation.entity.MainAdmin repAdmin = repAdminOpt.get();
+                            MainBankDTO repDto = MainBankMapper.mapToDTO(bnk);
+                            repDto.setBankAdminId(repAdmin.getUsername());
+                            repDto.setAdminStatus(repAdmin.getStatus());
+                            repDto.setReplacementAdminRow(true);
+                            repDto.setReplacementStatus(repRec.getStatus());
+                            // Override contact fields with replacement admin's own data
+                            repDto.setPrimaryEmail(repAdmin.getEmail());
+                            String repName = repRec.getPendingFullName() != null && !repRec.getPendingFullName().isEmpty()
+                                ? repRec.getPendingFullName() : repAdmin.getUsername();
+                            repDto.setPrimaryFullName(repName);
+                            if (repRec.getPendingMobile() != null) repDto.setPrimaryMobile(repRec.getPendingMobile());
+                            applyProductDates(bnk.getBankId(), repDto);
+                            dtos.add(repDto);
+                        }
+                    }
                 }
-                dto.setProductDates(productDates);
             }
+            applyProductDates(bnk.getBankId(), dto);
             dtos.add(dto);
         }
         return new ResponseEntity<>(
             new RestWithStatusList("SUCCESS", "Banks fetched.", new ArrayList<>(dtos)),
             HttpStatus.OK);
+    }
+
+    private void applyProductDates(Long bankId, MainBankDTO dto) {
+        List<MainBankProduct> prods = mainBankProductRepository.findByBankId(bankId);
+        if (!prods.isEmpty()) {
+            Map<String, ProductDateEntry> productDates = new java.util.LinkedHashMap<>();
+            for (MainBankProduct p : prods) {
+                ProductDateEntry entry = new ProductDateEntry();
+                entry.setValidFrom(p.getValidFrom());
+                entry.setValidTo(p.getValidTo());
+                productDates.put(p.getProductName(), entry);
+            }
+            dto.setProductDates(productDates);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1180,12 +1267,40 @@ public class MainBankServiceImpl implements MainBankService {
         List<BranchBank> branchs = branchBankRepository.findByParentBankId(parentBankId);
         List<Object> data = new ArrayList<>();
         for (BranchBank branch : branchs) {
-            BranchBankDTO dto = BranchBankMapper.mapToDTO(branch);
-            // Resolve numeric PK of BRANCH_ADMIN record
+            final BranchBankDTO dto = BranchBankMapper.mapToDTO(branch);
+            final BranchBankDTO[] repDtoHolder = { null };
+            final BranchBank branchRef = branch;
+            // Resolve numeric PK of BRANCH_ADMIN record + replacement info
             try {
                 branchAdminRepository.findByBranchCodeAndUsername(
                         branch.getBranchCode(), branch.getBranchAdminId())
-                    .ifPresent(ba -> { dto.setAdminId(ba.getId()); dto.setAdminStatus(ba.getStatus()); });
+                    .ifPresent(ba -> {
+                        dto.setAdminId(ba.getId());
+                        dto.setAdminStatus(ba.getStatus());
+                        enrichReplacementInfoBranch(ba.getId(), "BRANCH_ADMIN", dto);
+                        java.util.List<com.jpb.reconciliation.reconciliation.entity.AdminReplacement> repRecs =
+                            replacementRepository.findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                ba.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                        if (!repRecs.isEmpty()) {
+                            com.jpb.reconciliation.reconciliation.entity.AdminReplacement repRec = repRecs.get(0);
+                            if (repRec.getReplacementEntityId() != null && repRec.getReplacementEntityId() > 0L) {
+                                branchAdminRepository.findById(repRec.getReplacementEntityId()).ifPresent(repAdmin -> {
+                                    BranchBankDTO repDto = BranchBankMapper.mapToDTO(branchRef);
+                                    repDto.setAdminId(repAdmin.getId());
+                                    repDto.setBranchAdminId(repAdmin.getUsername());
+                                    repDto.setAdminStatus(repAdmin.getStatus());
+                                    repDto.setReplacementAdminRow(true);
+                                    repDto.setReplacementStatus(repRec.getStatus());
+                                    repDto.setPrimaryEmail(repAdmin.getEmail());
+                                    String repName = repRec.getPendingFullName() != null && !repRec.getPendingFullName().isEmpty()
+                                        ? repRec.getPendingFullName() : repAdmin.getUsername();
+                                    repDto.setPrimaryFullName(repName);
+                                    if (repRec.getPendingMobile() != null) repDto.setPrimaryMobile(repRec.getPendingMobile());
+                                    repDtoHolder[0] = repDto;
+                                });
+                            }
+                        }
+                    });
             } catch (Exception e) {
                 logger.warn("getBranchBank: adminId lookup failed for {}: {}",
                         branch.getBranchCode(), e.getMessage());
@@ -1208,6 +1323,7 @@ public class MainBankServiceImpl implements MainBankService {
                         branch.getBranchCode(), e.getMessage());
             }
             data.add(dto);
+            if (repDtoHolder[0] != null) data.add(repDtoHolder[0]);
         }
         return new ResponseEntity<>(
             new RestWithStatusList("SUCCESS", data.size() + " branch-bank(s) found.", data),

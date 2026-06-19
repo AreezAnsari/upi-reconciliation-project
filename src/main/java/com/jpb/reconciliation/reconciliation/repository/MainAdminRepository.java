@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,12 @@ public interface MainAdminRepository
             String username
     );
 
+    // Email uniqueness check — used before creating a replacement admin
+    boolean existsByBankCodeAndEmail(String bankCode, String email);
+
+    // Global email check — used to prevent replacement with an already-registered admin email
+    boolean existsByEmail(String email);
+
     // Legacy fallback — only used for old records where bank_code is NULL
     Optional<MainAdmin> findFirstByUsernameAndBankCodeIsNull(String username);
 
@@ -48,5 +55,8 @@ public interface MainAdminRepository
     List<MainAdmin> findByStatusAndReactivateScheduledAtBefore(String status, LocalDateTime cutoff);
 
     // Scheduler: auto-block BLOCK_PENDING whose window has passed
-    List<MainAdmin> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);   
+    List<MainAdmin> findByStatusAndBlockScheduledAtBefore(String status, LocalDateTime cutoff);
+
+    // Quick existence check — used as scheduler pre-check to avoid full queries when nothing is pending
+    boolean existsByStatusIn(Collection<String> statuses);
 }

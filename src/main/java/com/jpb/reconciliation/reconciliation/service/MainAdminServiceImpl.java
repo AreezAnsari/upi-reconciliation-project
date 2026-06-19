@@ -28,9 +28,11 @@ import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyEmailResponseDto
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
+import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
@@ -68,6 +70,9 @@ public class MainAdminServiceImpl implements MainAdminService {
     private EmailService emailService;
 
     @Autowired
+    private AdminReplacementRepository adminReplacementRepository;
+
+    @Autowired
     private JwtHelper jwtHelper;
 
     // =========================================================================
@@ -93,20 +98,23 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        // TEST_BANK is source of truth — defaultPassword==null means password already set
-        Optional<MainBank> optInst =
-                mainBankRepository.findByBankCodeAndBankAdminId(
-                        bankCode.trim(),
-                        username.trim());
-
         String userStatus;
 
-        if (optInst.isPresent() && optInst.get().getDefaultPassword() == null) {
+        // Check main_admin directly — covers replacement admins who have no main_bank entry
+        Optional<MainAdmin> adminOpt = mainAdminRepository.findByBankCodeAndUsername(bankCode.trim(), username.trim());
+        if (adminOpt.isPresent() && (adminOpt.get().getPasswordSet() == 1 || "ACTIVE".equalsIgnoreCase(adminOpt.get().getStatus()))) {
             userStatus = "OLD_USER";
-            logger.info("verifyEmail → OLD_USER for username={}", username);
+            logger.info("verifyEmail → OLD_USER (main_admin active) for username={}", username);
         } else {
-            userStatus = "NEW_USER";
-            logger.info("verifyEmail → NEW_USER for username={}", username);
+            // Fallback: check main_bank defaultPassword for original admins
+            Optional<MainBank> optInst = mainBankRepository.findByBankCodeAndBankAdminId(bankCode.trim(), username.trim());
+            if (optInst.isPresent() && optInst.get().getDefaultPassword() == null) {
+                userStatus = "OLD_USER";
+                logger.info("verifyEmail → OLD_USER (defaultPassword null) for username={}", username);
+            } else {
+                userStatus = "NEW_USER";
+                logger.info("verifyEmail → NEW_USER for username={}", username);
+            }
         }
 
         MainAdminVerifyEmailResponseDto responseDto =
@@ -178,12 +186,39 @@ public class MainAdminServiceImpl implements MainAdminService {
         String bankCode = dto.getBankCode().trim();
         String username        = dto.getUsername().trim();
 
-        // TEST_BANK is source of truth for default credential verification
+        // TEST_BANK is source of truth for default credential verification (original admin flow)
         Optional<MainBank> optInst =
                 mainBankRepository.findByBankCodeAndBankAdminId(
                         bankCode, username);
 
         if (!optInst.isPresent()) {
+            // Fallback: replacement admin — exists directly in BANK_ADMIN with passwordSet=0
+            Optional<MainAdmin> repOpt = mainAdminRepository.findByBankCodeAndUsername(bankCode, username);
+            if (repOpt.isPresent() && repOpt.get().getPasswordSet() == 0) {
+                MainAdmin repAdmin = repOpt.get();
+                if (repAdmin.getPassword() == null) {
+                    return new ResponseEntity<>(
+                            new RestWithStatusList("FAILURE", "Invalid Bank Code or Username. Please check your email.", null),
+                            HttpStatus.BAD_REQUEST);
+                }
+                boolean repMatch = false;
+                try {
+                    repMatch = passwordEncoder.matches(dto.getDefaultPassword(), repAdmin.getPassword());
+                } catch (Exception e) {
+                    logger.warn("BCrypt match failed for replacement admin: {}", e.getMessage());
+                }
+                if (!repMatch) {
+                    logger.warn("verifyCredentials — password mismatch for replacement admin bankCode={} username={}", bankCode, username);
+                    return new ResponseEntity<>(
+                            new RestWithStatusList("FAILURE", "Invalid Default Password. Please check your email.", null),
+                            HttpStatus.BAD_REQUEST);
+                }
+                logger.info("verifyCredentials → SUCCESS (replacement admin) for username={}", username);
+                return new ResponseEntity<>(
+                        new RestWithStatusList("SUCCESS", "Credentials verified. Please set your new password.", new ArrayList<>()),
+                        HttpStatus.OK);
+            }
+
             logger.warn("verifyCredentials — bank not found: bankCode={} username={}",
                     bankCode, username);
             return new ResponseEntity<>(
@@ -247,13 +282,30 @@ public class MainAdminServiceImpl implements MainAdminService {
         logger.info("setNewPassword — bankCode={} username={}",
                 dto.getBankCode(), dto.getUsername());
 
-        // TEST_BANK is source of truth — validate first
+        String bankCode = dto.getBankCode().trim();
+        String username  = dto.getUsername().trim();
+
+        // TEST_BANK is source of truth — validate first (original admin flow)
         Optional<MainBank> optInst =
-                mainBankRepository.findByBankCodeAndBankAdminId(
-                        dto.getBankCode().trim(),
-                        dto.getUsername().trim());
+                mainBankRepository.findByBankCodeAndBankAdminId(bankCode, username);
 
         if (!optInst.isPresent()) {
+            // Fallback: replacement admin — update the existing BANK_ADMIN record
+            Optional<MainAdmin> repOpt = mainAdminRepository.findByBankCodeAndUsername(bankCode, username);
+            if (repOpt.isPresent() && repOpt.get().getPasswordSet() == 0) {
+                MainAdmin repAdmin = repOpt.get();
+                repAdmin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+                repAdmin.setPasswordSet(1);
+                repAdmin.setStatus("VERIFIED");
+                repAdmin.setUpdatedAt(LocalDateTime.now());
+                repAdmin.setUpdatedBy(username);
+                mainAdminRepository.save(repAdmin);
+                logger.info("setNewPassword → SUCCESS (replacement admin) for username={} bankCode={}", username, bankCode);
+                return new ResponseEntity<>(
+                        new RestWithStatusList("SUCCESS", "Password set successfully. Please login.", new ArrayList<>()),
+                        HttpStatus.OK);
+            }
+
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
                             "Bank not found. Please verify credentials first.", null),
@@ -264,37 +316,36 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         // defaultPassword==null means password was already set — cannot set again
         if (bank.getDefaultPassword() == null) {
-            logger.info("setNewPassword → ALREADY_VERIFIED for username={}", dto.getUsername());
+            logger.info("setNewPassword → ALREADY_VERIFIED for username={}", username);
             return new ResponseEntity<>(
                     new RestWithStatusList("ALREADY_VERIFIED",
                             "Password already set. Please login directly.", null),
                     HttpStatus.OK);
         }
 
-        // INSERT new record into BANK_ADMIN (first-time password setup)
+        // INSERT new record into BANK_ADMIN (first-time password setup for original admin)
         MainAdmin mainAdmin = new MainAdmin();
-        mainAdmin.setBankCode(dto.getBankCode().trim());
-        mainAdmin.setUsername(dto.getUsername().trim());
+        mainAdmin.setBankCode(bankCode);
+        mainAdmin.setUsername(username);
         mainAdmin.setEmail(bank.getPrimaryEmail());
         mainAdmin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         mainAdmin.setPasswordSet(1);
         mainAdmin.setStatus("VERIFIED");
         mainAdmin.setCreatedAt(LocalDateTime.now());
-        mainAdmin.setCreatedBy(bank.getCreatedBy()); // admin username from TEST_BANK
+        mainAdmin.setCreatedBy(bank.getCreatedBy());
         mainAdminRepository.save(mainAdmin);
-        logger.info("BANK_ADMIN record created for username={} bankCode={}",
-                dto.getUsername(), dto.getBankCode());
+        logger.info("BANK_ADMIN record created for username={} bankCode={}", username, bankCode);
 
         // Update TEST_BANK → VERIFIED, wipe defaultPassword & token
         bank.setStatus("VERIFIED");
-        bank.setDefaultPassword(null);       // default password null — kaam khatam
-        bank.setVerificationToken(null);     // link dead on success
+        bank.setDefaultPassword(null);
+        bank.setVerificationToken(null);
         bank.setTokenExpiry(LocalDateTime.now());
         bank.setUpdatedAt(LocalDateTime.now());
         mainBankRepository.save(bank);
-        logger.info("Bank {} status → VERIFIED after password setup", dto.getBankCode());
+        logger.info("Bank {} status → VERIFIED after password setup", bankCode);
 
-        logger.info("setNewPassword → SUCCESS for username={}", dto.getUsername());
+        logger.info("setNewPassword → SUCCESS for username={}", username);
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS",
                         "Password set successfully. Please login.", new ArrayList<>()),
@@ -400,9 +451,9 @@ public class MainAdminServiceImpl implements MainAdminService {
         if ("BLOCKED".equalsIgnoreCase(userStatus) || "BLOCK".equalsIgnoreCase(userStatus)) {
             logger.warn("login BLOCKED: bank={} username={}", dto.getBankCode(), dto.getUsername());
             return new ResponseEntity<>(
-                    new RestWithStatusList("FAILURE",
-                            "Invalid Bank Code or Username.", null),
-                    HttpStatus.UNAUTHORIZED);
+                    new RestWithStatusList("BLOCKED",
+                            "Your bank account has been permanently blocked. Please contact the KalInfotech administrator.", null),
+                    HttpStatus.OK);
         }
         if ("INACTIVE".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
@@ -411,15 +462,8 @@ public class MainAdminServiceImpl implements MainAdminService {
                             null),
                     HttpStatus.OK);
         }
-        if ("BLOCK_PENDING".equalsIgnoreCase(userStatus)) {
-            return new ResponseEntity<>(
-                    new RestWithStatusList("BLOCK_PENDING",
-                            "Your bank account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
-                            null),
-                    HttpStatus.OK);
-        }
 
-        // Password match
+        // Password match (done before INACTIVE_PENDING / BLOCK_PENDING so OTP is only sent on valid credentials)
         if (!passwordEncoder.matches(dto.getDefaultPassword(), user.getPassword())) {
             logger.warn("login — password mismatch for username={}", dto.getUsername());
             return new ResponseEntity<>(
@@ -446,6 +490,21 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         List<Object> data = new ArrayList<>();
         data.add(email);
+
+        if ("INACTIVE_PENDING".equalsIgnoreCase(userStatus)) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("INACTIVE_PENDING",
+                            "Your bank account is scheduled for inactivation. Please contact the KalInfotech administrator if this was not intended.",
+                            data),
+                    HttpStatus.OK);
+        }
+        if ("BLOCK_PENDING".equalsIgnoreCase(userStatus)) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("BLOCK_PENDING",
+                            "Your bank account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
+                            data),
+                    HttpStatus.OK);
+        }
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS", "OTP sent successfully.", data),
@@ -852,7 +911,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         if (!optUser.isPresent()) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
-                            "Super User not found for email: " + email, null),
+                            "Bank Admin not found for email: " + email, null),
                     HttpStatus.NOT_FOUND);
         }
 
@@ -865,7 +924,14 @@ public class MainAdminServiceImpl implements MainAdminService {
                         user.getUsername());
 
         if (!optInst.isPresent()) {
-            logger.warn("[ACTIVATE] Bank not found for email: {}", email);
+            // Replacement admin — no MainBank record; promote VERIFIED → ACTIVE on first login
+            if ("VERIFIED".equals(user.getStatus())) {
+                user.setStatus("ACTIVE");
+                user.setUpdatedAt(LocalDateTime.now());
+                user.setUpdatedBy("SYSTEM");
+                mainAdminRepository.save(user);
+                logger.info("[ACTIVATE] Replacement admin {} → ACTIVE after first login", user.getUsername());
+            }
             return new ResponseEntity<>(
                     new RestWithStatusList("SUCCESS",
                             "Login successful.", new ArrayList<>()),
@@ -942,6 +1008,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setReactivateScheduledAt(null);
         admin.setReactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
+        BlockScheduleServiceImpl.flagPendingWork();
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
         try {
@@ -977,6 +1044,18 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         mainAdminRepository.save(admin);
+        // Cancel any pending replacement since inactivation was undone
+        try {
+            Optional<AdminReplacement> pendingRep = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "PENDING");
+            if (pendingRep.isPresent()) {
+                pendingRep.get().setStatus("CANCELLED");
+                adminReplacementRepository.save(pendingRep.get());
+                logger.info("Cancelled PENDING replacement for bank admin {} due to undo", admin.getUsername());
+            }
+        } catch (Exception e) {
+            logger.warn("undoInactivate: failed to cancel pending replacement for {}: {}", admin.getUsername(), e.getMessage());
+        }
         try {
             emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
                     bank.getBankNameFull(), bank.getBankCode());
@@ -1009,6 +1088,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setInactivateScheduledAt(null);
         admin.setInactivateScheduledBy(null);
         admin.setUpdatedAt(LocalDateTime.now());
+        BlockScheduleServiceImpl.flagPendingWork();
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
         try {
