@@ -17,8 +17,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class RecRoleMaster {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "role_master_seq")
-    @SequenceGenerator(name = "role_master_seq", sequenceName = "ROLE_MASTER_SEQ", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE,
+            generator = "role_master_seq")
+    @SequenceGenerator(
+            name = "role_master_seq",
+            sequenceName = "ROLE_MASTER_SEQ",
+            allocationSize = 1
+    )
     private Long id;
 
     @Column(name = "ROLE_NAME", nullable = false, unique = true)

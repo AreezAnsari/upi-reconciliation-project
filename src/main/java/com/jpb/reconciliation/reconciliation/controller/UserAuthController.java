@@ -39,7 +39,7 @@ public class UserAuthController {
 
     @PostMapping("/check-status")
     public ResponseEntity<RestWithStatusList> checkStatus(@RequestBody Map<String, String> body) {
-        return userAuthService.checkStatus(body.get("bankCode"), body.get("username"));
+        return userAuthService.checkStatus(body.get("email"), body.get("username"));
     }
 
     @PostMapping("/account-status")

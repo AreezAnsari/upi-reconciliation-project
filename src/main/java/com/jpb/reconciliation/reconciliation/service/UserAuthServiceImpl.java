@@ -34,10 +34,7 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     // ── Helper: find user by username, then verify bank code ──
     private Optional<AddUser> findUser(String bankCode, String username) {
-        String trimmed = username != null ? username.trim() : "";
-        Optional<AddUser> opt = userRepository.findByUsername(trimmed);
-        // Case-insensitive fallback: email links may preserve original-case name instead of stored lowercase username
-        if (!opt.isPresent()) opt = userRepository.findByUsernameIgnoreCase(trimmed);
+        Optional<AddUser> opt = userRepository.findByUsername(username.trim());
         if (!opt.isPresent()) return Optional.empty();
         AddUser u = opt.get();
         String bk = bankCode != null ? bankCode.trim() : "";
@@ -244,12 +241,19 @@ public class UserAuthServiceImpl implements UserAuthService {
     }
 
     // ── CHECK STATUS: NEW_USER vs OLD_USER ───────────────────────────────────────
-    // REQUEST → account not yet verified → NEW_USER (show verification flow)
-    // VERIFIED / ACTIVE / any other status → password already set → OLD_USER (go to login)
+    // Tries email first (unique — no conflicts), falls back to username for old-style
+    // URLs that pre-date the &email= param being added to verify links.
+    // REQUEST → NEW_USER (show verification flow)
+    // VERIFIED / ACTIVE / any other status → OLD_USER (go to login)
     @Override
-    public ResponseEntity<RestWithStatusList> checkStatus(String bankCode, String username) {
-        if (username == null || username.trim().isEmpty()) return fail("Username is required.");
-        Optional<AddUser> opt = findUser(bankCode, username);
+    public ResponseEntity<RestWithStatusList> checkStatus(String email, String username) {
+        Optional<AddUser> opt = Optional.empty();
+        if (email != null && !email.trim().isEmpty()) {
+            opt = userRepository.findByEmail(email.trim());
+        }
+        if (!opt.isPresent() && username != null && !username.trim().isEmpty()) {
+            opt = userRepository.findByUsername(username.trim());
+        }
         if (!opt.isPresent()) return fail("User not found.");
         AddUser user = opt.get();
         String status = (user.getStatus() == AddUser.UserStatus.REQUEST) ? "NEW_USER" : "OLD_USER";

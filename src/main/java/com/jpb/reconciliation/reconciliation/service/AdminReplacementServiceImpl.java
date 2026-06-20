@@ -441,11 +441,30 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         pending.setStatus("ACTIVE");
         replacementRepository.save(pending);
 
-        String entityCode = original.getBranchCode() != null ? original.getBranchCode() : original.getBankCode();
+        boolean isBranchUser = original.getBranchCode() != null;
+        String entityCode = isBranchUser ? original.getBranchCode() : original.getBankCode();
         String actionedByName = formatUsername(pending.getReplacedBy());
         sendOutgoingEmail(original.getEmail(), original.getFullName(), entityCode,
                 actionedByName, pending.getReason(), repFullName, newEmail, pending.getPendingOrderedBy());
-        sendIncomingEmail(replacement.getEmail(), repFullName, entityCode, newUsername, tempPassword);
+
+        String userVerifyLink = isBranchUser
+                ? frontendUrl + "/user-verify?bankCode=" + original.getBankCode()
+                        + "&branchCode=" + original.getBranchCode()
+                        + "&username=" + newUsername
+                        + "&email=" + newEmail + "&mode=verify"
+                : frontendUrl + "/user-verify?bankCode=" + original.getBankCode()
+                        + "&username=" + newUsername
+                        + "&email=" + newEmail + "&mode=verify";
+        String codeLabel = isBranchUser ? "Branch Code" : "Bank Code";
+        String replacementDesc = isBranchUser
+                ? "You have been assigned as a replacement Branch User on ReconXpert.Ai. Your predecessor's account has been deactivated and you are now taking over their responsibilities."
+                : "You have been assigned as a replacement Bank User on ReconXpert.Ai. Your predecessor's account has been deactivated and you are now taking over their responsibilities.";
+        try {
+            emailService.sendUserWelcomeReplacement(replacement.getEmail(), repFullName,
+                    entityCode, codeLabel, newUsername, tempPassword, userVerifyLink, replacementDesc);
+        } catch (Exception e) {
+            logger.warn("Replacement user welcome email failed for {}: {}", replacement.getEmail(), e.getMessage());
+        }
 
         logger.info("Finalized pending User replacement: {} → {}", original.getUsername(), newUsername);
     }
@@ -619,7 +638,8 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         }
         addUserRepository.save(replacement);
 
-        String entityCode = original.getBranchCode() != null ? original.getBranchCode() : original.getBankCode();
+        boolean isBranchUser = original.getBranchCode() != null;
+        String entityCode = isBranchUser ? original.getBranchCode() : original.getBankCode();
         AdminReplacement record = buildActiveRecord("USER", original.getBankCode(), original.getBranchCode(),
                 original.getId(), replacement.getId(), req.getReason(), replacedBy);
         replacementRepository.save(record);
@@ -628,7 +648,26 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         String actionedByName = formatUsername(replacedBy);
         sendOutgoingEmail(original.getEmail(), original.getFullName(), entityCode,
                 actionedByName, req.getReason(), repName, req.getNewEmail().trim(), req.getOrderedBy());
-        sendIncomingEmail(replacement.getEmail(), replacement.getFullName(), entityCode, replacement.getUsername(), tempPassword);
+
+        // Build verify link — branch users include branchCode, bank users use bankCode only
+        String userVerifyLink = isBranchUser
+                ? frontendUrl + "/user-verify?bankCode=" + original.getBankCode()
+                        + "&branchCode=" + original.getBranchCode()
+                        + "&username=" + replacement.getUsername()
+                        + "&email=" + replacement.getEmail() + "&mode=verify"
+                : frontendUrl + "/user-verify?bankCode=" + original.getBankCode()
+                        + "&username=" + replacement.getUsername()
+                        + "&email=" + replacement.getEmail() + "&mode=verify";
+        String codeLabel = isBranchUser ? "Branch Code" : "Bank Code";
+        String replacementDesc = isBranchUser
+                ? "You have been assigned as a replacement Branch User on ReconXpert.Ai. Your predecessor's account has been deactivated and you are now taking over their responsibilities."
+                : "You have been assigned as a replacement Bank User on ReconXpert.Ai. Your predecessor's account has been deactivated and you are now taking over their responsibilities.";
+        try {
+            emailService.sendUserWelcomeReplacement(replacement.getEmail(), replacement.getFullName(),
+                    entityCode, codeLabel, replacement.getUsername(), tempPassword, userVerifyLink, replacementDesc);
+        } catch (Exception e) {
+            logger.warn("Replacement user welcome email failed for {}: {}", replacement.getEmail(), e.getMessage());
+        }
 
         return success(record, replacement.getId());
     }

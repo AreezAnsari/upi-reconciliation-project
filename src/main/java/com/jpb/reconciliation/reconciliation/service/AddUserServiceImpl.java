@@ -83,9 +83,11 @@ public class AddUserServiceImpl implements AddUserService {
             String verifyLink = user.getBranchCode() != null
                     ? frontendUrl + "/user-verify?bankCode=" + user.getBankCode()
                             + "&branchCode=" + user.getBranchCode()
-                            + "&username=" + user.getUsername() + "&mode=verify"
+                            + "&username=" + user.getUsername()
+                            + "&email=" + user.getEmail() + "&mode=verify"
                     : frontendUrl + "/user-verify?bankCode=" + user.getBankCode()
-                            + "&username=" + user.getUsername() + "&mode=verify";
+                            + "&username=" + user.getUsername()
+                            + "&email=" + user.getEmail() + "&mode=verify";
             // Code shown in email: Branch Code for branch user, Bank Code for bank user
             boolean isBranchUser = user.getBranchCode() != null;
             String displayCode  = isBranchUser ? user.getBranchCode() : user.getBankCode();

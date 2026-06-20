@@ -16,9 +16,9 @@ import io.jsonwebtoken.SignatureAlgorithm;
 @Component
 public class JwtHelper {
 
-	public static final long JWT_TOKEN_VALIDITY = 1000 * 60 * 60;
+	public static final long JWT_TOKEN_VALIDITY = 1000 * 60 * 60 * 8; // 8 hours
 
-	public static final long JWT_TOKEN_REFRESH = 1000 * 60 * 60;
+	public static final long JWT_TOKEN_REFRESH = 1000 * 60 * 60 * 8; // 8 hours
 	
 	public static final long JWT_TOKEN_REVOKE = 0;
 

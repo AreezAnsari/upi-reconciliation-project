@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 )
 @Getter
 @Setter
-@EqualsAndHashCode(exclude = "role")
+@EqualsAndHashCode(exclude = "role")   // prevent circular reference
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -30,7 +30,7 @@ public class RecRoleModulePermission {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "MODULE_ID", nullable = false)
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"}) 
     private RecModule module;
 
     @Column(name = "HAS_ACCESS")  @Builder.Default private boolean hasAccess  = false;

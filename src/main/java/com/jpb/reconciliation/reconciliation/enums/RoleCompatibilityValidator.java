@@ -1,18 +1,25 @@
 package com.jpb.reconciliation.reconciliation.enums;
 
+import com.jpb.reconciliation.reconciliation.enums.RoleCompatibilityRule;
+import com.jpb.reconciliation.reconciliation.enums.StandardRole;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Validates role-combination rules before any DB writes.
+ * Throws IllegalArgumentException (→ 400) on violation.
+ */
 @Component
 public class RoleCompatibilityValidator {
 
     public void validate(List<String> roleNames) {
 
         if (roleNames == null || roleNames.isEmpty()) {
-            throw new IllegalArgumentException("roleNames must contain at least one role.");
+            throw new IllegalArgumentException(
+                    "roleNames must contain at least one role.");
         }
 
         Set<String> upper = roleNames.stream()
@@ -22,6 +29,8 @@ public class RoleCompatibilityValidator {
         checkConflictPairs(upper);
         checkSupervisorEligibility(upper);
     }
+
+    // ── Rule 1 ────────────────────────────────────────────────────────────────
 
     private void checkConflictPairs(Set<String> upper) {
         String[] conflict = RoleCompatibilityRule.findConflict(upper);
@@ -34,9 +43,11 @@ public class RoleCompatibilityValidator {
         }
     }
 
+    // ── Rule 2 ────────────────────────────────────────────────────────────────
+
     private void checkSupervisorEligibility(Set<String> upper) {
         if (!upper.contains(StandardRole.SUPERVISOR.name())) {
-            return;
+            return; // SUPERVISOR not selected — nothing to check
         }
 
         Set<String> ineligible = RoleCompatibilityRule.ineligibleForSupervisor(upper);

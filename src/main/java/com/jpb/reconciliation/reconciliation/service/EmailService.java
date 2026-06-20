@@ -173,4 +173,13 @@ public interface EmailService {
     void sendUserWelcome(String toEmail, String fullName,
                          String code, String codeLabel, String username,
                          String defaultPassword, String verifyLink);
+
+    /**
+     * Same as sendUserWelcome but adds a replacement-context banner above the credentials.
+     * replacementDescription explains the user is a replacement and what that means.
+     */
+    void sendUserWelcomeReplacement(String toEmail, String fullName,
+                                    String code, String codeLabel, String username,
+                                    String defaultPassword, String verifyLink,
+                                    String replacementDescription);
 }

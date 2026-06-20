@@ -13,7 +13,7 @@ public interface UserAuthService {
 
     ResponseEntity<RestWithStatusList> verifyOtp(String email, String otp);
 
-    ResponseEntity<RestWithStatusList> checkStatus(String bankCode, String username);
+    ResponseEntity<RestWithStatusList> checkStatus(String email, String username);
 
     ResponseEntity<RestWithStatusList> getAccountStatus(String email);
 

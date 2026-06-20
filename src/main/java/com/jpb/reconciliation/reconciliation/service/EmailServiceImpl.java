@@ -1525,6 +1525,103 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Async
+    public void sendUserWelcomeReplacement(String toEmail, String fullName,
+                                           String code, String codeLabel, String username,
+                                           String defaultPassword, String verifyLink,
+                                           String replacementDescription) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — You’ve Been Added as a Replacement User");
+            helper.setText(buildUserWelcomeReplacementHtml(fullName, code, codeLabel, username, defaultPassword, verifyLink, replacementDescription), true);
+            mailSender.send(message);
+            logger.info("Replacement user welcome email sent to: {} | username: {}", toEmail, username);
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Replacement user welcome — recipient: {} | username: {} | reason: {}", toEmail, username, e.getMessage());
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Replacement user welcome — unexpected error — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
+    private String buildUserWelcomeReplacementHtml(String fullName, String code, String codeLabel,
+                                                    String username, String defaultPassword,
+                                                    String verifyLink, String replacementDescription) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+            + "</td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+
+            // Greeting
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(fullName) + "</strong>,</p>"
+
+            // Replacement banner
+            + "<div style='background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:8px;padding:14px 18px;margin-bottom:20px;'>"
+            + "<p style='margin:0;font-size:14px;color:#1e40af;'>"
+            + "<strong>Replacement Assignment:</strong> " + sanitize(replacementDescription)
+            + "</p>"
+            + "</div>"
+
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
+            + "Please use the credentials below to verify your account and set your password."
+            + "</p>"
+
+            // Credentials box
+            + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+            + "<p style='margin:0 0 4px;font-size:13px;color:#166534;font-weight:bold;'>Your Login Credentials</p>"
+            + "<p style='margin:10px 0 4px;font-size:13px;color:#166534;'><strong>" + sanitize(codeLabel) + ":</strong> "
+            + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + sanitize(code) + "</span></p>"
+            + "<p style='margin:0 0 4px;font-size:13px;color:#166534;'><strong>Username:</strong> "
+            + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + sanitize(username) + "</span></p>"
+            + "<p style='margin:0;font-size:13px;color:#166534;'><strong>Default Password:</strong> "
+            + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + sanitize(defaultPassword) + "</span></p>"
+            + "</div>"
+
+            // Verify button
+            + "<p style='font-size:14px;color:#475569;margin:0 0 16px;'>Click the button below to verify your account and set your new password:</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
+            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Account &amp; Set Password</a>"
+            + "</td></tr></table>"
+
+            // Steps
+            + "<p style='font-size:13px;color:#64748b;margin:0 0 8px;'>After clicking the link, on the verification page:</p>"
+            + "<ol style='font-size:13px;color:#64748b;margin:0 0 20px;padding-left:20px;line-height:1.8;'>"
+            + "<li>Enter your <strong>" + sanitize(codeLabel) + ":</strong> " + sanitize(code) + "</li>"
+            + "<li>Enter your <strong>Username:</strong> " + sanitize(username) + "</li>"
+            + "<li>Enter your <strong>Default Password:</strong> " + sanitize(defaultPassword) + "</li>"
+            + "<li>Set a new password to activate your account</li>"
+            + "</ol>"
+
+            // Warning box
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'>"
+            + "<strong>Important:</strong> Your account will remain <strong>INACTIVE</strong> until you complete verification. "
+            + "Please do not share your credentials with anyone."
+            + "</p>"
+            + "</div>"
+
+            + "</td></tr>"
+
+            // Footer
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>&#169; KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr>"
+
+            + "</table></td></tr></table></body></html>";
+    }
+
     private String buildUserWelcomeHtml(String fullName, String code, String codeLabel,
                                         String username, String defaultPassword,
                                         String verifyLink) {

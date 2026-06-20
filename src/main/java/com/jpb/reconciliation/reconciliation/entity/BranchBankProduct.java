@@ -1,56 +1,51 @@
 package com.jpb.reconciliation.reconciliation.entity;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.SequenceGenerator;
-import javax.persistence.Table;
-
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import javax.persistence.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 /**
- * Product date entries for branch banks (Branch Bank).
- * Same pattern as MainBankProduct — stores validFrom / validTo per product.
- * Uses delete-and-reinsert strategy on save (same as admin).
+ * Entity mapping to BRANCH_BANK_PRODUCT table.
+ *
+ * Key columns used:
+ *   BRANCH_ID    — which branch purchased this product
+ *   PRODUCT_NAME — e.g. "UPI", "NEFT", "RTGS", "AEPS"
+ *   VALID_FROM   — product active from this date
+ *   VALID_TO     — product expires on this date
+ *
+ * We check VALID_TO >= SYSDATE to only show currently active products.
  */
+@Data
+@NoArgsConstructor
 @Entity
 @Table(name = "BRANCH_BANK_PRODUCT")
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
 public class BranchBankProduct {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_BRANCH_BANK_PRODUCT")
-    @SequenceGenerator(name = "SEQ_BRANCH_BANK_PRODUCT", sequenceName = "SEQ_BRANCH_BANK_PRODUCT", allocationSize = 1)
-    @Column(name = "id")
+    @Column(name = "ID")
     private Long id;
 
-    @Column(name = "branch_id", nullable = false)
+    @Column(name = "BRANCH_ID", nullable = false)
     private Long branchId;
 
-    @Column(name = "product_name", nullable = false, length = 100)
+    @Column(name = "PRODUCT_NAME")
     private String productName;
 
-    @Column(name = "valid_from")
-    private LocalDate validFrom;
-
-    @Column(name = "valid_to")
-    private LocalDate validTo;
-
-    @Column(name = "created_by", length = 100)
+    @Column(name = "CREATED_BY")
     private String createdBy;
 
-    @Column(name = "created_at")
+    @Column(name = "CREATED_AT")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
+
+    @Column(name = "VALID_FROM")
+    private LocalDate validFrom;
+
+    @Column(name = "VALID_TO")
+    private LocalDate validTo;
 }

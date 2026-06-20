@@ -1,19 +1,22 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.*;
-import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
+
 public interface RecRoleService {
 
-    RestWithStatusList createRole(RecCreateRoleRequestDTO req, Authentication authentication);
+    RestWithStatusList createRole(RecCreateRoleRequestDTO req);
 
-    RestWithStatusList getRole(Long roleId, Authentication authentication);
+    RestWithStatusList getRole(Long roleId);
 
     RestWithStatusList updatePermissions(Long roleId, List<RecPermissionRowDTO> dtos);
+    
+    RestWithStatusList updateRole(Long roleId, RecCreateRoleRequestDTO req);
 
     RestWithStatusList getAllModules();
-
-    RestWithStatusList getAllRolesByCreator(Authentication authentication);
+    
+    RestWithStatusList getAllRoles();
 }

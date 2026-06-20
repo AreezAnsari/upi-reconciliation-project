@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 public class RecRoleMasterDTO {
 
     private Long    id;
-    private String  roleName;
-    private Integer roleCode;
+    private String  roleName;    // e.g. "MAKER"
+    private Integer roleCode;    // e.g. 1001 (from StandardRole enum)
     private Boolean isSystemRole;
     private String  status;
 }
