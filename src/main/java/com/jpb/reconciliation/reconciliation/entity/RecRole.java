@@ -41,11 +41,23 @@ public class RecRole {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Set<RecRoleMaster> roleMasters = new HashSet<>();
 
-    @Column(name = "ROLE_NAME", nullable = false, length = 100)
+    @Column(name = "ROLE_NAME", nullable = false, length = 25)
     private String roleName;
 
-    @Column(name = "ROLE_CODE", unique = true, length = 20)
+    @Column(name = "ROLE_CODE", nullable = false, unique = true, length = 20)
     private String roleCode;  // DB trigger generates this
+    
+    
+    /**
+     * NEW FIELD — stores the StandardRole category name.
+     * Values: "MAKER", "CHECKER", "WORKER", "AUDITOR",
+     *         "IT_OPS", "SUPERVISOR", "RCC_CXO", "OTHER"
+     *
+     * Allows querying "all MAKER-family roles" even though each has a
+     * different unique roleCode.**/
+    
+    @Column(name = "ROLE_MASTER_NAME", nullable = false, length = 50)
+    private String roleMasterName;   // e.g. "MAKER"
 
     @Column(name = "ROLE_TYPE", nullable = false, length = 20)
     private String roleType;  // INTERNAL / EXTERNAL

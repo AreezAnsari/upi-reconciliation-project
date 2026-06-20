@@ -19,4 +19,29 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
  
     // Fetch all roles with their masters for list view
     @Query("SELECT DISTINCT r FROM RecRole r LEFT JOIN FETCH r.roleMasters")
-    List<RecRole> findAllWithMasters();}
+    List<RecRole> findAllWithMasters();
+    
+ // ── Find by unique roleCode (4-digit string) ──────────────────────────────
+    Optional<RecRole> findByRoleCode(String roleCode);
+ 
+    // ── Find all roles in a category, e.g. all MAKER-family roles ────────────
+    List<RecRole> findAllByRoleMasterNameIgnoreCase(String roleMasterName);
+ 
+    // ── Check for duplicate roleName within the same roleType ─────────────────
+    //    Prevents creating MAKER twice with identical roleType + roleName combo.
+    boolean existsByRoleNameIgnoreCaseAndRoleType(String roleName, String roleType);
+ 
+    // ── Find all roles assigned to a user ─────────────────────────────────────
+    List<RecRole> findAllByAssignedUserId(Long userId);
+ 
+    // ── Search by name fragment (for the frontend search box) ─────────────────
+    @Query("SELECT r FROM RecRole r WHERE LOWER(r.roleName) LIKE LOWER(CONCAT('%', :term, '%'))")
+    List<RecRole> searchByName(@Param("term") String term);
+ 
+    // ── All roles for a given roleType ────────────────────────────────────────
+    List<RecRole> findAllByRoleTypeIgnoreCase(String roleType);
+ 
+    // ── Count how many MAKER roles exist (useful for dashboards) ──────────────
+    long countByRoleMasterNameIgnoreCase(String roleMasterName);
+    
+}

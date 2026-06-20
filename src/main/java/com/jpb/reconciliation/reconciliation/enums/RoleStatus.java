@@ -6,6 +6,5 @@ public enum RoleStatus {
     VERIFIED,
     ACTIVE,
     INACTIVE,
-    BLOCK,
-    RETIRED
+    BLOCK
 }

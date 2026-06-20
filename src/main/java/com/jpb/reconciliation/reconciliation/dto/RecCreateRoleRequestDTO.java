@@ -6,7 +6,10 @@ import java.util.List;
 
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 
 @Data
 @NoArgsConstructor
@@ -14,9 +17,18 @@ import javax.validation.constraints.NotNull;
 @Builder
 public class RecCreateRoleRequestDTO {
 
-    private List<String>   roleNames;       // mandatory
+    /**
+     * One or more role category names from the StandardRole enum.
+     * e.g. ["MAKER"], ["MAKER", "CHECKER"], ["OTHER"]
+     * For a custom role the name can be anything; it will map to OTHER.
+     */
+    @NotEmpty(message = "At least one role name is required")
+    private List<
+        @NotBlank(message = "Role name must not be blank")
+        @Size(max = 25, message = "Role name must be ≤ 25 characters")
+        String> roleNames;
 //    private String    status;         // DRAFT / PENDING
-    private String    roleType;       // INTERNAL / EXTERNAL (mandatory)
+    private String    roleType;        // RECON_USER / BANK_USER / BRANCH_USER
 //    private String    externalDepartmentName;
 //    private String    externalSupervisorName;
 //    private String    externalSupervisorEmail;

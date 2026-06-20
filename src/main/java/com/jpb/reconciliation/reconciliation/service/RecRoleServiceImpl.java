@@ -1,9 +1,3 @@
-
-
-
-
-
-
 package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.RecCreateRoleRequestDTO;
@@ -46,6 +40,7 @@ public class RecRoleServiceImpl implements RecRoleService {
     private final RecModuleRepository        moduleRepo;
     private final RoleCompatibilityValidator compatibilityValidator;
     private final RecRoleMapper              roleMapper;
+    private final RecRoleCodeGeneratorService codeGenerator;
 
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE
@@ -89,32 +84,66 @@ public class RecRoleServiceImpl implements RecRoleService {
                     .map(String::toUpperCase)
                     .sorted()
                     .collect(Collectors.joining(" + "));
+            
+         // 6. Derive roleMasterName (primary category for grouping/filtering)
+            //    Single role  → "MAKER"
+            //    Composite    → "MAKER + CHECKER" (or use only first if you prefer)
+            String roleMasterName = req.getRoleNames().size() == 1
+                    ? req.getRoleNames().get(0).trim().toUpperCase()
+                    : combinedName;
 
-            // ✅ FIX 3: Check duplicate BEFORE hitting DB constraint
-            if (roleRepo.existsByRoleName(combinedName)) {
+//            // ✅ FIX 3: Check duplicate BEFORE hitting DB constraint
+//            if (roleRepo.existsByRoleName(combinedName)) {
+//                return RestWithStatusList.builder()
+//                        .status("FAILURE")
+//                        .statusMsg("Role '" + combinedName + "' already exists")
+//                        .data(Collections.emptyList())
+//                        .build();
+//            }
+            
+         // 7. Duplicate check: same name + same roleType is a duplicate.
+            //    We do NOT block same name with different roleType
+            //    (e.g. "MAKER" can exist as RECON_USER and BANK_USER).
+            //    We also do NOT block same name + same type if they are
+            //    in different departments — remove the check below if you want
+            //    fully unlimited duplicates (sequence alone enforces uniqueness via roleCode).
+            if (roleRepo.existsByRoleNameIgnoreCaseAndRoleType(combinedName, roleType.name())) {
                 return RestWithStatusList.builder()
                         .status("FAILURE")
-                        .statusMsg("Role '" + combinedName + "' already exists")
+                        .statusMsg("A role named '" + combinedName + "' already exists for role type '"
+                                + roleType.name() + "'. Use a different Role Type or add a unique description.")
                         .data(Collections.emptyList())
                         .build();
             }
 
             // 6. Generate role code
-            String generatedRoleCode;
-            if (masters.size() == 1) {
-                RecRoleMaster master = masters.iterator().next();
-                generatedRoleCode = String.valueOf(master.getRoleCode());
-            } else {
-                generatedRoleCode = masters.stream()
-                        .sorted(Comparator.comparing(RecRoleMaster::getRoleCode))
-                        .map(m -> String.valueOf(m.getRoleCode()))
-                        .collect(Collectors.joining("-"));
-            }
+//            String generatedRoleCode;
+//            if (masters.size() == 1) {
+//                RecRoleMaster master = masters.iterator().next();
+//                generatedRoleCode = String.valueOf(master.getRoleCode());
+//            } else {
+//                generatedRoleCode = masters.stream()
+//                        .sorted(Comparator.comparing(RecRoleMaster::getRoleCode))
+//                        .map(m -> String.valueOf(m.getRoleCode()))
+//                        .collect(Collectors.joining("-"));
+//            }
+            
+            String generatedRoleCode = codeGenerator.generateNextCode(combinedName);
+            
+            log.info("Creating role: combinedName=[{}] generatedCode=[{}] masters=[{}]",
+                    combinedName,
+                    roleMasterName,
+                    generatedRoleCode,
+                    masters.stream()
+                           .sorted(Comparator.comparing(RecRoleMaster::getRoleCode))
+                           .map(m -> m.getRoleName() + "(" + m.getRoleCode() + ")")
+                           .collect(Collectors.joining(", ")));
 
             // 7. Build RecRole entity
             RecRole role = RecRole.builder()
                     .roleName(combinedName)
                     .roleCode(generatedRoleCode)
+                    .roleMasterName(roleMasterName)        
                     .roleType(roleType.name())
 //                    .status(roleStatus.name())
                     .department(req.getDepartment())
@@ -153,9 +182,10 @@ public class RecRoleServiceImpl implements RecRoleService {
                     .orElseThrow(() -> new RuntimeException(
                             "Role not found after save, id=" + saved.getId()));
 
-            log.info("Role created → id={}, roleCode={}, masters={}",
+            log.info("Role created → id={}, roleCode={},roleMasterName={}, masters={}",
                     withCode.getId(),
                     withCode.getRoleCode(),
+                    withCode.getRoleMasterName(),
                     masters.stream()
                            .sorted(Comparator.comparing(RecRoleMaster::getRoleCode))
                            .map(m -> m.getRoleName() + "(" + m.getRoleCode() + ")")
@@ -343,15 +373,16 @@ public class RecRoleServiceImpl implements RecRoleService {
     // ─────────────────────────────────────────────────────────────────────────
 
     private RecRoleMaster resolveRoleMaster(String roleName) {
-        Integer enumCode = StandardRole.getCodeByRoleName(roleName);
+    	// ← FIX: use fromRoleName (not deprecated getCodeByRoleName)
+        StandardRole category = StandardRole.fromRoleName(roleName);
 
-        if (enumCode != null) {
+        if (category.isStandard()) {
             return masterRepo.findByRoleName(roleName.toUpperCase())
                     .orElseGet(() -> {
                         log.warn("RecRoleMaster not seeded for '{}' — creating from enum", roleName);
                         return masterRepo.save(RecRoleMaster.builder()
                                 .roleName(roleName.toUpperCase())
-                                .roleCode(enumCode)
+                                .roleCode(category.getBaseCode())
                                 .isSystemRole(true)
                                 .status(RoleStatus.ACTIVE.name())
                                 .build());
