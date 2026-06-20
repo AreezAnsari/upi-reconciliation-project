@@ -172,7 +172,7 @@ public class AddUserServiceImpl implements AddUserService {
                     .data(Collections.emptyList())
                     .build();
         }
-        List<AddUserResponse> users = userRepository.findByBankCode(bankCode)
+        List<AddUserResponse> users = userRepository.findByBankCodeAndBranchCodeIsNull(bankCode)
                 .stream()
                 .map(AddUserMapper::toResponse)
                 .collect(Collectors.toList());
