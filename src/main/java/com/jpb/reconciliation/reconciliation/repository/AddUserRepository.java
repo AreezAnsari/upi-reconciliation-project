@@ -15,6 +15,8 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
 
     Optional<AddUser> findByUsername(String username);
 
+    Optional<AddUser> findByUsernameIgnoreCase(String username);
+
     Optional<AddUser> findByEmail(String email);
 
     boolean existsByUsername(String username);

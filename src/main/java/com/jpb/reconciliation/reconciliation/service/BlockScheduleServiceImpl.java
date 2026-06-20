@@ -151,7 +151,16 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         } catch (Exception e) {
             logger.warn("scheduleBlock: branch cascade failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
         }
-        // Cascade BLOCK_PENDING to all AddUsers under this bank
+        hasPendingWork = true;
+        logger.info("Block scheduled for bank {} by {} at {}",
+                bankId, scheduledBy, bnk.getBlockScheduledAt());
+
+        // ── Formatted block time for emails ──
+        String blockAtFormatted = bnk.getBlockScheduledAt()
+                .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+
+        // Cascade BLOCK_PENDING to all AddUsers under this bank + send warning emails
         try {
             List<AddUser> bankUsers = addUserRepository.findByBankCode(bnk.getBankCode());
             for (AddUser user : bankUsers) {
@@ -166,19 +175,20 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     user.setReactivateScheduledAt(null);
                     user.setReactivateScheduledBy(null);
                     addUserRepository.save(user);
+                    try {
+                        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                            emailService.sendBlockWarning(user.getEmail(),
+                                    user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                                    bnk.getBankNameFull(), bnk.getBankCode(), blockAtFormatted);
+                        }
+                    } catch (Exception emailEx) {
+                        logger.warn("scheduleBlock: warning email failed for user {}: {}", user.getUsername(), emailEx.getMessage());
+                    }
                 }
             }
         } catch (Exception e) {
             logger.warn("scheduleBlock: user cascade failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
         }
-        hasPendingWork = true;
-        logger.info("Block scheduled for bank {} by {} at {}",
-                bankId, scheduledBy, bnk.getBlockScheduledAt());
-
-        // ── Formatted block time for emails ──
-        String blockAtFormatted = bnk.getBlockScheduledAt()
-                .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
-                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
 
         // ── Send warning email to Bank Admin ──
         try {
@@ -196,7 +206,23 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             logger.warn("[BLOCK-WARN] Warning email failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
         }
 
-        // Individual block only — branch banks are NOT affected
+        // ── Send warning emails to all branch admins under this bank ──
+        try {
+            List<BranchBank> branches = branchBankRepository.findByParentBankId(bnk.getBankId());
+            for (BranchBank branch : branches) {
+                if (branch.getPrimaryEmail() != null && !branch.getPrimaryEmail().isEmpty()) {
+                    try {
+                        emailService.sendBlockWarning(branch.getPrimaryEmail(),
+                                branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Branch Admin",
+                                branch.getBranchNameFull(), branch.getBranchCode(), blockAtFormatted);
+                    } catch (Exception emailEx) {
+                        logger.warn("scheduleBlock: warning email failed for branch {}: {}", branch.getBranchCode(), emailEx.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("scheduleBlock: branch admin email cascade failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
+        }
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block scheduled. Bank will be permanently blocked in 24 hours. You can undo this within 24 hours.",
@@ -245,6 +271,83 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         } catch (Exception e) {
             logger.warn("undoBlock: BANK_ADMIN sync failed for {}: {}", bnk.getBankCode(), e.getMessage());
         }
+
+        // Restore all BLOCK_PENDING branch banks + branch admins + send cancellation emails
+        try {
+            List<BranchBank> branches = branchBankRepository.findByParentBankId(bnk.getBankId());
+            for (BranchBank branch : branches) {
+                if ("BLOCK_PENDING".equalsIgnoreCase(branch.getStatus())) {
+                    String branchRestored = branch.getPreBlockStatus() != null ? branch.getPreBlockStatus() : "ACTIVE";
+                    branch.setStatus(branchRestored);
+                    branch.setBlockScheduledAt(null);
+                    branch.setBlockScheduledBy(null);
+                    branch.setBlockReason(null);
+                    branch.setPreBlockStatus(null);
+                    branch.setUpdatedAt(LocalDateTime.now());
+                    branchBankRepository.save(branch);
+                    // Restore branch admin
+                    final String branchRestoredFinal = branchRestored;
+                    try {
+                        branchAdminRepository.findByBranchCodeAndUsername(branch.getBranchCode(), branch.getBranchAdminId())
+                            .ifPresent(ba -> {
+                                if ("BLOCK_PENDING".equalsIgnoreCase(ba.getStatus())) {
+                                    String baRestored = ba.getPreBlockStatus() != null ? ba.getPreBlockStatus() : branchRestoredFinal;
+                                    ba.setStatus(baRestored);
+                                    ba.setBlockScheduledAt(null);
+                                    ba.setBlockScheduledBy(null);
+                                    ba.setBlockReason(null);
+                                    ba.setPreBlockStatus(null);
+                                    ba.setUpdatedAt(LocalDateTime.now());
+                                    ba.setUpdatedBy(undoneBy);
+                                    branchAdminRepository.save(ba);
+                                }
+                            });
+                    } catch (Exception e) {
+                        logger.warn("undoBlock: branch admin restore failed for {}: {}", branch.getBranchCode(), e.getMessage());
+                    }
+                    // Send cancellation email to branch admin
+                    try {
+                        if (branch.getPrimaryEmail() != null && !branch.getPrimaryEmail().isEmpty()) {
+                            emailService.sendBlockCancelled(branch.getPrimaryEmail(),
+                                    branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Branch Admin",
+                                    branch.getBranchNameFull(), branch.getBranchCode(), branchRestored);
+                        }
+                    } catch (Exception emailEx) {
+                        logger.warn("undoBlock: cancellation email failed for branch {}: {}", branch.getBranchCode(), emailEx.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("undoBlock: branch cascade restore failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
+        }
+
+        // Restore all BLOCK_PENDING users under this bank + send cancellation emails
+        try {
+            List<AddUser> bankUsers = addUserRepository.findByBankCode(bnk.getBankCode());
+            for (AddUser user : bankUsers) {
+                if (user.getStatus() == AddUser.UserStatus.BLOCK_PENDING) {
+                    String userRestored = user.getPreBlockStatus() != null ? user.getPreBlockStatus() : "ACTIVE";
+                    user.setStatus(AddUser.UserStatus.valueOf(userRestored));
+                    user.setPreBlockStatus(null);
+                    user.setBlockScheduledAt(null);
+                    user.setBlockScheduledBy(null);
+                    user.setBlockReason(null);
+                    addUserRepository.save(user);
+                    try {
+                        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                            emailService.sendBlockCancelled(user.getEmail(),
+                                    user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                                    bnk.getBankNameFull(), bnk.getBankCode(), userRestored);
+                        }
+                    } catch (Exception emailEx) {
+                        logger.warn("undoBlock: cancellation email failed for user {}: {}", user.getUsername(), emailEx.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("undoBlock: user restore failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
+        }
+
         logger.info("Block undone for bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);
 
         // ── Send cancellation email to Bank Admin ──
@@ -262,8 +365,6 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
         } catch (Exception e) {
             logger.warn("[UNDO-BLOCK] Cancellation email failed for bank {}: {}", bnk.getBankCode(), e.getMessage());
         }
-
-        // Individual undo only — branch banks are NOT affected
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block has been cancelled. Bank status restored to '" + restoredStatus + "'.",

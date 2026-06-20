@@ -265,10 +265,44 @@ public class BranchBankServiceImpl implements BranchBankService {
                 String bankCode = suOpt.get().getBankCode();
                 // Step 2: find the parent MainBank by its bank code (unique per bank )
                 Optional<MainBank> parentOpt = mainBankRepository.findByBankCode(bankCode);
+                // Fallback for replacement admins: bankCode may not match directly
+                if (!parentOpt.isPresent()) {
+                    java.util.List<AdminReplacement> reps = replacementRepository
+                            .findByReplacementEntityIdAndEntityTypeAndStatusIn(
+                                    suOpt.get().getId(), "MAIN_ADMIN",
+                                    java.util.Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (!reps.isEmpty()) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origOpt =
+                                mainAdminRepository.findById(reps.get(0).getOriginalEntityId());
+                        if (origOpt.isPresent()) {
+                            parentOpt = mainBankRepository.findFirstByBankAdminId(origOpt.get().getUsername());
+                        }
+                    }
+                }
                 if (parentOpt.isPresent()) {
                     parentbankId = parentOpt.get().getBankId();
                     logger.info("[GetAllBranchBanks] Resolved parentbankId={} for user='{}'",
                             parentbankId, loggedInUsername);
+                }
+            } else {
+                // Replacement branch admin: not in MainAdmin — find them in BranchAdmin,
+                // then resolve parentBankId via their BranchBank record.
+                java.util.Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> branchAdminOpt =
+                        branchAdminRepository.findFirstByUsername(loggedInUsername);
+                if (!branchAdminOpt.isPresent()) {
+                    branchAdminOpt = branchAdminRepository.findFirstByEmailAndStatusNot(loggedInUsername, "BLOCKED");
+                }
+                if (branchAdminOpt.isPresent()) {
+                    String branchCode = branchAdminOpt.get().getBranchCode();
+                    if (branchCode != null) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.BranchBank> branchBankOpt =
+                                branchBankRepository.findByBranchCode(branchCode);
+                        if (branchBankOpt.isPresent() && branchBankOpt.get().getParentBankId() != null) {
+                            parentbankId = branchBankOpt.get().getParentBankId();
+                            logger.info("[GetAllBranchBanks] Resolved parentbankId={} via BranchAdmin for user='{}'",
+                                    parentbankId, loggedInUsername);
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
@@ -1300,6 +1334,13 @@ public class BranchBankServiceImpl implements BranchBankService {
                 logger.warn("scheduleBlock: parent bank lookup failed for branch {}: {}", bnk.getBranchCode(), e.getMessage());
             }
         }
+        logger.info("Block scheduled for branch bank {} by {} at {}",
+                bankId, scheduledBy, bnk.getBlockScheduledAt());
+
+        String blockAtFormatted = bnk.getBlockScheduledAt()
+                .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+
         if (parentActive && "ACTIVE".equalsIgnoreCase(bnk.getPreBlockStatus())) {
             try {
                 List<AddUser> branchUsers = addUserRepository.findByBranchCode(bnk.getBranchCode());
@@ -1315,6 +1356,19 @@ public class BranchBankServiceImpl implements BranchBankService {
                         user.setReactivateScheduledAt(null);
                         user.setReactivateScheduledBy(null);
                         addUserRepository.save(user);
+                        try {
+                            if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                                emailService.sendBlockWarning(
+                                        user.getEmail(),
+                                        user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                                        bnk.getBranchNameFull(),
+                                        bnk.getBranchCode(),
+                                        blockAtFormatted
+                                );
+                            }
+                        } catch (Exception emailEx) {
+                            logger.warn("scheduleBlock: warning email failed for user {}: {}", user.getUsername(), emailEx.getMessage());
+                        }
                     }
                 }
                 logger.info("scheduleBlock: cascaded BLOCK_PENDING to {} user(s) in branch {}", branchUsers.size(), bnk.getBranchCode());
@@ -1322,13 +1376,6 @@ public class BranchBankServiceImpl implements BranchBankService {
                 logger.warn("scheduleBlock: user cascade failed for branch {}: {}", bnk.getBranchCode(), e.getMessage());
             }
         }
-
-        logger.info("Block scheduled for branch bank {} by {} at {}",
-                bankId, scheduledBy, bnk.getBlockScheduledAt());
-
-        String blockAtFormatted = bnk.getBlockScheduledAt()
-                .plusSeconds(30)   // DEMO: 30s — change to plusHours(24) for production
-                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
 
         try {
             if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
@@ -1389,6 +1436,38 @@ public class BranchBankServiceImpl implements BranchBankService {
                 .ifPresent(ba -> { ba.setStatus(finalRestored); ba.setUpdatedAt(LocalDateTime.now()); ba.setUpdatedBy(undoneBy); branchAdminRepository.save(ba); });
         } catch (Exception e) {
             logger.warn("undoBlock: BRANCH_ADMIN sync failed for {}: {}", bnk.getBranchCode(), e.getMessage());
+        }
+
+        // Restore all BLOCK_PENDING users under this branch + send cancellation emails
+        try {
+            List<AddUser> branchUsers = addUserRepository.findByBranchCode(bnk.getBranchCode());
+            for (AddUser user : branchUsers) {
+                if (user.getStatus() == AddUser.UserStatus.BLOCK_PENDING) {
+                    String userRestored = user.getPreBlockStatus() != null ? user.getPreBlockStatus() : "ACTIVE";
+                    user.setStatus(AddUser.UserStatus.valueOf(userRestored));
+                    user.setPreBlockStatus(null);
+                    user.setBlockScheduledAt(null);
+                    user.setBlockScheduledBy(null);
+                    user.setBlockReason(null);
+                    addUserRepository.save(user);
+                    try {
+                        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                            emailService.sendBlockCancelled(
+                                    user.getEmail(),
+                                    user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                                    bnk.getBranchNameFull(),
+                                    bnk.getBranchCode(),
+                                    userRestored
+                            );
+                        }
+                    } catch (Exception emailEx) {
+                        logger.warn("undoBlock: cancellation email failed for user {}: {}", user.getUsername(), emailEx.getMessage());
+                    }
+                }
+            }
+            logger.info("undoBlock: restored {} user(s) in branch {}", branchUsers.size(), bnk.getBranchCode());
+        } catch (Exception e) {
+            logger.warn("undoBlock: user restore failed for branch {}: {}", bnk.getBranchCode(), e.getMessage());
         }
 
         logger.info("Block undone for branch bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);

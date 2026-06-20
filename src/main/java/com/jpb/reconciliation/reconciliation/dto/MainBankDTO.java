@@ -22,6 +22,7 @@ public class MainBankDTO {
     private String blockReason;             // reason for block
     private String preBlockStatus;          // status before block was scheduled
     private String bankAdminId;             // bank admin username (e.g. areez.ansari)
+    private Long adminId;                    // MainAdmin.id — used as originalEntityId in replacement
     private String adminStatus;             // status from Bank_Admin table (MainAdmin.status)
     private String replacementStatus;       // ACTIVE / PERMANENT / null — from ADMIN_REPLACEMENT table
     private String replacedByUsername;      // replacement admin's username
@@ -135,6 +136,9 @@ public class MainBankDTO {
 
     public String getBankAdminId() { return bankAdminId; }
     public void setBankAdminId(String bankAdminId) { this.bankAdminId = bankAdminId; }
+
+    public Long getAdminId() { return adminId; }
+    public void setAdminId(Long adminId) { this.adminId = adminId; }
 
     public String getAdminStatus() { return adminStatus; }
     public void setAdminStatus(String adminStatus) { this.adminStatus = adminStatus; }

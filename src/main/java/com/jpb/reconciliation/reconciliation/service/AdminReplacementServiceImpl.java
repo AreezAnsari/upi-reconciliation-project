@@ -140,6 +140,10 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
                 original.getId(), req, scheduledBy);
         replacementRepository.save(r);
         logger.info("Pending replacement scheduled for MainAdmin id={} bank={}", original.getId(), original.getBankCode());
+        String actionedByNameMain = formatUsername(scheduledBy);
+        sendOutgoingEmail(original.getEmail(), original.getUsername(), original.getBankCode(),
+                actionedByNameMain, req.getReason(), req.getFullName(), req.getNewEmail(),
+                req.getOrderedBy());
         return ok("Replacement scheduled. Will take effect after inactivation is confirmed.");
     }
 
@@ -179,6 +183,10 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
                 original.getId(), req, scheduledBy);
         replacementRepository.save(r);
         logger.info("Pending replacement scheduled for BranchAdmin id={} branch={}", original.getId(), original.getBranchCode());
+        String actionedByNameBranch = formatUsername(scheduledBy);
+        sendOutgoingEmail(original.getEmail(), original.getUsername(), original.getBranchCode(),
+                actionedByNameBranch, req.getReason(), req.getFullName(), req.getNewEmail(),
+                req.getOrderedBy());
         return ok("Replacement scheduled. Will take effect after inactivation is confirmed.");
     }
 

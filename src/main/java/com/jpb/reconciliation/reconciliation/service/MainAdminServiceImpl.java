@@ -1157,6 +1157,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         // Chain cascade only when admin was ACTIVE; INACTIVE admin → individual block only
         Optional<MainBank> parentBankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
@@ -1284,6 +1285,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         // Chain cascade only when admin was ACTIVE; INACTIVE → individual block only
         if ("ACTIVE".equalsIgnoreCase(preStatus)) {

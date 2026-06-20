@@ -1114,6 +1114,41 @@ public class MainBankServiceImpl implements MainBankService {
     @Override
     public ResponseEntity<RestWithStatusList> getBanksByCreatedBy(String username) {
         List<MainBank> list = mainBankRepository.findByCreatedBy(username);
+
+        // Fallback for replacement admins: they didn't create the bank, but manage it via bankCode
+        if (list.isEmpty()) {
+            Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> adminOpt =
+                    mainAdminRepository.findFirstByUsername(username);
+            if (!adminOpt.isPresent()) {
+                adminOpt = mainAdminRepository.findFirstByEmailAndStatusNot(username, "BLOCKED");
+            }
+            if (adminOpt.isPresent()) {
+                Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> bankOpt = Optional.empty();
+                // Try bankCode from MainAdmin record
+                if (adminOpt.get().getBankCode() != null) {
+                    bankOpt = mainBankRepository.findByBankCode(adminOpt.get().getBankCode());
+                }
+                // Still not found — try via AdminReplacement → original admin → bankAdminId
+                if (!bankOpt.isPresent()) {
+                    java.util.List<AdminReplacement> reps = replacementRepository
+                            .findByReplacementEntityIdAndEntityTypeAndStatusIn(
+                                    adminOpt.get().getId(), "MAIN_ADMIN",
+                                    Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (!reps.isEmpty()) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origOpt =
+                                mainAdminRepository.findById(reps.get(0).getOriginalEntityId());
+                        if (origOpt.isPresent()) {
+                            bankOpt = mainBankRepository.findFirstByBankAdminId(origOpt.get().getUsername());
+                        }
+                    }
+                }
+                if (bankOpt.isPresent()) {
+                    list = new ArrayList<>();
+                    list.add(bankOpt.get());
+                }
+            }
+        }
+
         List<MainBankDTO> dtos = new ArrayList<>();
         for (MainBank bnk : list) {
             final MainBankDTO dto = MainBankMapper.mapToDTO(bnk);
@@ -1121,6 +1156,7 @@ public class MainBankServiceImpl implements MainBankService {
                 mainAdminRepository.findByBankCodeAndUsername(bnk.getBankCode(), bnk.getBankAdminId());
             if (origAdminOpt.isPresent()) {
                 com.jpb.reconciliation.reconciliation.entity.MainAdmin origAdmin = origAdminOpt.get();
+                dto.setAdminId(origAdmin.getId());
                 dto.setAdminStatus(origAdmin.getStatus());
                 enrichReplacementInfo(origAdmin.getId(), "MAIN_ADMIN", dto, null);
 

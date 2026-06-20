@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +11,7 @@ import com.jpb.reconciliation.reconciliation.dto.BranchAdminVerifyDto;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.service.BranchAdminService;
 
 @RestController
@@ -19,6 +21,9 @@ public class BranchAdminController {
 
     @Autowired
     private BranchAdminService branchAdminService;
+
+    @Autowired
+    private BranchAdminRepository branchAdminRepository;
 
     // Step 0 — verify email link (NEW_USER / OLD_USER)
     @GetMapping("/verify-email")
@@ -126,6 +131,25 @@ public class BranchAdminController {
             @PathVariable Long branchBankId, Authentication authentication) {
         String by = authentication != null ? authentication.getName() : "UNKNOWN";
         return branchAdminService.undoBlockByBranchBankId(branchBankId, by);
+    }
+
+    @GetMapping("/my-status")
+    public ResponseEntity<RestWithStatusList> getMyStatus(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new RestWithStatusList("FAILURE", "Not authenticated", new java.util.ArrayList<>()));
+        }
+        String name = authentication.getName();
+        java.util.Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> adminOpt =
+                branchAdminRepository.findFirstByUsername(name);
+        if (!adminOpt.isPresent()) {
+            adminOpt = branchAdminRepository.findFirstByEmailAndStatusNot(name, "BLOCKED");
+        }
+        return adminOpt
+                .map(admin -> ResponseEntity.ok(
+                        new RestWithStatusList("SUCCESS", admin.getStatus(), new java.util.ArrayList<>())))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new RestWithStatusList("FAILURE", "Admin not found", new java.util.ArrayList<>())));
     }
 
 }

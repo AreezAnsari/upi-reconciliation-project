@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.controller;
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
+import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.MainAdminService;
@@ -45,6 +46,9 @@ public class OtpController {
 
     @Autowired
     private BranchBankRepository branchBankRepository;
+
+    @Autowired
+    private MainAdminRepository mainAdminRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -135,6 +139,17 @@ public class OtpController {
                                     .orElse(null))
                             .orElse(null);
                     jwtSubject = baOpt.get().getUsername(); // Branch Admin: username as subject
+                } else {
+                    // Replacement bank admin: their email is not the bank's primaryEmail,
+                    // so look them up directly in MainAdmin to get bankCode and real username.
+                    java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> maOpt =
+                            mainAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
+                    if (maOpt.isPresent() && maOpt.get().getBankCode() != null) {
+                        resolvedBankCode = maOpt.get().getBankCode();
+                        jwtSubject = maOpt.get().getUsername(); // use actual DB username, not email
+                        logger.info("[OTP-VERIFY] Replacement bank admin detected — username='{}' bankCode='{}'",
+                                jwtSubject, resolvedBankCode);
+                    }
                 }
             }
             logger.info("[OTP-VERIFY] bankCode={} branchCode={} jwtSubject={} for {}",

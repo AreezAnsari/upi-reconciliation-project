@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +11,7 @@ import com.jpb.reconciliation.reconciliation.dto.MainAdminSetPasswordDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.service.MainAdminService;
 
 @RestController
@@ -18,6 +20,9 @@ public class MainAdminController {
 
     @Autowired
     private MainAdminService mainAdminService;
+
+    @Autowired
+    private MainAdminRepository mainAdminRepository;
 
     // Step 1 — Verify default credentials from email
     @PostMapping("/verify-credentials")
@@ -129,6 +134,25 @@ public class MainAdminController {
             @PathVariable Long bankId, Authentication authentication) {
         String by = authentication != null ? authentication.getName() : "UNKNOWN";
         return mainAdminService.undoBlockByBankId(bankId, by);
+    }
+
+    @GetMapping("/my-status")
+    public ResponseEntity<RestWithStatusList> getMyStatus(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new RestWithStatusList("FAILURE", "Not authenticated", new java.util.ArrayList<>()));
+        }
+        String name = authentication.getName();
+        java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> adminOpt =
+                mainAdminRepository.findFirstByUsername(name);
+        if (!adminOpt.isPresent()) {
+            adminOpt = mainAdminRepository.findFirstByEmailAndStatusNot(name, "BLOCKED");
+        }
+        return adminOpt
+                .map(admin -> ResponseEntity.ok(
+                        new RestWithStatusList("SUCCESS", admin.getStatus(), new java.util.ArrayList<>())))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new RestWithStatusList("FAILURE", "Admin not found", new java.util.ArrayList<>())));
     }
 
 }

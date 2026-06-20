@@ -463,6 +463,7 @@ public class AddUserServiceImpl implements AddUserService {
         user.setReactivateScheduledAt(null);
         user.setReactivateScheduledBy(null);
         userRepository.save(user);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         // window depends on prior status: ACTIVE→BLOCK=4hr/30s, INACTIVE→BLOCK=1hr/30s (same 30s demo)
         String blockAt = user.getBlockScheduledAt()
@@ -470,8 +471,11 @@ public class AddUserServiceImpl implements AddUserService {
                 .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
         try {
             if (user.getEmail() != null) {
-                emailService.sendInactivatePendingWarning(user.getEmail(),
-                        user.getFullName(), user.getUsername(), user.getUsername(), blockAt);
+                String code = user.getBankCode() != null ? user.getBankCode()
+                        : (user.getBranchCode() != null ? user.getBranchCode() : user.getUsername());
+                emailService.sendBlockWarning(user.getEmail(),
+                        user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                        code, code, blockAt);
             }
         } catch (Exception e) {
             log.warn("[BLOCK-WARN] Email failed for user {}: {}", user.getUsername(), e.getMessage());
@@ -498,8 +502,11 @@ public class AddUserServiceImpl implements AddUserService {
 
         try {
             if (user.getEmail() != null) {
-                emailService.sendInactivateCancelled(user.getEmail(),
-                        user.getFullName(), user.getUsername(), user.getUsername());
+                String code = user.getBankCode() != null ? user.getBankCode()
+                        : (user.getBranchCode() != null ? user.getBranchCode() : user.getUsername());
+                emailService.sendBlockCancelled(user.getEmail(),
+                        user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                        code, code, restored.name());
             }
         } catch (Exception e) {
             log.warn("[UNDO-BLOCK] Email failed for user {}: {}", user.getUsername(), e.getMessage());

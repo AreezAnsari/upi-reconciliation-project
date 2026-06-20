@@ -26,4 +26,8 @@ public interface AdminReplacementRepository extends JpaRepository<AdminReplaceme
     // Returns any ACTIVE or PERMANENT replacement record for the given original entity
     List<AdminReplacement> findByOriginalEntityIdAndEntityTypeAndStatusIn(
             Long originalEntityId, String entityType, Collection<String> statuses);
+
+    // Returns any ACTIVE or PERMANENT replacement record for the given replacement entity
+    List<AdminReplacement> findByReplacementEntityIdAndEntityTypeAndStatusIn(
+            Long replacementEntityId, String entityType, Collection<String> statuses);
 }

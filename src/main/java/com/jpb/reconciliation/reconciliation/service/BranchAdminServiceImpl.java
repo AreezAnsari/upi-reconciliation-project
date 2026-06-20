@@ -899,6 +899,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         // Chain cascade only when admin was ACTIVE; INACTIVE admin → individual block only
         try {
@@ -1138,6 +1139,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         // Chain cascade only when admin was ACTIVE; INACTIVE → individual block only
         if ("ACTIVE".equalsIgnoreCase(preStatus)) {
