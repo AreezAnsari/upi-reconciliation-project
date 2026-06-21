@@ -162,7 +162,7 @@ public class ReconFileTmpltMast {
     private LocalDateTime updatedAt;
 
     // Relationships
-    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @OrderBy("sequenceOrder ASC")
     private Set<ReconTmpltFieldDtls> fieldDetails;
 

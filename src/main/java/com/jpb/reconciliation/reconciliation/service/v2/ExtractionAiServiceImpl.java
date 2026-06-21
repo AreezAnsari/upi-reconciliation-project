@@ -160,9 +160,9 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 						logger.info("LOG FILE PATH :::::::::::" + generateLogFile);
 						logger.info("BAD FILE PATH :::::::::::" + generateBadFile);
 						if (!generateControlFile.isEmpty() && !generateLogFile.isEmpty()) {
-							String sqlLoaderStatus = sqlLoaderAiService.startLoading(generateControlFile, generateLogFile,
-									generateBadFile, reconTemplateFileDetails, runningExtraction.get(index), userData,
-									processedFiles.get(index));
+							String sqlLoaderStatus = sqlLoaderAiService.startLoading(generateControlFile,
+									generateLogFile, generateBadFile, reconTemplateFileDetails,
+									runningExtraction.get(index), userData, processedFiles.get(index));
 							logger.info("LOADER OUTPUT ::::::::::::::::::::" + sqlLoaderStatus);
 						}
 					} catch (Exception e) {
@@ -201,7 +201,7 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 
 	public String generateControlFile(File fileLocation, String fileSeprator, Long templateId, String targetTableName,
 			String fileName, Optional<ReconTmpltFieldDtls> reconTemplateFileDetails) throws IOException {
-
+		logger.info("Template Details ::::::::::" + reconTemplateFileDetails);
 //		List<ReconFieldDetailsDto> getFiledData = getFiledDataByTemplateId(templateId);
 		StringBuilder controlFileContent = new StringBuilder();
 //		logger.info("FILE DATA ::::::::" + getFiledData);
@@ -216,8 +216,9 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 
 		controlFileContent.append("UNRECOVERABLE \n");
 		controlFileContent.append("LOAD DATA \n");
-		controlFileContent.append("INFILE '").append(reconTemplateFileDetails.get().getTemplate().getFilePath())
-				.append("'\n");
+//		controlFileContent.append("INFILE '").append(reconTemplateFileDetails.get().getTemplate().getFilePath())
+//				.append("'\n");
+		controlFileContent.append("INFILE '").append(fileLocation.getAbsolutePath()).append("'\n");
 		controlFileContent.append("INTO TABLE ").append(reconTemplateFileDetails.get().getTemplate().getStageTabName())
 				.append("\n");
 		controlFileContent.append("append \n");
@@ -239,7 +240,7 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 		controlFileContent.append("(\n");
 
 		for (ReconTmpltFieldDtls filed : reconTemplateFileDetails.get().getTemplate().getFieldDetails()) {
-			if (!filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("VARCHAR2")) {
+			if (!filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("STRING")) {
 				if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("NUMBER")) {
 
 //					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
