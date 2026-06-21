@@ -111,7 +111,7 @@ public class AuthController {
 			}
 
 			String newAccessToken = jwtHelper.generateToken(userDetails);
-			return ResponseEntity.ok(new AuthResponse(newAccessToken, refreshToken));
+			return ResponseEntity.ok(new AuthResponse(newAccessToken, refreshToken, newAccessToken));
 		} catch (UsernameNotFoundException e) {
 			logger.warn("User '{}' found in refresh token but not in system. Clearing cookie.", userName);
 			clearRefreshCookie(response);

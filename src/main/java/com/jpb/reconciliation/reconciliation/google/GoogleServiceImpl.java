@@ -134,7 +134,7 @@ public class GoogleServiceImpl implements GoogleService {
 
 				auditLogManagerService.loginAudit(user, jwtToken, refreshToken);
 
-				AuthResponse authResponse = new AuthResponse(jwtToken, refreshToken);
+				AuthResponse authResponse = new AuthResponse(jwtToken, refreshToken, refreshToken);
 				userData.add(authResponse);
 				restWithStatusList = new RestWithStatusList("SUCCESS", "User logged in successfully", userData);
 				return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);

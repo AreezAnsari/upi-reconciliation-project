@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.entity;
 import java.time.LocalDateTime;
 import javax.persistence.*;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 @Data
 @Entity
@@ -54,4 +55,8 @@ public class BranchAdmin {
 
     @Column(name = "updated_by")
     private String updatedBy;
+    
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @Column(name = "password_updated_at")
+    private LocalDateTime passwordUpdatedAt;
 }

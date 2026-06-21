@@ -116,23 +116,6 @@ public class ReconUserServiceImpl implements ReconUserService {
 		return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
 	}
 
-//	private Role saveUserRole(String roleName) {
-//		Role role = new Role();
-//		role.setRoleName(roleName);
-//		if (roleName.equalsIgnoreCase("JPB")) {
-//			role.setRoleCode("ROLE_JPB");
-//		} else if (roleName.equalsIgnoreCase("bankadmin")) {
-//			role.setRoleCode("ROLE_ADMIN");
-//		} else if (roleName.equalsIgnoreCase("VIEW")) {
-//			role.setRoleCode("ROLE_VIEW");
-//		} else if (roleName.equalsIgnoreCase("AppSupport")) {
-//			role.setRoleCode("ROLE_APPSUPPORT");
-//		} else if (roleName.equalsIgnoreCase("RPSL")) {
-//			role.setRoleCode("ROLE_RPSL");
-//		}
-//		role.setCreatedAt(LocalDateTime.now());
-//		return role;
-//	}
 
 	private KalAdminPasswordManager saveUserPasswordData(String userPassword) {
 		KalAdminPasswordManager KalAdminPasswordManager = new KalAdminPasswordManager();
@@ -189,8 +172,11 @@ public class ReconUserServiceImpl implements ReconUserService {
 				refreshCookie.setPath("/");
 				response.addCookie(refreshCookie);
 				auditLogManagerService.loginAudit(user, token, refreshToken);
-				return ResponseEntity.ok(new AuthResponse(token, refreshToken));
-			} catch (JwtException e) {
+				return ResponseEntity.ok(new AuthResponse(token, refreshToken, 
+					    user.getPasswordUpdatedAt() != null 
+					        ? user.getPasswordUpdatedAt().toString() 
+					        : null
+					));			} catch (JwtException e) {
 				return ResponseEntity.status(403).body("Invalid or expired refresh token");
 			}
 		} else {

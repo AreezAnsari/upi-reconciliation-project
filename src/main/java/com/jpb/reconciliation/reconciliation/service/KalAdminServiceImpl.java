@@ -15,10 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jpb.reconciliation.reconciliation.dto.KalAdminDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.KalAdminPasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.entity.Role;
 import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.RoleManageRepository;
+import com.jpb.reconciliation.reconciliation.security.PasswordAndSecurityUserAccessValidator;
 
 @Service
 public class KalAdminServiceImpl implements KalAdminService {
@@ -33,6 +35,9 @@ public class KalAdminServiceImpl implements KalAdminService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    
+    @Autowired private PasswordAndSecurityUserAccessValidator validator;
 
     // ADMIN role ID — inserted in RCN_ROLE_MASTER
     private static final Long ADMIN_ROLE_ID = 5L;
@@ -120,7 +125,7 @@ public class KalAdminServiceImpl implements KalAdminService {
         KalAdmin.setRole(adminRole);
         KalAdmin.setCreatedAt(LocalDateTime.now());
         KalAdmin.setCreatedBy("SYSTEM");
-
+        KalAdmin.setPasswordUpdatedAt(LocalDateTime.now());
         KalAdminPasswordManager pwdManager = new KalAdminPasswordManager();
         pwdManager.setUserPassword(encodedPassword);
         pwdManager.setExpirationDate(LocalDateTime.now());
@@ -131,8 +136,14 @@ public class KalAdminServiceImpl implements KalAdminService {
         KalAdminRepository.save(KalAdmin);
         KalAdminRepository.flush();
         logger.info("KalAdmin saved for login: {}", KalAdmin.getUserName());
+       
 
         restWithStatusList = new RestWithStatusList("SUCCESS", "Employee Registered Successfully", new ArrayList<>());
         return new ResponseEntity<>(restWithStatusList, HttpStatus.CREATED);
+    }
+    public void login(KalAdmin user) {
+
+        validator.validate(user.getUserStatus());
+
     }
 }

@@ -15,7 +15,6 @@ public interface EmailService {
      * Send OTP email for Forgot Password flow.
      */
     void sendForgotPasswordOtp(String toEmail, String userName, String otpCode, int expiryMins);
-
     /**
      * Send welcome email to Bank's Primary Contact (Super User)
      * after KalInfotech Admin successfully onboards the bank.

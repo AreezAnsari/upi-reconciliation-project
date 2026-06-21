@@ -97,7 +97,7 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/activate")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/check-email")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/check-name")).permitAll()
-
+                .requestMatchers(new AntPathRequestMatcher("/test/api/v1/dev/**")).permitAll()
                 // ✅ IMPORTANT FIX FOR OTP VERIFY
                 .requestMatchers(new AntPathRequestMatcher("/api/otp/**")).permitAll()
 

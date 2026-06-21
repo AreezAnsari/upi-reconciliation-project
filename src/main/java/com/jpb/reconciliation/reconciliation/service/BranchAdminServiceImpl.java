@@ -27,6 +27,7 @@ import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
+import com.jpb.reconciliation.reconciliation.security.PasswordAndSecurityUserAccessValidator;
 
 @Service
 public class BranchAdminServiceImpl implements BranchAdminService {
@@ -39,6 +40,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     @Autowired private OtpService otpService;
     @Autowired private EmailService emailService;
     @Autowired private JwtHelper jwtHelper;
+    @Autowired private PasswordAndSecurityUserAccessValidator validator;
 
     // =========================================================================
     // verifyEmail — NEW_USER / OLD_USER check
@@ -98,7 +100,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                 new RestWithStatusList("OLD_USER", "Login directly.", null),
                 HttpStatus.OK);
     }
+    public void login(BranchAdmin user) {
 
+        validator.validate(user.getStatus());
+    }
     // =========================================================================
     // STEP 1 — verifyCredentials
     // POST /test/api/v1/BranchBank/verify-credentials
@@ -209,6 +214,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         branchAdmin.setStatus("VERIFIED");
         branchAdmin.setCreatedAt(LocalDateTime.now());
         branchAdmin.setCreatedBy(bank.getCreatedBy());
+        branchAdmin.setPasswordUpdatedAt(LocalDateTime.now());
         branchAdminRepository.save(branchAdmin);
         logger.info("BRANCH_ADMIN record created for username={} BranchCode={}",
                 dto.getUsername(), dto.getBranchCode());
@@ -320,7 +326,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         String maskedEmail = maskEmail(email);
         List<Object> data = new ArrayList<>();
-        data.add(email); // actual email needed for OTP verification; masked only for display in statusMsg
+        data.add(email);
+        data.add(user.getPasswordUpdatedAt() != null
+                ? user.getPasswordUpdatedAt().toString()
+                : null);
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS", "OTP sent successfully.", data),
