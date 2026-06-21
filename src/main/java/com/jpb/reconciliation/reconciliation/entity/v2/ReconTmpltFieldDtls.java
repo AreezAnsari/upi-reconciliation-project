@@ -26,7 +26,7 @@ public class ReconTmpltFieldDtls {
     @EqualsAndHashCode.Include
     private Long fieldId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)  // CHANGE LAZY TO EAGER
     @JoinColumn(name = "template_id", nullable = false)
     @JsonIgnoreProperties({"fieldDetails"})
     private ReconFileTmpltMast template;
@@ -37,12 +37,12 @@ public class ReconTmpltFieldDtls {
     @Column(name = "field_label", length = 150)
     private String fieldLabel;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)  // CHANGE LAZY TO EAGER
     @JoinColumn(name = "field_type_id", nullable = false)
     @JsonIgnoreProperties({"fieldDetails"})
     private ReconFieldTypeMast fieldType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)  // CHANGE LAZY TO EAGER
     @JoinColumn(name = "field_format_id", nullable = false)
     @JsonIgnoreProperties({"fieldDetails"})
     private ReconFieldFormatMast fieldFormat;
