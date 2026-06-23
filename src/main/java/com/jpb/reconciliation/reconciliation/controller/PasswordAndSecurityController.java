@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,55 +21,51 @@ import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
+import com.jpb.reconciliation.reconciliation.service.EmailService;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
 
 @RestController
 @RequestMapping("/test/api/v1/security")
 public class PasswordAndSecurityController {
 
+    private static final Logger logger =
+            LoggerFactory.getLogger(PasswordAndSecurityController.class);
+
     @Autowired private BranchAdminRepository branchRepo;
-    @Autowired private MainAdminRepository mainRepo;
-    @Autowired private KalAdminRepository kalRepo;
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private OtpService otpService; // ← already exists in your project
+    @Autowired private MainAdminRepository   mainRepo;
+    @Autowired private KalAdminRepository    kalRepo;
+    @Autowired private PasswordEncoder       passwordEncoder;
+    @Autowired private OtpService            otpService;
+    @Autowired private EmailService          emailService;   // ✅ ADDED
 
     // ═══════════════════════════════════════════════════════
     // STEP 1 — Send OTP before password change
     // POST /test/api/v1/security/send-otp
-    // Body: { userId, userType }  OR  { bankCode, username, userType }
     // ═══════════════════════════════════════════════════════
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@RequestBody PasswordExpiryDto dto) {
 
-        // ✅ Debug log
-        System.out.println("=== Send OTP ===");
-        System.out.println("userType   : " + dto.getUserType());
-        System.out.println("userId     : " + dto.getUserId());
-        System.out.println("username   : " + dto.getUsername());
-        System.out.println("bankCode   : " + dto.getBankCode());
-        System.out.println("branchCode : " + dto.getBranchCode());
-        System.out.println("================");
-
         String email = null;
+        String userName = null;
         try {
-        	// BRANCH_ADMIN section mein
-        	if ("BRANCH_ADMIN".equals(dto.getUserType())) {
-        	    BranchAdmin user;
-        	    if (dto.getUserId() != null) {
-        	        user = branchRepo.findById(dto.getUserId())
-        	            .orElseThrow(() -> new RuntimeException("User not found"));
-        	    } else {
-        	        // ✅ branchCode pehle try karo, phir bankCode
-        	        String code = (dto.getBranchCode() != null && !dto.getBranchCode().isEmpty())
-        	            ? dto.getBranchCode()
-        	            : dto.getBankCode();
+            // BRANCH_ADMIN section mein
+            if ("BRANCH_ADMIN".equals(dto.getUserType())) {
+                BranchAdmin user;
+                if (dto.getUserId() != null) {
+                    user = branchRepo.findById(dto.getUserId())
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+                } else {
+                    // ✅ branchCode pehle try karo, phir bankCode
+                    String code = (dto.getBranchCode() != null && !dto.getBranchCode().isEmpty())
+                        ? dto.getBranchCode()
+                        : dto.getBankCode();
 
-        	        user = branchRepo
-        	            .findByBranchCodeAndUsername(code, dto.getUsername())
-        	            .orElseThrow(() -> new RuntimeException("User not found"));
-        	    }
-        	    email = user.getEmail();
-        	
+                    user = branchRepo
+                        .findByBranchCodeAndUsername(code, dto.getUsername())
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+                }
+                email    = user.getEmail();
+                userName = user.getUsername();
 
             } else if ("SUPER_USER".equals(dto.getUserType())) {
 
@@ -86,7 +84,8 @@ public class PasswordAndSecurityController {
                         .findByBankCodeAndUsername(code, dto.getUsername())
                         .orElseThrow(() -> new RuntimeException("User not found"));
                 }
-                email = user.getEmail();
+                email    = user.getEmail();
+                userName = user.getUsername();
 
             } else {
                 // ADMIN / KAL_ADMIN
@@ -98,10 +97,13 @@ public class PasswordAndSecurityController {
                     user = kalRepo.findByUserName(dto.getUsername())
                         .orElseThrow(() -> new RuntimeException("User not found"));
                 }
-                email = user.getEmailId();
+                email    = user.getEmailId();
+                userName = user.getUserName();
             }
 
-            otpService.generateAndSendOtp(email);
+            // ✅ Password change wala OTP mail bhejega
+            otpService.generateAndSendPasswordChangeOtp(email, userName);
+
             String masked = maskEmail(email);
             List<Object> data = new ArrayList<>();
             data.add(masked);
@@ -120,8 +122,6 @@ public class PasswordAndSecurityController {
 
     // ═══════════════════════════════════════════════════════
     // STEP 2 — Verify OTP + Change Password
-    // Body: { userId, userType, currentPassword, newPassword, otp }
-    //   OR  { bankCode, username, userType, currentPassword, newPassword, otp }
     // ═══════════════════════════════════════════════════════
 
     // 1. Branch Admin
@@ -129,8 +129,6 @@ public class PasswordAndSecurityController {
     @Transactional
     public ResponseEntity<?> changeBranchPassword(@RequestBody PasswordExpiryDto dto) {
         try {
-            // ✅ FIX: fall back to bankCode+username lookup when userId is not sent
-            // (this is what was throwing the uncaught RuntimeException → 500)
             BranchAdmin user = (dto.getUserId() != null)
                 ? branchRepo.findById(dto.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"))
@@ -157,12 +155,18 @@ public class PasswordAndSecurityController {
             user.setStatus("ACTIVE");
             branchRepo.save(user);
 
+            // ✅ Send confirmation email
+            try {
+                emailService.sendPasswordChangedConfirmation(user.getEmail(), user.getUsername());
+            } catch (Exception ex) {
+                logger.warn("Password changed confirmation email failed for {}: {}",
+                        user.getUsername(), ex.getMessage());
+            }
+
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Password updated successfully",
                     java.util.Collections.singletonList(now.toString())));
 
         } catch (Exception e) {
-            // ✅ FIX: never let an uncaught exception fall through to a raw 500 —
-            // always return a structured FAILURE response the frontend can read
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new RestWithStatusList("FAILURE", "Password update failed: " + e.getMessage(), null));
         }
@@ -173,7 +177,6 @@ public class PasswordAndSecurityController {
     @Transactional
     public ResponseEntity<?> changeMainPassword(@RequestBody PasswordExpiryDto dto) {
         try {
-            // ✅ FIX: same userId-or-(bankCode+username) fallback
             MainAdmin user = (dto.getUserId() != null)
                 ? mainRepo.findById(dto.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"))
@@ -200,6 +203,14 @@ public class PasswordAndSecurityController {
             user.setStatus("ACTIVE");
             mainRepo.save(user);
 
+            // ✅ Send confirmation email
+            try {
+                emailService.sendPasswordChangedConfirmation(user.getEmail(), user.getUsername());
+            } catch (Exception ex) {
+                logger.warn("Password changed confirmation email failed for {}: {}",
+                        user.getUsername(), ex.getMessage());
+            }
+
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Password updated successfully",
                     java.util.Collections.singletonList(now.toString())));
 
@@ -214,7 +225,6 @@ public class PasswordAndSecurityController {
     @Transactional
     public ResponseEntity<?> changeKalPassword(@RequestBody PasswordExpiryDto dto) {
         try {
-            // ✅ FIX: same fallback — KalAdmin lookup by username when userId is null
             KalAdmin user = (dto.getUserId() != null)
                 ? kalRepo.findById(dto.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"))
@@ -228,7 +238,7 @@ public class PasswordAndSecurityController {
                     .body(new RestWithStatusList("FAILURE", "Current password is incorrect.", null));
             }
 
-            // ✅ Verify OTP — use emailId (KalAdmin's email field), same as sendOtp
+            // ✅ Verify OTP
             OtpService.OtpVerifyResult otpResult =
                     otpService.verifyOtp(user.getEmailId(), dto.getOtp());
             if (otpResult != OtpService.OtpVerifyResult.SUCCESS) {
@@ -244,6 +254,14 @@ public class PasswordAndSecurityController {
             user.setUserStatus("ACTIVE");
             kalRepo.save(user);
 
+            // ✅ Send confirmation email
+            try {
+                emailService.sendPasswordChangedConfirmation(user.getEmailId(), user.getUserName());
+            } catch (Exception ex) {
+                logger.warn("Password changed confirmation email failed for {}: {}",
+                        user.getUserName(), ex.getMessage());
+            }
+
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Password updated successfully",
                     java.util.Collections.singletonList(now.toString())));
 
@@ -255,11 +273,6 @@ public class PasswordAndSecurityController {
 
     // ── Private helpers ───────────────────────────────────
 
-    /**
-     * Old-style if/else instead of Java 14+ arrow-switch expression,
-     * since this project compiles on an older Java level (8/11) where
-     * "switch (x) { case A -> ...; }" is not valid syntax.
-     */
     private String otpErrorMessage(OtpService.OtpVerifyResult otpResult) {
         if (otpResult == OtpService.OtpVerifyResult.EXPIRED) {
             return "OTP has expired. Please request a new one.";
