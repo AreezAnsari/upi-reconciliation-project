@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.jpb.reconciliation.reconciliation.entity.RecModule;
 import com.jpb.reconciliation.reconciliation.entity.RecRole;
 
 @Repository
@@ -50,5 +51,6 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
 
     // Bank Admin: roles they created (no branch scope — bank-level only)
     List<RecRole> findByBankCodeAndBranchCodeIsNull(String bankCode);
+    
 
 }

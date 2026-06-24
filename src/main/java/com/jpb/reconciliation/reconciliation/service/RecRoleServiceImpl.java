@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.AdminContext;
 import com.jpb.reconciliation.reconciliation.dto.RecCreateRoleRequestDTO;
+//import com.jpb.reconciliation.reconciliation.dto.RecPermissionLabelDTO;
 import com.jpb.reconciliation.reconciliation.dto.RecPermissionRowDTO;
 import com.jpb.reconciliation.reconciliation.dto.RecRoleResponseDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
@@ -23,6 +24,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,6 +51,9 @@ public class RecRoleServiceImpl implements RecRoleService {
     private final RecRoleMapper              roleMapper;
     private final RecRoleCodeGeneratorService codeGenerator;
     private final AdminContextResolver        contextResolver;
+    
+    @javax.persistence.PersistenceContext
+    private javax.persistence.EntityManager em;
 
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE
@@ -300,6 +311,32 @@ public class RecRoleServiceImpl implements RecRoleService {
 	                .build();
 	    }
 	}
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET PRIVILEGES
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Load existing permissions for a role, joined with module name.
+     * Paste inside RecRoleServiceImpl (implements RecRoleService).
+     * Also add the signature to RecRoleService interface.
+     */
+    
+    @Override
+    @Transactional(readOnly = true)
+    public RestWithStatusList getPrivileges(Long roleId) {
+        RecRole role = roleRepo.findByIdWithPermissions(roleId)
+                .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
+ 
+        // roleMapper.toResponseDTO already includes permissions list
+        RecRoleResponseDTO dto = roleMapper.toResponseDTO(role);
+ 
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Privileges fetched successfully")
+                .data(Collections.singletonList(dto))
+                .build();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET BY ID
@@ -339,6 +376,83 @@ public class RecRoleServiceImpl implements RecRoleService {
             // KAL Super Admin → all roles
             roles = roleRepo.findAll();
         }
+        
+        if (roles.isEmpty()) {
+            return RestWithStatusList.builder()
+                    .status("SUCCESS")
+                    .statusMsg("No roles found")
+                    .data(Collections.emptyList())
+                    .build();
+        }
+
+        // ── Fetch privilege summary for ALL roles in ONE query ──────────────
+        // Returns: [roleId, privilegeCount, comma-separated product names]
+        List<Long> roleIds = roles.stream()
+                .map(RecRole::getId)
+                .collect(Collectors.toList());
+
+        // Native query — works on Oracle with LISTAGG
+        @SuppressWarnings("unchecked")
+        List<Object[]> privRows = em.createNativeQuery("SELECT " +
+        	    "p.ROLE_ID, " +
+        	    "COUNT(p.ID) AS PRIV_COUNT, " +
+        	    "LISTAGG(DISTINCT m.NAME, ',') WITHIN GROUP (ORDER BY m.NAME) AS PROD_NAMES " +
+        	    "FROM REC_ROLE_MODULE_PERMISSIONS_TEST p " +
+        	    "JOIN REC_MODULES_TEST m ON m.ID = p.MODULE_ID " +
+        	    "WHERE p.HAS_ACCESS = 1 " +
+        	    "AND p.ROLE_ID IN (:roleIds) " +
+        	    "GROUP BY p.ROLE_ID")
+        .setParameter("roleIds", roleIds)
+        .getResultList();
+
+        // Build maps: roleId → count, roleId → productList
+        Map<Long, Integer>      countMap = new HashMap<>();
+        Map<Long, List<String>> prodMap  = new HashMap<>();
+
+        for (Object[] row : privRows) {
+            Long   rid      = ((Number) row[0]).longValue();
+            int    cnt      = ((Number) row[1]).intValue();
+            String prodsCsv = row[2] != null ? (String) row[2] : "";
+
+            countMap.put(rid, cnt);
+            prodMap.put(rid,
+                prodsCsv.isEmpty()
+                    ? Collections.emptyList()
+                    : Arrays.asList(prodsCsv.split(","))
+            );
+        }
+
+        // ── Build response: role fields + privilegeCount + assignedProducts ──
+        List<Map<String, Object>> result = roles.stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id",                r.getId());
+            m.put("roleName",          r.getRoleName());
+            m.put("roleCode",          r.getRoleCode());
+            m.put("roleType",          r.getRoleType());
+            m.put("roleMasterName",    r.getRoleMasterName());
+            m.put("description",       r.getDescription());
+            m.put("department",        r.getDepartment());
+            m.put("sessionTimeout",    r.getSessionTimeout());
+            m.put("validFrom",         r.getValidFrom());
+            m.put("validTo",           r.getValidTo());
+//            m.put("status",            r.getStatus());
+            m.put("bankCode",          r.getBankCode());
+            m.put("branchCode",        r.getBranchCode());
+            m.put("assignedUserId",    r.getAssignedUserId());
+            m.put("assignedUserName",  r.getAssignedUserName());
+            m.put("assignedUserEmail", r.getAssignedUserEmail());
+            m.put("createdAt",         r.getCreatedAt());
+            m.put("createdBy",         r.getCreatedBy());
+            // ── NEW: privilege summary ──
+            int cnt = countMap.getOrDefault(r.getId(), 0);
+            m.put("privilegeCount",   cnt);
+            m.put("assignedProducts",
+                  cnt > 0
+                    ? prodMap.getOrDefault(r.getId(), Collections.emptyList())
+                    : Collections.emptyList());
+            return m;
+        }).collect(Collectors.toList());
+
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Roles fetched successfully")
@@ -364,30 +478,86 @@ public class RecRoleServiceImpl implements RecRoleService {
     // UPDATE PERMISSIONS
     // ─────────────────────────────────────────────────────────────────────────
 
+//    @Override
+//    @Transactional(noRollbackFor = {Exception.class})  // ✅ FIX 7: Same fix here
+//    public RestWithStatusList updatePermissions(Long roleId, List<RecPermissionRowDTO> dtos) {
+//        try {
+//            RecRole role = roleRepo.findByIdWithPermissions(roleId)
+//                    .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
+//
+//            role.getPermissions().clear();
+//            dtos.forEach(p -> role.addPermission(buildPermission(p)));
+//
+//            RecRole updated = roleRepo.save(role);
+//            roleRepo.flush();
+//
+//            return RestWithStatusList.builder()
+//                    .status("SUCCESS")
+//                    .statusMsg("Permissions updated successfully")
+//                    .data(Collections.singletonList(roleMapper.toResponseDTO(updated)))
+//                    .build();
+//
+//        } catch (Exception e) {
+//            log.error("Error updating permissions: {}", e.getMessage(), e);
+//            return RestWithStatusList.builder()
+//                    .status("FAILURE")
+//                    .statusMsg("Failed to update permissions: " + e.getMessage())
+//                    .data(Collections.emptyList())
+//                    .build();
+//        }
+//    }
+    
     @Override
-    @Transactional(noRollbackFor = {Exception.class})  // ✅ FIX 7: Same fix here
+    @Transactional
     public RestWithStatusList updatePermissions(Long roleId, List<RecPermissionRowDTO> dtos) {
+
         try {
+
             RecRole role = roleRepo.findByIdWithPermissions(roleId)
-                    .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
+                    .orElseThrow(() ->
+                            new RuntimeException("Role not found: " + roleId));
 
-            role.getPermissions().clear();
-            dtos.forEach(p -> role.addPermission(buildPermission(p)));
+            // STEP 1 : Delete existing permissions from DB
+            em.createQuery("DELETE FROM RecRoleModulePermission p WHERE p.role.id = :roleId")
+                    .setParameter("roleId", roleId)
+                    .executeUpdate();
 
-            RecRole updated = roleRepo.save(role);
-            roleRepo.flush();
+            // STEP 2 : Flush delete immediately
+            em.flush();
+
+            // STEP 3 : Clear persistence context
+            em.clear();
+
+            // Fetch role again after clear
+            role = roleRepo.findById(roleId)
+                    .orElseThrow(() ->
+                            new RuntimeException("Role not found: " + roleId));
+
+            // STEP 4 : Add new permissions
+            for (RecPermissionRowDTO dto : dtos) {
+
+                RecRoleModulePermission permission = buildPermission(dto);
+
+                permission.setRole(role);
+
+                role.addPermission(permission);
+            }
+
+            roleRepo.save(role);
 
             return RestWithStatusList.builder()
                     .status("SUCCESS")
-                    .statusMsg("Permissions updated successfully")
-                    .data(Collections.singletonList(roleMapper.toResponseDTO(updated)))
+                    .statusMsg("Privileges updated successfully")
+                    .data(Collections.singletonList(roleMapper.toResponseDTO(role)))
                     .build();
 
         } catch (Exception e) {
-            log.error("Error updating permissions: {}", e.getMessage(), e);
+
+            log.error("Error updating permissions", e);
+
             return RestWithStatusList.builder()
                     .status("FAILURE")
-                    .statusMsg("Failed to update permissions: " + e.getMessage())
+                    .statusMsg(e.getMessage())
                     .data(Collections.emptyList())
                     .build();
         }
@@ -429,6 +599,33 @@ public class RecRoleServiceImpl implements RecRoleService {
                     });
         }
     }
+    
+ // Add this method to RecRoleServiceImpl, near resolveRoleMaster
+
+//    @Override
+//    @Transactional
+//    public RecPermissionRowDTO resolveOrCreateModuleRow(RecPermissionLabelDTO labelDto) {
+//        String normalizedLabel = labelDto.getModuleLabel().trim();
+//
+//        RecModule module = moduleRepo.findByModuleNameIgnoreCase(normalizedLabel)
+//                .orElseGet(() -> {
+//                    log.warn("RecModule not seeded for '{}' — creating from label", normalizedLabel);
+//                    RecModule m = RecModule.builder()
+//                            .name(normalizedLabel)
+//                            .build();
+//                    return moduleRepo.save(m);
+//                });
+//
+//        return RecPermissionRowDTO.builder()
+//                .moduleId(module.getId())
+//                .hasAccess(labelDto.isHasAccess())
+//                .canView(labelDto.isCanView())
+//                .canCreate(labelDto.isCanCreate())
+//                .canEdit(labelDto.isCanEdit())
+//                .canApprove(labelDto.isCanApprove())
+//                .canDownload(labelDto.isCanDownload())
+//                .build();
+//    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Private helpers
@@ -486,5 +683,6 @@ public class RecRoleServiceImpl implements RecRoleService {
     private boolean isBlank(String v) {
         return v == null || v.trim().isEmpty();
     }
+
 
 }

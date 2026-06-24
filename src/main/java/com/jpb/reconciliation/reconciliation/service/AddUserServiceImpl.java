@@ -172,7 +172,10 @@ public class AddUserServiceImpl implements AddUserService {
                     .data(Collections.emptyList())
                     .build();
         }
-        List<AddUserResponse> users = userRepository.findByBankCodeAndBranchCodeIsNull(bankCode)
+        // Bank Admin sees ALL users under this bank — both bank-level (branchCode null)
+        // and every branch-scoped user beneath it. Previously this incorrectly used
+        // findByBankCodeAndBranchCodeIsNull, which hid all branch users.
+        List<AddUserResponse> users = userRepository.findByBankCode(bankCode)
                 .stream()
                 .map(AddUserMapper::toResponse)
                 .collect(Collectors.toList());
