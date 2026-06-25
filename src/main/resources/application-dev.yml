@@ -5,11 +5,12 @@ jasypt:
 spring:
   application:
     name: "JPB J-Recon Platform"
+
   datasource:
     url: jdbc:oracle:thin:@//10.147.73.31:1521/stctsdbp
     driverClassName: oracle.jdbc.OracleDriver
-    username: ENC(kJicOEmiUjGeccJZSgul94eWkizqEJ0QBMQhrLmkkV9S+XBVN3z0D3DXjEw5F7VE)
-    password: ENC(qrQVv6s4JVi+IUICq9g4j5y7tmccs2t/QihKSGjNbWVC/R3g6WDIHEjCr1YMExuv)
+    username: jpb_recon
+    password: jpbrecon2026
     hikari:
       maximum-pool-size: 100
       max-lifetime: 1800000
@@ -17,13 +18,13 @@ spring:
       connection-timeout: 60000
       minimumIdle: 5
       poolName: HikariCP
-      leakDetectionThreshold: 600000  
-      validationTimeout: 5000 
+      leakDetectionThreshold: 600000
+      validationTimeout: 5000
       connection-test-query: SELECT 1 FROM DUAL
       dataSourceProperties:
         oracle:
           jdbc:
-            ReadTimeout: 900000 
+            ReadTimeout: 900000
 
   jpa:
     database-platform: org.hibernate.dialect.Oracle10gDialect
@@ -50,25 +51,20 @@ spring:
       name: logs/springboot-app.log
       max-size: 10MB
       max-history: 30
+
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 500MB
+      max-request-size: 500MB
+
   security:
     oauth2:
-       client:
+      client:
         registration:
           google:
             client-name: google
             client-id: 483747385924-ficq1hvsiuepo2u33csp9l2vs4r63ff5.apps.googleusercontent.com
             client-secret: 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
-#        provider:
-#          google:
-#            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
-#            token-uri: https://oauth2.googleapis.com/token
-#            user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
-#            jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
-#            user-name-attribute: name
 
 oracle:
   jdbc:
@@ -77,6 +73,9 @@ oracle:
 app:
   uDrive: 'C:\Akshay_Ramani\Utility\'
   uploadFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\'
+  processedFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\processed\'
+  archiveFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\archive\'
+
 server:
   port: 8081
 
@@ -87,7 +86,4 @@ AUTH:
   PUBLIC_KEY: '/app/jpbrecon/JPB_RECON/keys/public_key'
 
 sqlldr:
-   url: '@//10.147.73.31:1521/stctsdbp'
-
-
-
+  url: '@//10.147.73.31:1521/stctsdbp'

@@ -1,7 +1,3 @@
-#spring:
-#  profiles:
-#    active: SIT
-
 jasypt:
   encryptor:
     password: jpbrecon@123
@@ -10,52 +6,29 @@ spring:
   application:
     name: "flux-recon"
   datasource:
-#    primary:
-#      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb  AWS DB
-      url: jdbc:oracle:thin:@//80.225.233.60:1521/FREEPDB1
-      driver-class-name: oracle.jdbc.OracleDriver
-#      username: recon_sit
-#      username: jpb_recon   AWS
-      userName: RECON_SIT
-#      password: recon_sit
-#      password: Jpbrecon2026   AWS
-      password: RECON_SIT
-      hikari:
-        maximum-pool-size: 100
-        max-lifetime: 1800000
-        idle-timeout: 300000
-        connection-timeout: 60000
-        minimumIdle: 5
-        poolName: HikariCP
-        leakDetectionThreshold: 600000
-        validationTimeout: 5000
-        connection-test-query: SELECT 1 FROM DUAL
-        dataSourceProperties:
-          oracle:
-            jdbc:
-              ReadTimeout: 900000
-##      secondary:
-###      datasource:
-##        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-##        driver-class-name: oracle.jdbc.OracleDriver
-##        username: recon_sit
-##        password:
-##        hikari:
-##          maximum-pool-size: 100
-##          max-lifetime: 1800000
-##          idle-timeout: 300000
-##          connection-timeout: 60000
-##          minimumIdle: 5
-##      tertiary:
-##        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-##        driver-class-name: oracle.jdbc.OracleDriver
-##        username: recon_sit
-##        password:
+    url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Reconciliation/Wallet_RECONDB1
+    driver-class-name: oracle.jdbc.OracleDriver
+    username: kal_recon
+    password: Finrecon1234567
+    hikari:
+      maximum-pool-size: 100
+      max-lifetime: 1800000
+      idle-timeout: 300000
+      connection-timeout: 60000
+      minimumIdle: 5
+      poolName: HikariCP
+      leakDetectionThreshold: 600000
+      validationTimeout: 5000
+      connection-test-query: SELECT 1 FROM DUAL
+      dataSourceProperties:
+        oracle:
+          jdbc:
+            ReadTimeout: 900000
+
   jpa:
     database-platform: org.hibernate.dialect.Oracle12cDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
 
   logging:
@@ -79,13 +52,15 @@ spring:
       name: logs/springboot-app.log
       max-size: 10MB
       max-history: 30
+
   servlet:
     multipart:
-      max-file-size: -1 #Max file upload limit set
-      max-request-size: -1 #Max file upload limit request
+      max-file-size: -1
+      max-request-size: -1
+
   security:
     oauth2:
-       client:
+      client:
         registration:
           google:
             client-name: google
@@ -104,14 +79,15 @@ oracle:
     query-timeout-seconds: 900
 
 app:
-  uDrive: '/home/reconapp/kalrecon/Utility'
-  ttumFile: '/home/reconapp/kalrecon/ReconReport'
-  transactionFile: '/home/reconapp/kalrecon/ReconReport'
-  targetFilePath: '/home/reconapp/kalrecon/DCRFILES_COMPLETED'
-  aepsDataFile: '/home/reconapp/kalrecon/ReconReport'
-  reconReport: '/home/reconapp/kalrecon/ReconReport'
-  uploadFileDir: '/home/reconapp/kalrecon/upload_files'
-  accountSplitPath: '/home/reconapp/kalrecon/upload_files'
+  uDrive: 'C:\ReconFiles\Utility\'
+  ttumFile: 'C:\ReconFiles\TTUMReport\'
+  transactionFile: 'C:\ReconFiles\TransactionReport\'
+  targetFilePath: 'C:\ReconFiles\DCRFILES_COMPLETED\'
+  aepsDataFile: 'C:\ReconFiles\AEPSDataReport\'
+  reconReport: 'C:\ReconFiles\ReconReport\'
+  uploadFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\'
+  accountSplitPath: 'C:\ReconFiles\Account_split_files'
+
 server:
   port: 8081
 
@@ -122,6 +98,5 @@ AUTH:
   PUBLIC_KEY: 'C:\Akshay_Ramani\Jio_Bank_Projects\JIOBANK_RECON_APPLICATION\jpb-recon-system-application\src\main\resources\publickey\publicKey.key'
 
 sqlldr:
-#   url: '@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb'
-   url: '@//80.225.233.60:1521/FREEPDB1'
-   secondUrl: '@//localhost:1521/orcl.lan'
+  url: '@recondb1_high?TNS_ADMIN=C:/Reconciliation/Wallet_RECONDB1'
+  secondUrl: '@//localhost:1521/orcl.lan'
