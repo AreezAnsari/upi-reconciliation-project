@@ -31,6 +31,7 @@ public class UserAuthServiceImpl implements UserAuthService {
     private final PasswordEncoder   passwordEncoder;
     private final OtpService        otpService;
     private final JwtHelper         jwtHelper;
+    private final EmailService      emailService;
 
     // ── Helper: find user by username, then verify bank code ──
     private Optional<AddUser> findUser(String bankCode, String username) {
@@ -140,7 +141,7 @@ public class UserAuthServiceImpl implements UserAuthService {
         AddUser.UserStatus userStatus = user.getStatus();
 
         // Hard denials — no OTP
-        if (userStatus == AddUser.UserStatus.BLOCK || userStatus == AddUser.UserStatus.RETIRED) {
+        if (userStatus == AddUser.UserStatus.BLOCKED || userStatus == AddUser.UserStatus.RETIRED) {
             logger.warn("userAuth.login — blocked/retired: username={}", username);
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCKED",
@@ -188,6 +189,13 @@ public class UserAuthServiceImpl implements UserAuthService {
                             data),
                     HttpStatus.OK);
         }
+        if (userStatus == AddUser.UserStatus.ACTIVE_PENDING) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("ACTIVE_PENDING",
+                            "Your account reactivation is in progress. You may proceed to login — your account will be fully active shortly.",
+                            data),
+                    HttpStatus.OK);
+        }
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS", "OTP sent successfully.", data),
@@ -224,7 +232,7 @@ public class UserAuthServiceImpl implements UserAuthService {
                         .password("")
                         .authorities(Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")))
                         .build();
-                data.add(jwtHelper.generateToken(userDetails));
+                data.add(jwtHelper.generateToken(userDetails, "USER"));
                 data.add(jwtHelper.generateTokenForRefresh(user.getUsername()));
             }
             logger.info("userAuth.verifyOtp → SUCCESS for email={}", maskEmail(email));
@@ -277,14 +285,17 @@ public class UserAuthServiceImpl implements UserAuthService {
         Optional<AddUser> opt = userRepository.findByEmail(email.trim());
         if (!opt.isPresent()) return fail("No account found with this email address.");
 
+        String otpCode = otpService.generateOtpForEmail(email.trim());
         try {
-            otpService.generateAndSendOtp(email.trim());
+            AddUser user = opt.get();
+            emailService.sendForgotPasswordOtp(email.trim(), user.getFullName(), otpCode, otpService.getOtpExpiryMinutes());
             List<Object> data = new ArrayList<>();
             data.add(maskEmail(email.trim()));
             return new ResponseEntity<>(
                     new RestWithStatusList("SUCCESS", "OTP sent to your registered email.", data),
                     HttpStatus.OK);
         } catch (Exception e) {
+            otpService.invalidateOtp(email.trim());
             logger.error("userAuth.forgotPassword — OTP send failed for {}: {}", maskEmail(email), e.getMessage());
             return fail("Failed to send OTP. Please try again.");
         }

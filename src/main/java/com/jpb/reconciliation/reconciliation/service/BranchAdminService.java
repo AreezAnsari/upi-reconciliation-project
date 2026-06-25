@@ -32,4 +32,6 @@ public interface BranchAdminService {
     ResponseEntity<RestWithStatusList> undoReactivateByBranchBankId(Long branchBankId, String undoneBy);
     ResponseEntity<RestWithStatusList> scheduleBlockByBranchBankId(Long branchBankId, String scheduledBy, String reason);
     ResponseEntity<RestWithStatusList> undoBlockByBranchBankId(Long branchBankId, String undoneBy);
+
+    ResponseEntity<RestWithStatusList> getAllBranchAdmins(String callerUsername);
 }

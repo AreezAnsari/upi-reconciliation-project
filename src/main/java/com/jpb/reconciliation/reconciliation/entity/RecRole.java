@@ -62,6 +62,14 @@ public class RecRole {
     @Column(name = "ROLE_TYPE", nullable = false, length = 20)
     private String roleType;  // INTERNAL / EXTERNAL
 
+    @Column(name = "CHANNEL_ISSUER")
+    @Builder.Default
+    private Boolean issuer = false;
+
+    @Column(name = "CHANNEL_ACQUIRER")
+    @Builder.Default
+    private Boolean acquirer = false;
+
 //    @Column(name = "STATUS", nullable = false, length = 20)
 //    @Builder.Default
 //    private String status = "DRAFT";

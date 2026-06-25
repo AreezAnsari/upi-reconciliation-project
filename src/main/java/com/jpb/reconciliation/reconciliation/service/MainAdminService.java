@@ -52,4 +52,6 @@ public interface MainAdminService {
     ResponseEntity<RestWithStatusList> undoBlock(Long id, String undoneBy);
     ResponseEntity<RestWithStatusList> scheduleBlockByBankId(Long bankId, String scheduledBy, String reason);
     ResponseEntity<RestWithStatusList> undoBlockByBankId(Long bankId, String undoneBy);
+
+    ResponseEntity<RestWithStatusList> getAllBankAdmins(String callerUsername);
 }

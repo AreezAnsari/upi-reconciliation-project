@@ -39,6 +39,7 @@ import com.jpb.reconciliation.reconciliation.dto.MainBankDTO;
 import com.jpb.reconciliation.reconciliation.dto.MainBankDTO.ProductDateEntry;
 import com.jpb.reconciliation.reconciliation.dto.BranchBankDTO;
 import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
+import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBankProduct;
@@ -448,9 +449,10 @@ public class MainBankServiceImpl implements MainBankService {
             if (!sections.isEmpty()) {
                 String formattedAt = bank.getUpdatedAt()
                     .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+                String[] bankContact = resolveMainBankContact(bank);
                 emailService.sendBankUpdateNotification(
-                    bank.getPrimaryEmail(),
-                    bank.getPrimaryFullName(),
+                    bankContact[0],
+                    bankContact[1],
                     bank.getBankNameFull(),
                     bank.getBankCode(),
                     formattedAt, sections
@@ -555,17 +557,12 @@ public class MainBankServiceImpl implements MainBankService {
 
         logger.info("bank {} status updated: {} → {}", bankId, currentStatus, upperStatus);
 
-        // ── Send status change notification email to Bank Admin ──
+        // ── Send status change notification email to Bank Admin (routes to replacement if original is inactive) ──
         try {
-            if (bank.getPrimaryEmail() != null && !bank.getPrimaryEmail().isEmpty()) {
-                emailService.sendStatusChangeNotification(
-                    bank.getPrimaryEmail(),
-                    bank.getPrimaryFullName() != null ? bank.getPrimaryFullName() : "Bank Admin",
-                    bank.getBankNameFull(),
-                    bank.getBankCode(),
-                    currentStatus,
-                    upperStatus
-                );
+            String[] bankContact = resolveMainBankContact(bank);
+            if (bankContact[0] != null && !bankContact[0].isEmpty()) {
+                emailService.sendStatusChangeNotification(bankContact[0], bankContact[1],
+                        bank.getBankNameFull(), bank.getBankCode(), currentStatus, upperStatus);
             }
         } catch (Exception e) {
             logger.warn("Status updated but notification email failed for bank {}: {}",
@@ -694,6 +691,8 @@ public class MainBankServiceImpl implements MainBankService {
             if (cleanLogoPath.startsWith("'") && cleanLogoPath.endsWith("'")) {
                 cleanLogoPath = cleanLogoPath.substring(1, cleanLogoPath.length() - 1);
             }
+            // Normalize Windows backslashes → forward slashes (server runs on Linux)
+            cleanLogoPath = cleanLogoPath.replace('\\', '/');
             Path path = Paths.get(cleanLogoPath);
             if (!Files.exists(path)) {
                 logger.warn("Logo file not found on disk for bank {}: {}", bankCode, cleanLogoPath);
@@ -726,18 +725,29 @@ public class MainBankServiceImpl implements MainBankService {
             }
             MainBank bank = optional.get();
             MainBankDTO dto = MainBankMapper.mapToDTO(bank);
-            mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId())
-                .ifPresent(admin -> {
-                    // If an active replacement exists, report their status — not the (INACTIVE) original's
-                    Optional<AdminReplacement> activeRep = replacementRepository
-                            .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "ACTIVE");
-                    if (activeRep.isPresent() && activeRep.get().getReplacementEntityId() != null) {
-                        mainAdminRepository.findById(activeRep.get().getReplacementEntityId())
-                                .ifPresent(rep -> dto.setAdminStatus(rep.getStatus()));
-                    } else {
-                        dto.setAdminStatus(admin.getStatus());
-                    }
-                });
+            Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> adminLookup =
+                mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+            // If bankAdminId was updated to replacement's username (after permanent block), find original
+            if (adminLookup.isPresent()) {
+                Optional<AdminReplacement> asRepRecord = replacementRepository
+                    .findByReplacementEntityIdAndEntityTypeAndStatus(adminLookup.get().getId(), "MAIN_ADMIN", "PERMANENT");
+                if (asRepRecord.isPresent() && asRepRecord.get().getOriginalEntityId() != null) {
+                    Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origOpt =
+                        mainAdminRepository.findById(asRepRecord.get().getOriginalEntityId());
+                    if (origOpt.isPresent()) adminLookup = origOpt;
+                }
+            }
+            adminLookup.ifPresent(admin -> {
+                // If an active replacement exists, report their status — not the (INACTIVE) original's
+                Optional<AdminReplacement> activeRep = replacementRepository
+                        .findByOriginalEntityIdAndEntityTypeAndStatus(admin.getId(), "MAIN_ADMIN", "ACTIVE");
+                if (activeRep.isPresent() && activeRep.get().getReplacementEntityId() != null) {
+                    mainAdminRepository.findById(activeRep.get().getReplacementEntityId())
+                            .ifPresent(rep -> dto.setAdminStatus(rep.getStatus()));
+                } else {
+                    dto.setAdminStatus(admin.getStatus());
+                }
+            });
             List<Object> data = new ArrayList<>();
             data.add(dto);
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank fetched.", data));
@@ -896,14 +906,15 @@ public class MainBankServiceImpl implements MainBankService {
             String oldStatus, String newStatus,
             MainBank parent) {
         try {
-            if (branch.getPrimaryEmail() == null || branch.getPrimaryEmail().isEmpty()) {
+            String[] branchContact = resolveBranchBankContact(branch);
+            if (branchContact[0] == null || branchContact[0].isEmpty()) {
                 logger.warn("[CASCADE-EMAIL] No email for branch-bank: {} ({})",
                         branch.getBranchId(), branch.getBranchCode());
                 return;
             }
             emailService.sendBranchBankStatusNotification(
-                    branch.getPrimaryEmail(),
-                    branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Contact",
+                    branchContact[0],
+                    branchContact[1],
                     branch.getBranchNameFull() != null ? branch.getBranchNameFull() : branch.getBranchCode(),
                     branch.getBranchCode(),
                     oldStatus,
@@ -915,6 +926,57 @@ public class MainBankServiceImpl implements MainBankService {
             logger.warn("[CASCADE-EMAIL] Failed for branch-bank {} ({}): {}",
                     branch.getBranchId(), branch.getBranchCode(), e.getMessage());
         }
+    }
+
+    private String[] resolveMainBankContact(MainBank bank) {
+        try {
+            if (bank.getBankAdminId() != null) {
+                Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origOpt =
+                        mainAdminRepository.findByBankCodeAndUsername(bank.getBankCode(), bank.getBankAdminId());
+                if (origOpt.isPresent()) {
+                    com.jpb.reconciliation.reconciliation.entity.MainAdmin orig = origOpt.get();
+                    java.util.List<com.jpb.reconciliation.reconciliation.entity.AdminReplacement> reps =
+                            replacementRepository.findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                    orig.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (!reps.isEmpty() && reps.get(0).getReplacementEntityId() > 0) {
+                        Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> rep =
+                                mainAdminRepository.findById(reps.get(0).getReplacementEntityId());
+                        if (rep.isPresent() && rep.get().getEmail() != null && !rep.get().getEmail().isEmpty()) {
+                            return new String[]{rep.get().getEmail(), rep.get().getUsername()};
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("resolveMainBankContact failed for {}: {}", bank.getBankCode(), e.getMessage());
+        }
+        return new String[]{bank.getPrimaryEmail(),
+                bank.getPrimaryFullName() != null ? bank.getPrimaryFullName() : "Bank Admin"};
+    }
+
+    private String[] resolveBranchBankContact(BranchBank branch) {
+        try {
+            if (branch.getBranchAdminId() != null) {
+                Optional<BranchAdmin> origOpt = branchAdminRepository.findByBranchCodeAndUsername(
+                        branch.getBranchCode(), branch.getBranchAdminId());
+                if (origOpt.isPresent()) {
+                    BranchAdmin orig = origOpt.get();
+                    java.util.List<com.jpb.reconciliation.reconciliation.entity.AdminReplacement> reps =
+                            replacementRepository.findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                    orig.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (!reps.isEmpty() && reps.get(0).getReplacementEntityId() > 0) {
+                        Optional<BranchAdmin> rep = branchAdminRepository.findById(reps.get(0).getReplacementEntityId());
+                        if (rep.isPresent() && rep.get().getEmail() != null && !rep.get().getEmail().isEmpty()) {
+                            return new String[]{rep.get().getEmail(), rep.get().getUsername()};
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("resolveBranchBankContact failed for {}: {}", branch.getBranchCode(), e.getMessage());
+        }
+        return new String[]{branch.getPrimaryEmail(),
+                branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Branch Admin"};
     }
 
     private String getCurrentUsername() {
@@ -1154,6 +1216,16 @@ public class MainBankServiceImpl implements MainBankService {
             final MainBankDTO dto = MainBankMapper.mapToDTO(bnk);
             Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origAdminOpt =
                 mainAdminRepository.findByBankCodeAndUsername(bnk.getBankCode(), bnk.getBankAdminId());
+            // If bankAdminId now points to replacement (after permanent block), redirect to original
+            if (origAdminOpt.isPresent()) {
+                Optional<AdminReplacement> asRepRecord = replacementRepository
+                    .findByReplacementEntityIdAndEntityTypeAndStatus(origAdminOpt.get().getId(), "MAIN_ADMIN", "PERMANENT");
+                if (asRepRecord.isPresent() && asRepRecord.get().getOriginalEntityId() != null) {
+                    Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> origOpt =
+                        mainAdminRepository.findById(asRepRecord.get().getOriginalEntityId());
+                    if (origOpt.isPresent()) origAdminOpt = origOpt;
+                }
+            }
             if (origAdminOpt.isPresent()) {
                 com.jpb.reconciliation.reconciliation.entity.MainAdmin origAdmin = origAdminOpt.get();
                 dto.setAdminId(origAdmin.getId());
@@ -1306,37 +1378,57 @@ public class MainBankServiceImpl implements MainBankService {
             final BranchBankDTO dto = BranchBankMapper.mapToDTO(branch);
             final BranchBankDTO[] repDtoHolder = { null };
             final BranchBank branchRef = branch;
-            // Resolve numeric PK of BRANCH_ADMIN record + replacement info
+            // Resolve numeric PK of BRANCH_ADMIN record + replacement info.
+            // Use findAllByBranchCodeIn so we correctly identify the original admin
+            // even if BRANCH_BANK.branchAdminId was updated to the replacement's username.
             try {
-                branchAdminRepository.findByBranchCodeAndUsername(
-                        branch.getBranchCode(), branch.getBranchAdminId())
-                    .ifPresent(ba -> {
-                        dto.setAdminId(ba.getId());
-                        dto.setAdminStatus(ba.getStatus());
-                        enrichReplacementInfoBranch(ba.getId(), "BRANCH_ADMIN", dto);
-                        java.util.List<com.jpb.reconciliation.reconciliation.entity.AdminReplacement> repRecs =
-                            replacementRepository.findByOriginalEntityIdAndEntityTypeAndStatusIn(
-                                ba.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
-                        if (!repRecs.isEmpty()) {
-                            com.jpb.reconciliation.reconciliation.entity.AdminReplacement repRec = repRecs.get(0);
-                            if (repRec.getReplacementEntityId() != null && repRec.getReplacementEntityId() > 0L) {
-                                branchAdminRepository.findById(repRec.getReplacementEntityId()).ifPresent(repAdmin -> {
-                                    BranchBankDTO repDto = BranchBankMapper.mapToDTO(branchRef);
-                                    repDto.setAdminId(repAdmin.getId());
-                                    repDto.setBranchAdminId(repAdmin.getUsername());
-                                    repDto.setAdminStatus(repAdmin.getStatus());
-                                    repDto.setReplacementAdminRow(true);
-                                    repDto.setReplacementStatus(repRec.getStatus());
-                                    repDto.setPrimaryEmail(repAdmin.getEmail());
-                                    String repName = repRec.getPendingFullName() != null && !repRec.getPendingFullName().isEmpty()
-                                        ? repRec.getPendingFullName() : repAdmin.getUsername();
-                                    repDto.setPrimaryFullName(repName);
-                                    if (repRec.getPendingMobile() != null) repDto.setPrimaryMobile(repRec.getPendingMobile());
-                                    repDtoHolder[0] = repDto;
-                                });
-                            }
+                java.util.List<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> allBranchAdmins =
+                    branchAdminRepository.findAllByBranchCodeIn(
+                        java.util.Collections.singletonList(branch.getBranchCode()));
+
+                // Identify the original admin: the one NOT acting as an active replacement for someone else.
+                com.jpb.reconciliation.reconciliation.entity.BranchAdmin originalAdmin = null;
+                for (com.jpb.reconciliation.reconciliation.entity.BranchAdmin candidate : allBranchAdmins) {
+                    java.util.List<com.jpb.reconciliation.reconciliation.entity.AdminReplacement> asRepOf =
+                        replacementRepository.findByReplacementEntityIdAndEntityTypeAndStatusIn(
+                            candidate.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (asRepOf.isEmpty()) {
+                        originalAdmin = candidate;
+                        break;
+                    }
+                }
+                if (originalAdmin == null && !allBranchAdmins.isEmpty()) {
+                    originalAdmin = allBranchAdmins.get(0);
+                }
+
+                if (originalAdmin != null) {
+                    final com.jpb.reconciliation.reconciliation.entity.BranchAdmin ba = originalAdmin;
+                    dto.setAdminId(ba.getId());
+                    dto.setAdminStatus(ba.getStatus());
+                    enrichReplacementInfoBranch(ba.getId(), "BRANCH_ADMIN", dto);
+                    java.util.List<com.jpb.reconciliation.reconciliation.entity.AdminReplacement> repRecs =
+                        replacementRepository.findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                            ba.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (!repRecs.isEmpty()) {
+                        com.jpb.reconciliation.reconciliation.entity.AdminReplacement repRec = repRecs.get(0);
+                        if (repRec.getReplacementEntityId() != null && repRec.getReplacementEntityId() > 0L) {
+                            branchAdminRepository.findById(repRec.getReplacementEntityId()).ifPresent(repAdmin -> {
+                                BranchBankDTO repDto = BranchBankMapper.mapToDTO(branchRef);
+                                repDto.setAdminId(repAdmin.getId());
+                                repDto.setBranchAdminId(repAdmin.getUsername());
+                                repDto.setAdminStatus(repAdmin.getStatus());
+                                repDto.setReplacementAdminRow(true);
+                                repDto.setReplacementStatus(repRec.getStatus());
+                                repDto.setPrimaryEmail(repAdmin.getEmail());
+                                String repName = repRec.getPendingFullName() != null && !repRec.getPendingFullName().isEmpty()
+                                    ? repRec.getPendingFullName() : repAdmin.getUsername();
+                                repDto.setPrimaryFullName(repName);
+                                if (repRec.getPendingMobile() != null) repDto.setPrimaryMobile(repRec.getPendingMobile());
+                                repDtoHolder[0] = repDto;
+                            });
                         }
-                    });
+                    }
+                }
             } catch (Exception e) {
                 logger.warn("getBranchBank: adminId lookup failed for {}: {}",
                         branch.getBranchCode(), e.getMessage());

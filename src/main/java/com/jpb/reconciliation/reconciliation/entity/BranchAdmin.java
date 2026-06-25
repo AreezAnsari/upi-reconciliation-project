@@ -79,4 +79,7 @@ public class BranchAdmin {
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;
 
+    @Column(name = "FULL_NAME", length = 255)
+    private String fullName;
+
 }

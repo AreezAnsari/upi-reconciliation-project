@@ -125,9 +125,12 @@ public interface EmailService {
 
     /**
      * Sent when the reactivation window expires and status flips to ACTIVE automatically.
+     * username — the login username to show in the credential block.
+     * loginUrl — the frontend login page URL for this entity type.
      */
     void sendReactivatedNotification(String toEmail, String contactName,
-                                     String entityName, String entityCode);
+                                     String entityName, String entityCode,
+                                     String username, String loginUrl);
 
     /**
      * Sent to the outgoing (original) admin/user when they are replaced.
@@ -182,4 +185,12 @@ public interface EmailService {
                                     String code, String codeLabel, String username,
                                     String defaultPassword, String verifyLink,
                                     String replacementDescription);
+
+    /**
+     * Sent to the actor (parent/admin) who performed a status-change action on a child entity.
+     * action: "Block Scheduled", "Inactivation Scheduled", "Block Cancelled", "Reactivated", etc.
+     */
+    void sendActorActionConfirmation(String toEmail, String actorName,
+                                     String action, String targetName, String targetCode,
+                                     String scheduledAt);
 }

@@ -13,14 +13,13 @@ public class AddUserMapper {
 
         return AddUser.builder()
                 .fullName(req.getFullName())
-                .username(req.getUsername())
+                .username(req.getUsername().trim().toLowerCase())
                 .email(req.getEmail())
                 .department(req.getDepartment())
                 .designation(req.getDesignation())
                 .mobileNumber(req.getMobileNumber())
                 .userType(AddUser.UserType.valueOf(req.getUserType().toUpperCase()))
                 .role(AddUser.Role.valueOf(req.getRole().toUpperCase()))
-                .roleType(req.getRoleType() != null ? req.getRoleType() : "RECON_USER")
                 .passwordSet(0)
                 .status(AddUser.UserStatus.REQUEST)
                 .createdBy(createdBy)
@@ -46,7 +45,6 @@ public class AddUserMapper {
                 .mobileNumber(user.getMobileNumber())
                 .userType(user.getUserType() != null ? user.getUserType().name() : null)
                 .role(user.getRole() != null ? user.getRole().name() : null)
-                .roleType(user.getRoleType())
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
                 .externalDepartmentName(user.getExternalDepartmentName())
                 .externalSupervisorName(user.getExternalSupervisorName())
@@ -57,6 +55,11 @@ public class AddUserMapper {
                 .createdBy(user.getCreatedBy())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .inactivateScheduledAt(user.getInactivateScheduledAt())
+                .blockScheduledAt(user.getBlockScheduledAt())
+                .reactivateScheduledAt(user.getReactivateScheduledAt())
+                .parentId(user.getParentId())
+                .replacementAdminRow(user.getEmail() != null && user.getEmail().toLowerCase().startsWith("(replace)"))
                 .build();
     }
 }

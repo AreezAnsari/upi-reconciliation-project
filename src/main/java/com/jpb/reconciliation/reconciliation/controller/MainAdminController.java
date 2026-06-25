@@ -136,6 +136,12 @@ public class MainAdminController {
         return mainAdminService.undoBlockByBankId(bankId, by);
     }
 
+    @GetMapping("/get-all-admins")
+    public ResponseEntity<RestWithStatusList> getAllBankAdmins(Authentication authentication) {
+        String caller = authentication != null ? authentication.getName() : "";
+        return mainAdminService.getAllBankAdmins(caller);
+    }
+
     @GetMapping("/my-status")
     public ResponseEntity<RestWithStatusList> getMyStatus(Authentication authentication) {
         if (authentication == null) {

@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -29,10 +30,16 @@ import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
+import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
+import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 
 @Service
@@ -43,6 +50,9 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     @Autowired private BranchAdminRepository branchAdminRepository;
     @Autowired private BranchBankRepository branchBankRepository;
     @Autowired private AddUserRepository addUserRepository;
+    @Autowired private MainAdminRepository mainAdminRepository;
+    @Autowired private MainBankRepository mainBankRepository;
+    @Autowired private KalAdminRepository kalAdminRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private OtpService otpService;
     @Autowired private EmailService emailService;
@@ -264,13 +274,21 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         // INSERT new BRANCH_ADMIN record (original admin first-time setup)
         BranchAdmin branchAdmin = new BranchAdmin();
         branchAdmin.setBranchCode(branchCode);
-        branchAdmin.setUsername(username);
+        branchAdmin.setUsername(username.toLowerCase());
         branchAdmin.setEmail(bank.getPrimaryEmail());
         branchAdmin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         branchAdmin.setPasswordSet(1);
         branchAdmin.setStatus("VERIFIED");
         branchAdmin.setCreatedAt(LocalDateTime.now());
-        branchAdmin.setCreatedBy(bank.getCreatedBy());
+        // Normalize createdBy: if stored as email, resolve to actual username
+        String rawCreatedBy = bank.getCreatedBy();
+        String resolvedCreatedBy = rawCreatedBy;
+        if (rawCreatedBy != null && rawCreatedBy.contains("@")) {
+            Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> creatorOpt =
+                    mainAdminRepository.findFirstByEmail(rawCreatedBy);
+            if (creatorOpt.isPresent()) resolvedCreatedBy = creatorOpt.get().getUsername();
+        }
+        branchAdmin.setCreatedBy(resolvedCreatedBy);
         branchAdminRepository.save(branchAdmin);
         logger.info("BRANCH_ADMIN record created for username={} BranchCode={}", username, branchCode);
 
@@ -340,7 +358,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
 
         // Status check from BRANCH_ADMIN (synced with BRANCH_BANK)
         String userStatus = user.getStatus();
-        if ("BLOCKED".equalsIgnoreCase(userStatus) || "BLOCK".equalsIgnoreCase(userStatus)) {
+        if ("BLOCKED".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCKED",
                             "Your branch account has been permanently blocked. Please contact your administrator.", null),
@@ -387,6 +405,13 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCK_PENDING",
                             "Your branch account has been scheduled for permanent block. Please contact your administrator immediately.",
+                            data),
+                    HttpStatus.OK);
+        }
+        if ("ACTIVE_PENDING".equalsIgnoreCase(userStatus)) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("ACTIVE_PENDING",
+                            "Your branch account reactivation is in progress. You may proceed to login — your account will be fully active shortly.",
                             data),
                     HttpStatus.OK);
         }
@@ -449,7 +474,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         }
 
         String status = user.getStatus();
-        if ("BLOCKED".equalsIgnoreCase(status) || "BLOCK".equalsIgnoreCase(status)) {
+        if ("BLOCKED".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE", "Invalid Bank Code or Username.", null),
                     HttpStatus.UNAUTHORIZED);
@@ -488,7 +513,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                 .authorities(new ArrayList<>())
                 .build();
 
-        String accessToken  = jwtHelper.generateToken(userDetails);
+        String accessToken  = jwtHelper.generateToken(userDetails, "BRANCH_ADMIN");
         String refreshToken = jwtHelper.generateTokenForRefresh(user.getUsername());
 
         List<Object> data = new ArrayList<>();
@@ -537,7 +562,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                     HttpStatus.OK);
         }
 
-        if ("BLOCK".equalsIgnoreCase(user.getStatus()) || "BLOCKED".equalsIgnoreCase(user.getStatus())) {
+        if ("BLOCKED".equalsIgnoreCase(user.getStatus())) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE", "Account is blocked. Contact administrator.", null),
                     HttpStatus.FORBIDDEN);
@@ -626,6 +651,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                 new RestWithStatusList("FAILURE", "Invalid OTP.", null), HttpStatus.UNAUTHORIZED);
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordSet(1);
         user.setForgotOtp(null);
         user.setForgotOtpExpiry(null);
         user.setUpdatedAt(LocalDateTime.now());
@@ -681,10 +707,13 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             bank.setStatus("ACTIVE");
             bank.setUpdatedAt(LocalDateTime.now());
             branchBankRepository.save(bank);
-            // Sync to BRANCH_ADMIN
+            // Sync to BRANCH_ADMIN; capture full name for future reference
             user.setStatus("ACTIVE");
             user.setUpdatedAt(LocalDateTime.now());
             user.setUpdatedBy("SYSTEM");
+            if (user.getFullName() == null && bank.getPrimaryFullName() != null) {
+                user.setFullName(bank.getPrimaryFullName());
+            }
             branchAdminRepository.save(user);
             logger.info("[BRANCH-ACTIVATE] BranchBank {} status → ACTIVE after first login",
                     bank.getBranchCode());
@@ -760,7 +789,8 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
             String inactivateAt = admin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendInactivatePendingWarning(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendInactivatePendingWarning(contact[0], contact[1],
                     branchName, admin.getBranchCode(), inactivateAt);
         } catch (Exception e) {
             logger.warn("scheduleInactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
@@ -801,7 +831,8 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendInactivateCancelled(contact[0], contact[1],
                     branchName, admin.getBranchCode());
         } catch (Exception e) {
             logger.warn("undoInactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
@@ -832,12 +863,51 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
         BlockScheduleServiceImpl.flagPendingWork();
+        // Transition any active replacement to INACTIVE_PENDING so they are notified their tenure is ending
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            for (AdminReplacement rep : reps) {
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<BranchAdmin> repAdminOpt = branchAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        BranchAdmin repAdmin = repAdminOpt.get();
+                        if ("ACTIVE".equalsIgnoreCase(repAdmin.getStatus())) {
+                            repAdmin.setStatus("INACTIVE_PENDING");
+                            repAdmin.setInactivateScheduledAt(LocalDateTime.now());
+                            repAdmin.setInactivateScheduledBy(scheduledBy);
+                            repAdmin.setUpdatedAt(LocalDateTime.now());
+                            repAdmin.setUpdatedBy(scheduledBy);
+                            branchAdminRepository.save(repAdmin);
+                            try {
+                                if (repAdmin.getEmail() != null && !repAdmin.getEmail().isEmpty()) {
+                                    Optional<BranchBank> repBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                                    String repBranchName = repBranchOpt.isPresent() ? repBranchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                                    String inactivateAt = repAdmin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+                                    emailService.sendInactivatePendingWarning(repAdmin.getEmail(), repAdmin.getUsername(),
+                                            repBranchName, admin.getBranchCode(), inactivateAt);
+                                }
+                            } catch (Exception e2) {
+                                logger.warn("scheduleReactivate: replacement email failed for {}: {}", repAdmin.getUsername(), e2.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("scheduleReactivate: replacement transition failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
             String reactivateAt = admin.getReactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendReactivatePendingNotification(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendReactivatePendingNotification(contact[0], contact[1],
                     branchName, admin.getBranchCode(), reactivateAt);
+            final String branchNameCopy = branchName;
+            final String reactivateAtCopy = reactivateAt;
+            notifyActor(scheduledBy, "Reactivation Scheduled", branchNameCopy, admin.getBranchCode(), reactivateAtCopy);
         } catch (Exception e) {
             logger.warn("scheduleReactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -862,11 +932,49 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
+        // Restore replacement admin to ACTIVE since reactivation was undone
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            for (AdminReplacement rep : reps) {
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<BranchAdmin> repAdminOpt = branchAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        BranchAdmin repAdmin = repAdminOpt.get();
+                        if ("INACTIVE_PENDING".equalsIgnoreCase(repAdmin.getStatus())) {
+                            repAdmin.setStatus("ACTIVE");
+                            repAdmin.setInactivateScheduledAt(null);
+                            repAdmin.setInactivateScheduledBy(null);
+                            repAdmin.setUpdatedAt(LocalDateTime.now());
+                            repAdmin.setUpdatedBy(undoneBy);
+                            branchAdminRepository.save(repAdmin);
+                            try {
+                                if (repAdmin.getEmail() != null && !repAdmin.getEmail().isEmpty()) {
+                                    Optional<BranchBank> repBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                                    String repBranchName = repBranchOpt.isPresent() ? repBranchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                                    emailService.sendInactivateCancelled(repAdmin.getEmail(), repAdmin.getUsername(),
+                                            repBranchName, admin.getBranchCode());
+                                }
+                            } catch (Exception e2) {
+                                logger.warn("undoReactivate: replacement email failed for {}: {}", repAdmin.getUsername(), e2.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("undoReactivate: replacement restoration failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            emailService.sendReactivateCancelled(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendReactivateCancelled(contact[0], contact[1],
                     branchName, admin.getBranchCode());
+            final String branchNameCopy = branchName;
+            notifyActor(undoneBy, "Reactivation Cancelled", branchNameCopy, admin.getBranchCode(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")));
         } catch (Exception e) {
             logger.warn("undoReactivate: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -901,13 +1009,18 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         branchAdminRepository.save(admin);
         BlockScheduleServiceImpl.flagPendingWork();
 
+        // Pre-compute email helpers — shared by cascade + admin email + actor email
+        Optional<BranchBank> branchForEmail = branchBankRepository.findByBranchCode(admin.getBranchCode());
+        final String branchNameForEmail = branchForEmail.isPresent() ? branchForEmail.get().getBranchNameFull() : admin.getBranchCode();
+        final String blockAtForEmail = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+
         // Chain cascade only when admin was ACTIVE; INACTIVE admin → individual block only
         try {
             Optional<BranchBank> parentBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             if ("ACTIVE".equalsIgnoreCase(admin.getPreBlockStatus()) && parentBranchOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBranchOpt.get().getStatus())) {
                 List<AddUser> branchUsers = addUserRepository.findByBranchCode(admin.getBranchCode());
                 for (AddUser user : branchUsers) {
-                    if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                    if (user.getStatus() != AddUser.UserStatus.BLOCKED && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
                         user.setPreBlockStatus(user.getStatus().name());
                         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                         user.setBlockScheduledAt(LocalDateTime.now());
@@ -918,6 +1031,15 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                         user.setReactivateScheduledAt(null);
                         user.setReactivateScheduledBy(null);
                         addUserRepository.save(user);
+                        try {
+                            if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                                emailService.sendBlockWarning(user.getEmail(),
+                                        user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                                        branchNameForEmail, admin.getBranchCode(), blockAtForEmail);
+                            }
+                        } catch (Exception emailEx) {
+                            logger.warn("scheduleBlock: user email failed for {}: {}", user.getUsername(), emailEx.getMessage());
+                        }
                     }
                 }
             }
@@ -926,14 +1048,13 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         }
 
         try {
-            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
-            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            // Individual block — email goes directly to the admin being blocked, not their replacement
             emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
-                    branchName, admin.getBranchCode(), blockAt);
+                    branchNameForEmail, admin.getBranchCode(), blockAtForEmail);
         } catch (Exception e) {
             logger.warn("scheduleBlock: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
+        notifyActor(scheduledBy, "Block Scheduled", branchNameForEmail, admin.getBranchCode(), blockAtForEmail);
         logger.info("Block scheduled for branch admin {} by {}", id, scheduledBy);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Branch admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -959,7 +1080,8 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendBlockCancelled(contact[0], contact[1],
                     branchName, admin.getBranchCode(), restored);
         } catch (Exception e) {
             logger.warn("undoBlock: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
@@ -1005,6 +1127,9 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             String inactivateAt = admin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
             emailService.sendInactivatePendingWarning(admin.getEmail(), admin.getUsername(),
                     branchName, admin.getBranchCode(), inactivateAt);
+            final String branchNameCopy = branchName;
+            final String inactivateAtCopy = inactivateAt;
+            notifyActor(scheduledBy, "Inactivation Scheduled", branchNameCopy, admin.getBranchCode(), inactivateAtCopy);
         } catch (Exception e) {
             logger.warn("scheduleInactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1046,6 +1171,9 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
             emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
                     branchName, admin.getBranchCode());
+            final String branchNameCopy = branchName;
+            notifyActor(undoneBy, "Inactivation Cancelled", branchNameCopy, admin.getBranchCode(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")));
         } catch (Exception e) {
             logger.warn("undoInactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1073,12 +1201,52 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedBy(scheduledBy);
         branchAdminRepository.save(admin);
         BlockScheduleServiceImpl.flagPendingWork();
+        // Transition any active replacement to INACTIVE_PENDING so they are notified their tenure is ending
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            for (AdminReplacement rep : reps) {
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<BranchAdmin> repAdminOpt = branchAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        BranchAdmin repAdmin = repAdminOpt.get();
+                        if ("ACTIVE".equalsIgnoreCase(repAdmin.getStatus())) {
+                            repAdmin.setStatus("INACTIVE_PENDING");
+                            repAdmin.setInactivateScheduledAt(LocalDateTime.now());
+                            repAdmin.setInactivateScheduledBy(scheduledBy);
+                            repAdmin.setUpdatedAt(LocalDateTime.now());
+                            repAdmin.setUpdatedBy(scheduledBy);
+                            branchAdminRepository.save(repAdmin);
+                            logger.info("Replacement branch admin {} set to INACTIVE_PENDING as original {} is reactivating", repAdmin.getUsername(), admin.getUsername());
+                            try {
+                                if (repAdmin.getEmail() != null && !repAdmin.getEmail().isEmpty()) {
+                                    Optional<BranchBank> repBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                                    String repBranchName = repBranchOpt.isPresent() ? repBranchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                                    String inactivateAt = repAdmin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+                                    emailService.sendInactivatePendingWarning(repAdmin.getEmail(), repAdmin.getUsername(),
+                                            repBranchName, admin.getBranchCode(), inactivateAt);
+                                }
+                            } catch (Exception e2) {
+                                logger.warn("scheduleReactivateByBranchBankId: replacement email failed for {}: {}", repAdmin.getUsername(), e2.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("scheduleReactivateByBranchBankId: replacement transition failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
             String reactivateAt = admin.getReactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendReactivatePendingNotification(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendReactivatePendingNotification(contact[0], contact[1],
                     branchName, admin.getBranchCode(), reactivateAt);
+            final String branchNameCopy = branchName;
+            final String reactivateAtCopy = reactivateAt;
+            notifyActor(scheduledBy, "Reactivation Scheduled", branchNameCopy, admin.getBranchCode(), reactivateAtCopy);
         } catch (Exception e) {
             logger.warn("scheduleReactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1103,11 +1271,50 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         branchAdminRepository.save(admin);
+        // Restore replacement admin to ACTIVE since reactivation was undone
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            for (AdminReplacement rep : reps) {
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<BranchAdmin> repAdminOpt = branchAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        BranchAdmin repAdmin = repAdminOpt.get();
+                        if ("INACTIVE_PENDING".equalsIgnoreCase(repAdmin.getStatus())) {
+                            repAdmin.setStatus("ACTIVE");
+                            repAdmin.setInactivateScheduledAt(null);
+                            repAdmin.setInactivateScheduledBy(null);
+                            repAdmin.setUpdatedAt(LocalDateTime.now());
+                            repAdmin.setUpdatedBy(undoneBy);
+                            branchAdminRepository.save(repAdmin);
+                            logger.info("Replacement branch admin {} restored to ACTIVE as original {} reactivation was undone", repAdmin.getUsername(), admin.getUsername());
+                            try {
+                                if (repAdmin.getEmail() != null && !repAdmin.getEmail().isEmpty()) {
+                                    Optional<BranchBank> repBranchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+                                    String repBranchName = repBranchOpt.isPresent() ? repBranchOpt.get().getBranchNameFull() : admin.getBranchCode();
+                                    emailService.sendInactivateCancelled(repAdmin.getEmail(), repAdmin.getUsername(),
+                                            repBranchName, admin.getBranchCode());
+                                }
+                            } catch (Exception e2) {
+                                logger.warn("undoReactivateByBranchBankId: replacement email failed for {}: {}", repAdmin.getUsername(), e2.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("undoReactivateByBranchBankId: replacement restoration failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            emailService.sendReactivateCancelled(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendReactivateCancelled(contact[0], contact[1],
                     branchName, admin.getBranchCode());
+            final String branchNameCopy = branchName;
+            notifyActor(undoneBy, "Reactivation Cancelled", branchNameCopy, admin.getBranchCode(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")));
         } catch (Exception e) {
             logger.warn("undoReactivateByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1141,6 +1348,11 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         branchAdminRepository.save(admin);
         BlockScheduleServiceImpl.flagPendingWork();
 
+        // Pre-compute email helpers — shared by cascade + admin email + actor email
+        Optional<BranchBank> branchForEmail2 = branchBankRepository.findByBranchCode(admin.getBranchCode());
+        final String branchNameForEmail2 = branchForEmail2.isPresent() ? branchForEmail2.get().getBranchNameFull() : admin.getBranchCode();
+        final String blockAtForEmail2 = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+
         // Chain cascade only when admin was ACTIVE; INACTIVE → individual block only
         if ("ACTIVE".equalsIgnoreCase(preStatus)) {
             try {
@@ -1148,7 +1360,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                 if (parentBranchOpt.isPresent() && "ACTIVE".equalsIgnoreCase(parentBranchOpt.get().getStatus())) {
                     List<AddUser> branchUsers = addUserRepository.findByBranchCode(admin.getBranchCode());
                     for (AddUser user : branchUsers) {
-                        if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                        if (user.getStatus() != AddUser.UserStatus.BLOCKED && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
                             user.setPreBlockStatus(user.getStatus().name());
                             user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                             user.setBlockScheduledAt(LocalDateTime.now());
@@ -1159,6 +1371,15 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                             user.setReactivateScheduledAt(null);
                             user.setReactivateScheduledBy(null);
                             addUserRepository.save(user);
+                            try {
+                                if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                                    emailService.sendBlockWarning(user.getEmail(),
+                                            user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                                            branchNameForEmail2, admin.getBranchCode(), blockAtForEmail2);
+                                }
+                            } catch (Exception emailEx) {
+                                logger.warn("scheduleBlockByBranchBankId: user email failed for {}: {}", user.getUsername(), emailEx.getMessage());
+                            }
                         }
                     }
                 }
@@ -1168,14 +1389,13 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         }
 
         try {
-            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
-            String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            // Individual block — email goes directly to the admin being blocked, not their replacement
             emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
-                    branchName, admin.getBranchCode(), blockAt);
+                    branchNameForEmail2, admin.getBranchCode(), blockAtForEmail2);
         } catch (Exception e) {
             logger.warn("scheduleBlockByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
+        notifyActor(scheduledBy, "Block Scheduled", branchNameForEmail2, admin.getBranchCode(), blockAtForEmail2);
         logger.info("Block scheduled for branch admin (branch {}) by {}. Pre-status: {}", branchBankId, scheduledBy, preStatus);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block scheduled. Branch admin will be BLOCKED in 30 seconds.", new ArrayList<>()), HttpStatus.OK);
     }
@@ -1203,12 +1423,206 @@ public class BranchAdminServiceImpl implements BranchAdminService {
         try {
             Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
             String branchName = branchOpt.isPresent() ? branchOpt.get().getBranchNameFull() : admin.getBranchCode();
-            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveBranchAdminContact(admin);
+            emailService.sendBlockCancelled(contact[0], contact[1],
                     branchName, admin.getBranchCode(), restored);
+            final String branchNameCopy = branchName;
+            notifyActor(undoneBy, "Block Cancelled", branchNameCopy, admin.getBranchCode(),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")));
         } catch (Exception e) {
             logger.warn("undoBlockByBranchBankId: email failed for branch admin {}: {}", admin.getUsername(), e.getMessage());
         }
         logger.info("Block undone for branch admin (branch {}) by {}. Restored to {}", branchBankId, undoneBy, restored);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Branch admin restored to " + restored + ".", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    private void notifyActor(String actorBy, String action, String targetName, String targetCode, String when) {
+        try {
+            Optional<MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorBy);
+            if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ma.get().getEmail(), ma.get().getUsername(), action, targetName, targetCode, when);
+                return;
+            }
+            Optional<BranchAdmin> ba = branchAdminRepository.findFirstByUsername(actorBy);
+            if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ba.get().getEmail(), ba.get().getUsername(), action, targetName, targetCode, when);
+                return;
+            }
+            kalAdminRepository.findByUserName(actorBy).ifPresent(ka -> {
+                if (ka.getEmailId() != null && !ka.getEmailId().isEmpty()) {
+                    emailService.sendActorActionConfirmation(ka.getEmailId(), ka.getUserName(), action, targetName, targetCode, when);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("[ACTOR-CONFIRM] Email failed for {}: {}", actorBy, e.getMessage());
+        }
+    }
+
+    private String[] resolveBranchAdminContact(BranchAdmin admin) {
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                            admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            if (!reps.isEmpty() && reps.get(0).getReplacementEntityId() > 0) {
+                Optional<BranchAdmin> rep = branchAdminRepository.findById(reps.get(0).getReplacementEntityId());
+                if (rep.isPresent() && rep.get().getEmail() != null && !rep.get().getEmail().isEmpty()) {
+                    return new String[]{rep.get().getEmail(), rep.get().getUsername()};
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("resolveBranchAdminContact failed for {}: {}", admin.getUsername(), e.getMessage());
+        }
+        return new String[]{admin.getEmail(), admin.getUsername()};
+    }
+
+    // =========================================================================
+    // getAllBranchAdmins — fetch branch admins directly from BRANCH_ADMIN table
+    // GET /test/api/v1/branch/get-all-admins
+    // =========================================================================
+    @Override
+    public ResponseEntity<RestWithStatusList> getAllBranchAdmins(String callerUsername) {
+        List<BranchAdmin> admins;
+
+        // Resolve caller's bank to filter branch admins
+        Optional<MainAdmin> callerOpt = mainAdminRepository.findFirstByUsername(callerUsername);
+        if (callerOpt.isPresent()) {
+            String bankCode = callerOpt.get().getBankCode();
+            Optional<MainBank> bankOpt2 = mainBankRepository.findByBankCode(bankCode);
+            if (bankOpt2.isPresent()) {
+                List<BranchBank> branches = branchBankRepository.findByParentBankId(bankOpt2.get().getBankId());
+                List<String> branchCodes = new ArrayList<>();
+                for (BranchBank bb : branches) branchCodes.add(bb.getBranchCode());
+                admins = branchCodes.isEmpty() ? new ArrayList<>()
+                    : branchAdminRepository.findAllByBranchCodeIn(branchCodes);
+            } else {
+                admins = new ArrayList<>();
+            }
+        } else {
+            admins = branchAdminRepository.findAll();
+        }
+
+        List<Object> result = new ArrayList<>();
+
+        for (BranchAdmin admin : admins) {
+            // Skip admins who are currently acting as a replacement for someone else —
+            // they will appear as a replacement row under their original admin.
+            // Exception: if this admin is ALSO being replaced themselves, show them as a
+            // primary row (they have moved on from the replacement role).
+            boolean isRestoredReplacement = false;
+            List<AdminReplacement> asRepOf = adminReplacementRepository
+                .findByReplacementEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT", "RESTORED"));
+            if (!asRepOf.isEmpty()) {
+                List<AdminReplacement> theirOwnReps = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                        admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                if (theirOwnReps.isEmpty()) {
+                    boolean allRestored = asRepOf.stream().allMatch(r -> "RESTORED".equals(r.getStatus()));
+                    if (!allRestored) {
+                        continue; // Still an ACTIVE/PERMANENT replacement — show under original
+                    }
+                    if ("INACTIVE".equalsIgnoreCase(admin.getStatus())) {
+                        continue; // Fully INACTIVE — hide from list
+                    }
+                    isRestoredReplacement = true;
+                }
+            }
+
+            Optional<BranchBank> branchOpt = branchBankRepository.findByBranchCode(admin.getBranchCode());
+
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+
+            boolean hasPermanentRep = false;
+            for (AdminReplacement r : reps) {
+                if ("PERMANENT".equals(r.getStatus())) { hasPermanentRep = true; break; }
+            }
+
+            String displayName = branchOpt.isPresent()
+                ? (hasPermanentRep
+                    ? (admin.getFullName() != null ? admin.getFullName() : admin.getUsername())
+                    : branchOpt.get().getPrimaryFullName())
+                : (admin.getFullName() != null ? admin.getFullName() : admin.getUsername());
+
+            java.util.Map<String, Object> row = new java.util.HashMap<>();
+            row.put("adminId", admin.getId());
+            row.put("adminUsername", admin.getUsername());
+            row.put("adminStatus", admin.getStatus());
+            row.put("branchCode", admin.getBranchCode());
+            row.put("primaryEmail", admin.getEmail());
+            row.put("primaryFullName", displayName);
+            row.put("updatedAt", admin.getUpdatedAt() != null ? admin.getUpdatedAt().toString() : null);
+            row.put("blockReason", admin.getBlockReason());
+            row.put("blockScheduledAt", admin.getBlockScheduledAt() != null ? admin.getBlockScheduledAt().toString() : null);
+            row.put("inactivateScheduledAt", admin.getInactivateScheduledAt() != null ? admin.getInactivateScheduledAt().toString() : null);
+            row.put("reactivateScheduledAt", admin.getReactivateScheduledAt() != null ? admin.getReactivateScheduledAt().toString() : null);
+            row.put("preBlockStatus", admin.getPreBlockStatus());
+            row.put("replacementStatus", null);
+            row.put("replacedByUsername", null);
+            row.put("replacementAdminRow", isRestoredReplacement);
+
+            if (branchOpt.isPresent()) {
+                BranchBank branch = branchOpt.get();
+                row.put("branchId", branch.getBranchId());
+                row.put("branchNameFull", branch.getBranchNameFull());
+                row.put("branchNameShort", branch.getBranchNameShort() != null ? branch.getBranchNameShort() : branch.getBranchNameFull());
+                row.put("primaryMobile", branch.getPrimaryMobile());
+                row.put("primaryMobileCode", branch.getPrimaryMobileCode());
+                row.put("regCity", branch.getRegCity());
+                row.put("commCity", branch.getCommCity());
+            }
+
+            if (!reps.isEmpty()) {
+                AdminReplacement rep = reps.get(0);
+                row.put("replacementStatus", rep.getStatus());
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<BranchAdmin> repAdminOpt = branchAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        BranchAdmin repAdmin = repAdminOpt.get();
+                        row.put("replacedByUsername", repAdmin.getEmail());
+
+                        // Only add repRow if the replacement admin is NOT themselves being replaced.
+                        // If they are, they will appear as their own primary row in the loop,
+                        // and adding them here too would cause a duplicate entry.
+                        List<AdminReplacement> repAdminOwnReps = adminReplacementRepository
+                            .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                repAdmin.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                        if (repAdminOwnReps.isEmpty()) {
+                            java.util.Map<String, Object> repRow = new java.util.HashMap<>();
+                            repRow.put("adminId", repAdmin.getId());
+                            repRow.put("adminStatus", repAdmin.getStatus());
+                            repRow.put("branchCode", repAdmin.getBranchCode());
+                            repRow.put("primaryEmail", repAdmin.getEmail());
+                            repRow.put("primaryFullName", rep.getPendingFullName() != null ? rep.getPendingFullName() : repAdmin.getUsername());
+                            repRow.put("primaryMobile", rep.getPendingMobile() != null ? rep.getPendingMobile() : "");
+                            repRow.put("updatedAt", repAdmin.getUpdatedAt() != null ? repAdmin.getUpdatedAt().toString() : null);
+                            repRow.put("replacementStatus", rep.getStatus());
+                            repRow.put("replacedByUsername", null);
+                            repRow.put("replacementAdminRow", true);
+                            repRow.put("blockReason", repAdmin.getBlockReason());
+                            repRow.put("blockScheduledAt", repAdmin.getBlockScheduledAt() != null ? repAdmin.getBlockScheduledAt().toString() : null);
+                            repRow.put("inactivateScheduledAt", repAdmin.getInactivateScheduledAt() != null ? repAdmin.getInactivateScheduledAt().toString() : null);
+                            repRow.put("reactivateScheduledAt", repAdmin.getReactivateScheduledAt() != null ? repAdmin.getReactivateScheduledAt().toString() : null);
+                            repRow.put("preBlockStatus", repAdmin.getPreBlockStatus());
+                            if (branchOpt.isPresent()) {
+                                BranchBank branch = branchOpt.get();
+                                repRow.put("branchId", branch.getBranchId());
+                                repRow.put("branchNameFull", branch.getBranchNameFull());
+                                repRow.put("branchNameShort", branch.getBranchNameShort() != null ? branch.getBranchNameShort() : branch.getBranchNameFull());
+                                repRow.put("primaryMobileCode", branch.getPrimaryMobileCode());
+                                repRow.put("regCity", branch.getRegCity());
+                                repRow.put("commCity", branch.getCommCity());
+                            }
+                            result.add(repRow);
+                        }
+                    }
+                }
+            }
+
+            result.add(row);
+        }
+
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Branch admins fetched.", result));
     }
 }

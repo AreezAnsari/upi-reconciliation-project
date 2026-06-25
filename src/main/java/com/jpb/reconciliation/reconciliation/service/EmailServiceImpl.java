@@ -243,7 +243,7 @@ public class EmailServiceImpl implements EmailService {
                 statusColor  = "#6366f1";
                 statusBg     = "rgba(99,102,241,0.1)";
                 statusIcon   = "⏸";
-                statusMessage = "Your bank account has been marked <strong>Inactive</strong>. "
+                statusMessage = "Your account has been marked <strong>Inactive</strong>. "
                     + "You will not be able to access the platform until it is reactivated. "
                     + "Please contact KalInfotech Admin for assistance.";
                 break;
@@ -251,15 +251,15 @@ public class EmailServiceImpl implements EmailService {
                 statusColor  = "#ef4444";
                 statusBg     = "rgba(239,68,68,0.1)";
                 statusIcon   = "🚫";
-                statusMessage = "Your bank account has been <strong>Blocked</strong> by KalInfotech Admin. "
-                    + "Access to the ReconXpert.Ai platform has been restricted. "
+                statusMessage = "Your account has been <strong>Blocked</strong> by KalInfotech Admin. "
+                    + "Access to the ReconXpert.Ai platform has been permanently restricted. "
                     + "Please contact KalInfotech Admin immediately for clarification.";
                 break;
             case "ACTIVE":
                 statusColor  = "#22c55e";
                 statusBg     = "rgba(34,197,94,0.1)";
                 statusIcon   = "✅";
-                statusMessage = "Your bank account has been <strong>Activated</strong>. "
+                statusMessage = "Your account has been <strong>Activated</strong>. "
                     + "You can now access the ReconXpert.Ai platform using your credentials.";
                 break;
             default:
@@ -1029,10 +1029,9 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(toEmail);
             helper.setSubject("ReconXpert.Ai — Inactivation Scheduled: " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
-                    "INACTIVE_PENDING", "Inactivation Scheduled",
-                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been scheduled for <strong>inactivation</strong>. "
-                    + "It will be marked <strong>INACTIVE</strong> at " + sanitize(inactivateAt) + ". "
-                    + "If this was done in error, please contact your administrator to cancel immediately.",
+                    "ACTIVE", "INACTIVE_PENDING",
+                    "Your account has been scheduled for inactivation. It will be marked <strong>Inactive</strong> on "
+                    + sanitize(inactivateAt) + ". If this was not authorized, please contact your administrator immediately to cancel.",
                     "#6366f1", "⏸");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1056,9 +1055,9 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(toEmail);
             helper.setSubject("ReconXpert.Ai — Inactivation Cancelled: " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
-                    "ACTIVE", "Inactivation Cancelled",
-                    "The scheduled inactivation for your account (<strong>" + sanitize(entityCode) + "</strong>) has been <strong>cancelled</strong> by the administrator. "
-                    + "Your account remains <strong>ACTIVE</strong>.",
+                    "INACTIVE_PENDING", "ACTIVE",
+                    "The scheduled inactivation of your account has been successfully cancelled by the administrator. "
+                    + "Your account has been restored to <strong>Active</strong> status — no further action is required.",
                     "#22c55e", "✅");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1082,9 +1081,9 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(toEmail);
             helper.setSubject("ReconXpert.Ai — Account Inactivated: " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
-                    "INACTIVE", "Account Inactivated",
-                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been <strong>INACTIVATED</strong>. "
-                    + "You will not be able to access the platform. Please contact your administrator for reactivation.",
+                    "INACTIVE_PENDING", "INACTIVE",
+                    "Your account has been marked <strong>Inactive</strong>. Access to the ReconXpert.Ai platform has been suspended. "
+                    + "Please contact your administrator if you require reactivation.",
                     "#6366f1", "⏸");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1109,10 +1108,9 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(toEmail);
             helper.setSubject("ReconXpert.Ai — Reactivation Scheduled: " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
-                    "ACTIVE_PENDING", "Reactivation Scheduled",
-                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been scheduled for <strong>reactivation</strong>. "
-                    + "It will be marked <strong>ACTIVE</strong> at " + sanitize(reactivateAt) + ". "
-                    + "No action is needed from your side.",
+                    "INACTIVE", "ACTIVE_PENDING",
+                    "Your account has been scheduled for reactivation. It will be marked <strong>Active</strong> on "
+                    + sanitize(reactivateAt) + ". No action is required on your part.",
                     "#22c55e", "🔄");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1136,9 +1134,9 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(toEmail);
             helper.setSubject("ReconXpert.Ai — Reactivation Cancelled: " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
-                    "INACTIVE", "Reactivation Cancelled",
-                    "The scheduled reactivation for your account (<strong>" + sanitize(entityCode) + "</strong>) has been <strong>cancelled</strong> by the administrator. "
-                    + "Your account remains <strong>INACTIVE</strong>.",
+                    "ACTIVE_PENDING", "INACTIVE",
+                    "The scheduled reactivation of your account has been cancelled by the administrator. "
+                    + "Your account status remains <strong>Inactive</strong>. Please contact your administrator if you require assistance.",
                     "#6366f1", "⏸");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1154,18 +1152,80 @@ public class EmailServiceImpl implements EmailService {
     @Override
     @Async
     public void sendReactivatedNotification(String toEmail, String contactName,
-                                             String entityName, String entityCode) {
+                                             String entityName, String entityCode,
+                                             String username, String loginUrl) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject("ReconXpert.Ai — Account Reactivated: " + entityName);
-            String body = buildStatusPendingHtml(contactName, entityName, entityCode,
-                    "ACTIVE", "Account Reactivated",
-                    "Your account (<strong>" + sanitize(entityCode) + "</strong>) has been successfully <strong>REACTIVATED</strong>. "
-                    + "You can now log in to ReconXpert.Ai using your credentials.",
-                    "#22c55e", "✅");
+            String safe     = sanitize(contactName);
+            String safeOrg  = sanitize(entityName);
+            String safeCode = sanitize(entityCode);
+            String safeUser = sanitize(username);
+            String safeUrl  = sanitize(loginUrl);
+            String body = "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+                + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
+                + "<tr><td align='center'>"
+                + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+                // Header
+                + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+                + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+                + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
+                + "</td></tr>"
+
+                // Body
+                + "<tr><td style='padding:40px;'>"
+
+                // Greeting
+                + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + safe + "</strong>,</p>"
+                + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
+                + "Your account on <strong>ReconXpert.Ai</strong> has been successfully <strong>Reactivated</strong>. "
+                + "You can now log in using your existing credentials below."
+                + "</p>"
+
+                // Credentials box — green like onboarding
+                + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+                + "<p style='margin:0 0 4px;font-size:13px;color:#166534;font-weight:bold;'>✅ Your Login Credentials</p>"
+                + "<p style='margin:10px 0 4px;font-size:13px;color:#166534;'><strong>ID / Code:</strong> "
+                + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + safeCode + "</span></p>"
+                + "<p style='margin:0 0 4px;font-size:13px;color:#166534;'><strong>Username:</strong> "
+                + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;'>" + safeUser + "</span></p>"
+                + "<p style='margin:0;font-size:13px;color:#166534;'><strong>Password:</strong> "
+                + "<span style='font-family:monospace;font-size:14px;letter-spacing:1px;color:#94a3b8;'>--</span>"
+                + "<span style='font-size:11px;color:#64748b;margin-left:8px;'>(use your existing password)</span></p>"
+                + "</div>"
+
+                // Login button
+                + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
+                + "<a href='" + safeUrl + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Login to ReconXpert.Ai</a>"
+                + "</td></tr></table>"
+
+                // Steps note
+                + "<p style='font-size:13px;color:#64748b;margin:0 0 8px;'>After clicking the button, on the login page:</p>"
+                + "<ol style='font-size:13px;color:#64748b;margin:0 0 20px;padding-left:20px;line-height:1.8;'>"
+                + "<li>Your <strong>ID / Code</strong> and <strong>Username</strong> will be pre-filled</li>"
+                + "<li>Enter your <strong>existing password</strong> to continue</li>"
+                + "</ol>"
+
+                // Warning box
+                + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+                + "<p style='margin:0;font-size:12px;color:#92400e;'>"
+                + "<strong>Important:</strong> Please do not share your credentials with anyone. "
+                + "Contact your administrator if you need assistance."
+                + "</p>"
+                + "</div>"
+
+                + "</td></tr>"
+
+                // Footer
+                + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+                + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai.</p>"
+                + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+                + "</td></tr>"
+                + "</table></td></tr></table></body></html>";
             helper.setText(body, true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Reactivated notification sent to: {}", toEmail);
@@ -1178,31 +1238,69 @@ public class EmailServiceImpl implements EmailService {
     // HTML TEMPLATE — Generic pending/transition email
     // ─────────────────────────────────────────────────────────────────────
     private String buildStatusPendingHtml(String contactName, String entityName, String entityCode,
-                                           String newStatus, String title, String message,
+                                           String oldStatus, String newStatus, String message,
                                            String accentColor, String icon) {
+        String statusBg;
+        switch (newStatus != null ? newStatus.toUpperCase() : "") {
+            case "INACTIVE_PENDING": statusBg = "rgba(99,102,241,0.1)";  break;
+            case "INACTIVE":         statusBg = "rgba(99,102,241,0.1)";  break;
+            case "ACTIVE_PENDING":   statusBg = "rgba(34,197,94,0.1)";   break;
+            case "ACTIVE":           statusBg = "rgba(34,197,94,0.1)";   break;
+            case "BLOCK_PENDING":    statusBg = "rgba(239,68,68,0.08)";  break;
+            case "BLOCKED":          statusBg = "rgba(239,68,68,0.08)";  break;
+            default:                 statusBg = "rgba(212,168,67,0.1)";  break;
+        }
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+            // Header
             + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
             + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
+
+            // Status banner
+            + "<tr><td style='background:" + statusBg + ";border-bottom:3px solid " + accentColor + ";padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:32px;'>" + icon + "</p>"
+            + "<p style='margin:8px 0 0;font-size:18px;font-weight:700;color:" + accentColor + ";'>Status Changed: " + sanitize(oldStatus) + " → " + sanitize(newStatus) + "</p>"
+            + "</td></tr>"
+
+            // Body
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
-            + "<div style='background:rgba(0,0,0,0.03);border-left:4px solid " + accentColor + ";border-radius:8px;padding:20px 24px;margin:20px 0;'>"
-            + "<p style='margin:0 0 6px;font-size:18px;'>" + icon + " <strong style='color:" + accentColor + ";'>" + sanitize(title) + "</strong></p>"
-            + "<p style='margin:0;font-size:13px;color:#475569;'>" + message + "</p>"
-            + "</div>"
-            + "<p style='font-size:13px;color:#64748b;'>Organisation: <strong>" + sanitize(entityName) + "</strong> | Code: <strong>" + sanitize(entityCode) + "</strong></p>"
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;margin-top:16px;'>"
-            + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not reply to this email. Contact your administrator for any queries.</p>"
-            + "</div>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.7;'>" + message + "</p>"
+
+            // Account details table
+            + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid " + accentColor + ";border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+            + "<p style='margin:0 0 12px;font-size:13px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:1px;'>Account Details</p>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;width:160px;'>Name</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>" + sanitize(entityName) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Code</td>"
+            + "<td style='font-size:13px;color:#1e293b;font-family:monospace;font-weight:600;padding:4px 0;'>" + sanitize(entityCode) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Previous Status</td>"
+            + "<td style='font-size:13px;color:#64748b;padding:4px 0;'>" + sanitize(oldStatus) + "</td></tr>"
+            + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>New Status</td>"
+            + "<td style='font-size:13px;font-weight:700;padding:4px 0;color:" + accentColor + ";'>" + sanitize(newStatus) + "</td></tr>"
+            + "</table></div>"
+
+            // Note box
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<p style='margin:0;font-size:12px;color:#92400e;'>"
+            + "<strong>Note:</strong> This is an automated notification from KalInfotech Admin. "
+            + "If you have any questions, please contact us at <a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "</p></div>"
+
             + "</td></tr>"
+
+            // Footer
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
-            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated notification from ReconXpert.Ai.</p>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
             + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
             + "</td></tr>"
+
             + "</table></td></tr></table></body></html>";
     }
 
@@ -1689,6 +1787,65 @@ public class EmailServiceImpl implements EmailService {
             + "</td></tr>"
 
             + "</table></td></tr></table></body></html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ACTOR ACTION CONFIRMATION — sent to parent/actor after every child action
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendActorActionConfirmation(String toEmail, String actorName,
+                                             String action, String targetName, String targetCode,
+                                             String scheduledAt) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai — Action Confirmation: " + action);
+            helper.setText(buildActorConfirmationHtml(actorName, action, targetName, targetCode, scheduledAt), true);
+            mailSender.send(message);
+            logger.info("[ACTOR-CONFIRM] Sent to {} — action: {} on {}", toEmail, action, targetCode);
+        } catch (Exception e) {
+            logger.warn("[ACTOR-CONFIRM] Email failed for {} — action: {}: {}", toEmail, action, e.getMessage());
+        }
+    }
+
+    private String buildActorConfirmationHtml(String actorName, String action,
+                                               String targetName, String targetCode,
+                                               String scheduledAt) {
+        String actionColor = action.toLowerCase().contains("block") ? "#ef4444"
+                           : action.toLowerCase().contains("inact") ? "#f97316"
+                           : action.toLowerCase().contains("react") || action.toLowerCase().contains("cancel") ? "#22c55e"
+                           : "#6366f1";
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'>"
+            + "<tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Action Confirmation</p>"
+            + "</td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(actorName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;margin:0 0 24px;line-height:1.6;'>This confirms that you have successfully performed the following action on the ReconXpert.Ai platform.</p>"
+            + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid " + actionColor + ";border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='padding:6px 0;width:40%;font-size:13px;color:#64748b;'>Action</td>"
+            + "<td style='padding:6px 0;font-size:13px;font-weight:700;color:" + actionColor + ";'>" + sanitize(action) + "</td></tr>"
+            + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Target</td>"
+            + "<td style='padding:6px 0;font-size:13px;font-weight:600;color:#1e293b;'>" + sanitize(targetName) + "</td></tr>"
+            + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Code</td>"
+            + "<td style='padding:6px 0;font-size:13px;color:#475569;font-family:monospace;'>" + sanitize(targetCode) + "</td></tr>"
+            + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>When</td>"
+            + "<td style='padding:6px 0;font-size:13px;color:#475569;'>" + sanitize(scheduledAt) + "</td></tr>"
+            + "</table></div>"
+            + "<p style='font-size:12px;color:#94a3b8;margin:0;line-height:1.6;'>If you did not perform this action, please contact <strong>support@kalinfotech.com</strong> immediately.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:4px 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
     }
 
     // Prevent XSS — sanitize user input before putting in HTML

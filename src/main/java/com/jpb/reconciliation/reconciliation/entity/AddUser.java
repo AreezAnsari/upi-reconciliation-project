@@ -24,7 +24,7 @@ public class AddUser {
     }
 
     public enum UserStatus {
-        REQUEST, VERIFIED, ACTIVE, INACTIVE_PENDING, INACTIVE, ACTIVE_PENDING, BLOCK_PENDING, BLOCK, RETIRED
+        REQUEST, VERIFIED, ACTIVE, INACTIVE_PENDING, INACTIVE, ACTIVE_PENDING, BLOCK_PENDING, BLOCKED, RETIRED
     }
 
     @Id
@@ -38,7 +38,7 @@ public class AddUser {
     @Column(name = "USERNAME", unique = true, nullable = false, length = 100)
     private String username;
 
-    @Column(name = "EMAIL", unique = true, nullable = false, length = 150)
+    @Column(name = "EMAIL", nullable = false, length = 150)
     private String email;
 
     @Column(name = "DEPARTMENT", length = 150)
@@ -74,9 +74,6 @@ public class AddUser {
 
     @Column(name = "EXTERNAL_SUPERVISOR_PHONE", length = 20)
     private String externalSupervisorPhone;
-
-    @Column(name = "ROLE_TYPE", nullable = false, length = 20)
-    private String roleType;
 
     @Column(name = "PASSWORD_SET", nullable = false)
     @Builder.Default
@@ -117,6 +114,9 @@ public class AddUser {
 
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;
+
+    @Column(name = "PARENT_ID")
+    private Long parentId;
 
     @Column(name = "CREATED_BY", length = 100)
     private String createdBy;

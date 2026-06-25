@@ -152,5 +152,11 @@ public class BranchAdminController {
                         .body(new RestWithStatusList("FAILURE", "Admin not found", new java.util.ArrayList<>())));
     }
 
+    @GetMapping("/get-all-admins")
+    public ResponseEntity<RestWithStatusList> getAllBranchAdmins(Authentication authentication) {
+        String caller = authentication != null ? authentication.getName() : "";
+        return branchAdminService.getAllBranchAdmins(caller);
+    }
+
 }
 

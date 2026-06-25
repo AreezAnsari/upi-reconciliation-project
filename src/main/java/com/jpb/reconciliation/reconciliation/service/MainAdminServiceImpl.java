@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -31,10 +32,12 @@ import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import java.util.List;
@@ -71,6 +74,9 @@ public class MainAdminServiceImpl implements MainAdminService {
 
     @Autowired
     private AdminReplacementRepository adminReplacementRepository;
+
+    @Autowired
+    private KalAdminRepository kalAdminRepository;
 
     @Autowired
     private JwtHelper jwtHelper;
@@ -326,13 +332,21 @@ public class MainAdminServiceImpl implements MainAdminService {
         // INSERT new record into BANK_ADMIN (first-time password setup for original admin)
         MainAdmin mainAdmin = new MainAdmin();
         mainAdmin.setBankCode(bankCode);
-        mainAdmin.setUsername(username);
+        mainAdmin.setUsername(username.toLowerCase());
         mainAdmin.setEmail(bank.getPrimaryEmail());
         mainAdmin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         mainAdmin.setPasswordSet(1);
         mainAdmin.setStatus("VERIFIED");
         mainAdmin.setCreatedAt(LocalDateTime.now());
-        mainAdmin.setCreatedBy(bank.getCreatedBy());
+        // Normalize createdBy: if stored as email, resolve to actual username
+        String rawCreatedBy = bank.getCreatedBy();
+        String resolvedCreatedBy = rawCreatedBy;
+        if (rawCreatedBy != null && rawCreatedBy.contains("@")) {
+            Optional<com.jpb.reconciliation.reconciliation.entity.KalAdmin> kalCreatorOpt =
+                    kalAdminRepository.findByEmailId(rawCreatedBy);
+            if (kalCreatorOpt.isPresent()) resolvedCreatedBy = kalCreatorOpt.get().getUserName();
+        }
+        mainAdmin.setCreatedBy(resolvedCreatedBy);
         mainAdminRepository.save(mainAdmin);
         logger.info("BANK_ADMIN record created for username={} bankCode={}", username, bankCode);
 
@@ -448,7 +462,7 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         // ── Status check from BANK_ADMIN (synced with TEST_BANK) ──
         String userStatus = user.getStatus();
-        if ("BLOCKED".equalsIgnoreCase(userStatus) || "BLOCK".equalsIgnoreCase(userStatus)) {
+        if ("BLOCKED".equalsIgnoreCase(userStatus)) {
             logger.warn("login BLOCKED: bank={} username={}", dto.getBankCode(), dto.getUsername());
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCKED",
@@ -502,6 +516,13 @@ public class MainAdminServiceImpl implements MainAdminService {
             return new ResponseEntity<>(
                     new RestWithStatusList("BLOCK_PENDING",
                             "Your bank account has been scheduled for permanent block. Please contact the KalInfotech administrator immediately to avoid losing access.",
+                            data),
+                    HttpStatus.OK);
+        }
+        if ("ACTIVE_PENDING".equalsIgnoreCase(userStatus)) {
+            return new ResponseEntity<>(
+                    new RestWithStatusList("ACTIVE_PENDING",
+                            "Your bank account reactivation is in progress. You may proceed to login — your account will be fully active shortly.",
                             data),
                     HttpStatus.OK);
         }
@@ -600,7 +621,7 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         // ── Status check from BANK_ADMIN (synced with TEST_BANK) ──
         String status = user.getStatus();
-        if ("BLOCKED".equalsIgnoreCase(status) || "BLOCK".equalsIgnoreCase(status)) {
+        if ("BLOCKED".equalsIgnoreCase(status)) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
                             "Invalid Bank Code or Username.", null),
@@ -637,7 +658,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                 .authorities(new ArrayList<>())
                 .build();
 
-        String accessToken  = jwtHelper.generateToken(userDetails);
+        String accessToken  = jwtHelper.generateToken(userDetails, "BANK_ADMIN");
         String refreshToken = jwtHelper.generateTokenForRefresh(user.getUsername());
 
         // Bank code bhi return karo
@@ -705,7 +726,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                     HttpStatus.OK);
         }
 
-        if ("BLOCK".equalsIgnoreCase(user.getStatus())) {
+        if ("BLOCKED".equalsIgnoreCase(user.getStatus())) {
             return new ResponseEntity<>(
                     new RestWithStatusList("FAILURE",
                             "Account is blocked. Contact KalInfotech admin.", null),
@@ -882,6 +903,7 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         // Password reset + OTP clear (one-time use)
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordSet(1);
         user.setForgotOtp(null);
         user.setForgotOtpExpiry(null);
         user.setUpdatedAt(LocalDateTime.now());
@@ -953,10 +975,13 @@ public class MainAdminServiceImpl implements MainAdminService {
             bank.setStatus("ACTIVE");
             bank.setUpdatedAt(LocalDateTime.now());
             mainBankRepository.save(bank);
-            // Sync to BANK_ADMIN
+            // Sync to BANK_ADMIN; capture full name for future reference
             user.setStatus("ACTIVE");
             user.setUpdatedAt(LocalDateTime.now());
             user.setUpdatedBy("SYSTEM");
+            if (user.getFullName() == null && bank.getPrimaryFullName() != null) {
+                user.setFullName(bank.getPrimaryFullName());
+            }
             mainAdminRepository.save(user);
             logger.info("[ACTIVATE] Bank {} status → ACTIVE after first login",
                     bank.getBankCode());
@@ -1013,8 +1038,10 @@ public class MainAdminServiceImpl implements MainAdminService {
         mainAdminRepository.save(admin);
         try {
             String inactivateAt = admin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendInactivatePendingWarning(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveMainAdminContact(admin);
+            emailService.sendInactivatePendingWarning(contact[0], contact[1],
                     bank.getBankNameFull(), bank.getBankCode(), inactivateAt);
+            sendKalActorConfirmation(scheduledBy, "Inactivation Scheduled", bank.getBankNameFull(), bank.getBankCode(), inactivateAt);
         } catch (Exception e) {
             logger.warn("scheduleInactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1057,8 +1084,11 @@ public class MainAdminServiceImpl implements MainAdminService {
             logger.warn("undoInactivate: failed to cancel pending replacement for {}: {}", admin.getUsername(), e.getMessage());
         }
         try {
-            emailService.sendInactivateCancelled(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveMainAdminContact(admin);
+            emailService.sendInactivateCancelled(contact[0], contact[1],
                     bank.getBankNameFull(), bank.getBankCode());
+            String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            sendKalActorConfirmation(undoneBy, "Inactivation Cancelled", bank.getBankNameFull(), bank.getBankCode(), nowStr);
         } catch (Exception e) {
             logger.warn("undoInactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1091,10 +1121,46 @@ public class MainAdminServiceImpl implements MainAdminService {
         BlockScheduleServiceImpl.flagPendingWork();
         admin.setUpdatedBy(scheduledBy);
         mainAdminRepository.save(admin);
+        // Transition any active replacement to INACTIVE_PENDING so they are notified their tenure is ending
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            for (AdminReplacement rep : reps) {
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<MainAdmin> repAdminOpt = mainAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        MainAdmin repAdmin = repAdminOpt.get();
+                        if ("ACTIVE".equalsIgnoreCase(repAdmin.getStatus())) {
+                            repAdmin.setStatus("INACTIVE_PENDING");
+                            repAdmin.setInactivateScheduledAt(LocalDateTime.now());
+                            repAdmin.setInactivateScheduledBy(scheduledBy);
+                            repAdmin.setUpdatedAt(LocalDateTime.now());
+                            repAdmin.setUpdatedBy(scheduledBy);
+                            mainAdminRepository.save(repAdmin);
+                            logger.info("Replacement bank admin {} set to INACTIVE_PENDING as original {} is reactivating", repAdmin.getUsername(), admin.getUsername());
+                            try {
+                                if (repAdmin.getEmail() != null && !repAdmin.getEmail().isEmpty()) {
+                                    String inactivateAt = repAdmin.getInactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+                                    emailService.sendInactivatePendingWarning(repAdmin.getEmail(), repAdmin.getUsername(),
+                                            bank.getBankNameFull(), bank.getBankCode(), inactivateAt);
+                                }
+                            } catch (Exception e2) {
+                                logger.warn("scheduleReactivate: replacement email failed for {}: {}", repAdmin.getUsername(), e2.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("scheduleReactivate: replacement transition failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
         try {
             String reactivateAt = admin.getReactivateScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendReactivatePendingNotification(admin.getEmail(), admin.getUsername(),
+            String[] contact = resolveMainAdminContact(admin);
+            emailService.sendReactivatePendingNotification(contact[0], contact[1],
                     bank.getBankNameFull(), bank.getBankCode(), reactivateAt);
+            sendKalActorConfirmation(scheduledBy, "Reactivation Scheduled", bank.getBankNameFull(), bank.getBankCode(), reactivateAt);
         } catch (Exception e) {
             logger.warn("scheduleReactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1124,9 +1190,45 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedAt(LocalDateTime.now());
         admin.setUpdatedBy(undoneBy);
         mainAdminRepository.save(admin);
+        // Restore replacement admin to ACTIVE since reactivation was undone
         try {
-            emailService.sendReactivateCancelled(admin.getEmail(), admin.getUsername(),
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            for (AdminReplacement rep : reps) {
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<MainAdmin> repAdminOpt = mainAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        MainAdmin repAdmin = repAdminOpt.get();
+                        if ("INACTIVE_PENDING".equalsIgnoreCase(repAdmin.getStatus())) {
+                            repAdmin.setStatus("ACTIVE");
+                            repAdmin.setInactivateScheduledAt(null);
+                            repAdmin.setInactivateScheduledBy(null);
+                            repAdmin.setUpdatedAt(LocalDateTime.now());
+                            repAdmin.setUpdatedBy(undoneBy);
+                            mainAdminRepository.save(repAdmin);
+                            logger.info("Replacement bank admin {} restored to ACTIVE as original {} reactivation was undone", repAdmin.getUsername(), admin.getUsername());
+                            try {
+                                if (repAdmin.getEmail() != null && !repAdmin.getEmail().isEmpty()) {
+                                    emailService.sendInactivateCancelled(repAdmin.getEmail(), repAdmin.getUsername(),
+                                            bank.getBankNameFull(), bank.getBankCode());
+                                }
+                            } catch (Exception e2) {
+                                logger.warn("undoReactivate: replacement email failed for {}: {}", repAdmin.getUsername(), e2.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("undoReactivate: replacement restoration failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
+        }
+        try {
+            String[] contact = resolveMainAdminContact(admin);
+            emailService.sendReactivateCancelled(contact[0], contact[1],
                     bank.getBankNameFull(), bank.getBankCode());
+            String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            sendKalActorConfirmation(undoneBy, "Reactivation Cancelled", bank.getBankNameFull(), bank.getBankCode(), nowStr);
         } catch (Exception e) {
             logger.warn("undoReactivate: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1194,7 +1296,7 @@ public class MainAdminServiceImpl implements MainAdminService {
             try {
                 List<AddUser> users = addUserRepository.findByBankCode(admin.getBankCode());
                 for (AddUser user : users) {
-                    if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                    if (user.getStatus() != AddUser.UserStatus.BLOCKED && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
                         user.setPreBlockStatus(user.getStatus().name());
                         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                         user.setBlockScheduledAt(LocalDateTime.now());
@@ -1215,8 +1317,9 @@ public class MainAdminServiceImpl implements MainAdminService {
         try {
             String bankName = parentBankOpt.isPresent() ? parentBankOpt.get().getBankNameFull() : admin.getBankCode();
             String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
-                    bankName, admin.getBankCode(), blockAt);
+            // Individual block — email goes directly to the admin being blocked, not their replacement
+            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(), bankName, admin.getBankCode(), blockAt);
+            sendKalActorConfirmation(scheduledBy, "Block Scheduled", bankName, admin.getBankCode(), blockAt);
         } catch (Exception e) {
             logger.warn("scheduleBlock: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1245,8 +1348,10 @@ public class MainAdminServiceImpl implements MainAdminService {
         try {
             Optional<MainBank> bankForEmailOpt = mainBankRepository.findByBankCode(admin.getBankCode());
             String bankName = bankForEmailOpt.isPresent() ? bankForEmailOpt.get().getBankNameFull() : admin.getBankCode();
-            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
-                    bankName, admin.getBankCode(), restored);
+            String[] contact = resolveMainAdminContact(admin);
+            emailService.sendBlockCancelled(contact[0], contact[1], bankName, admin.getBankCode(), restored);
+            String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            sendKalActorConfirmation(undoneBy, "Block Cancelled", bankName, admin.getBankCode(), nowStr);
         } catch (Exception e) {
             logger.warn("undoBlock: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1321,7 +1426,7 @@ public class MainAdminServiceImpl implements MainAdminService {
                 try {
                     List<AddUser> users = addUserRepository.findByBankCode(admin.getBankCode());
                     for (AddUser user : users) {
-                        if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                        if (user.getStatus() != AddUser.UserStatus.BLOCKED && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
                             user.setPreBlockStatus(user.getStatus().name());
                             user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                             user.setBlockScheduledAt(LocalDateTime.now());
@@ -1342,8 +1447,9 @@ public class MainAdminServiceImpl implements MainAdminService {
 
         try {
             String blockAt = admin.getBlockScheduledAt().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
-            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(),
-                    bank.getBankNameFull(), bank.getBankCode(), blockAt);
+            // Individual block — email goes directly to the admin being blocked, not their replacement
+            emailService.sendBlockWarning(admin.getEmail(), admin.getUsername(), bank.getBankNameFull(), bank.getBankCode(), blockAt);
+            sendKalActorConfirmation(scheduledBy, "Block Scheduled", bank.getBankNameFull(), bank.getBankCode(), blockAt);
         } catch (Exception e) {
             logger.warn("scheduleBlockByBankId: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
@@ -1377,12 +1483,189 @@ public class MainAdminServiceImpl implements MainAdminService {
         admin.setUpdatedBy(undoneBy);
         mainAdminRepository.save(admin);
         try {
-            emailService.sendBlockCancelled(admin.getEmail(), admin.getUsername(),
-                    bank.getBankNameFull(), bank.getBankCode(), restored);
+            String[] contact = resolveMainAdminContact(admin);
+            emailService.sendBlockCancelled(contact[0], contact[1], bank.getBankNameFull(), bank.getBankCode(), restored);
+            String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            sendKalActorConfirmation(undoneBy, "Block Cancelled", bank.getBankNameFull(), bank.getBankCode(), nowStr);
         } catch (Exception e) {
             logger.warn("undoBlockByBankId: email failed for bank admin {}: {}", admin.getUsername(), e.getMessage());
         }
         logger.info("Block undone for bank admin (bank {}) by {}. Restored to {}", bankId, undoneBy, restored);
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Block cancelled. Bank admin restored to " + restored + ".", new ArrayList<>()), HttpStatus.OK);
+    }
+
+    private void sendKalActorConfirmation(String actorUsername, String action, String entityName, String entityCode, String scheduledAt) {
+        try {
+            Optional<MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorUsername);
+            if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ma.get().getEmail(), ma.get().getUsername(), action, entityName, entityCode, scheduledAt);
+                return;
+            }
+            Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> ba = branchAdminRepository.findFirstByUsername(actorUsername);
+            if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ba.get().getEmail(), ba.get().getUsername(), action, entityName, entityCode, scheduledAt);
+                return;
+            }
+            kalAdminRepository.findByUserName(actorUsername).ifPresent(actor -> {
+                if (actor.getEmailId() != null && !actor.getEmailId().isEmpty()) {
+                    emailService.sendActorActionConfirmation(actor.getEmailId(), actor.getUserName(),
+                            action, entityName, entityCode, scheduledAt);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("sendKalActorConfirmation: email failed for actor {}: {}", actorUsername, e.getMessage());
+        }
+    }
+
+    private String[] resolveMainAdminContact(MainAdmin admin) {
+        try {
+            List<AdminReplacement> reps = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                            admin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+            if (!reps.isEmpty() && reps.get(0).getReplacementEntityId() > 0) {
+                Optional<MainAdmin> rep = mainAdminRepository.findById(reps.get(0).getReplacementEntityId());
+                if (rep.isPresent() && rep.get().getEmail() != null && !rep.get().getEmail().isEmpty()) {
+                    return new String[]{rep.get().getEmail(), rep.get().getUsername()};
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("resolveMainAdminContact failed for {}: {}", admin.getUsername(), e.getMessage());
+        }
+        return new String[]{admin.getEmail(), admin.getUsername()};
+    }
+
+    // =========================================================================
+    // getAllBankAdmins — fetch all Bank Admins directly from BANK_ADMIN table
+    // GET /test/api/v1/bank/get-all-admins
+    // =========================================================================
+    @Override
+    public ResponseEntity<RestWithStatusList> getAllBankAdmins(String callerUsername) {
+        List<MainAdmin> admins = (callerUsername != null && !callerUsername.isEmpty())
+            ? mainAdminRepository.findAllByCreatedBy(callerUsername)
+            : mainAdminRepository.findAll();
+        List<Object> result = new ArrayList<>();
+
+        for (MainAdmin admin : admins) {
+            // Skip admins who are currently acting as a replacement for someone else —
+            // they will appear as a replacement row under their original admin.
+            // Exception: if this admin is ALSO being replaced themselves, show them as a
+            // primary row (they have moved on from the replacement role).
+            boolean isRestoredReplacement = false;
+            List<AdminReplacement> asRepOf = adminReplacementRepository
+                .findByReplacementEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT", "RESTORED"));
+            if (!asRepOf.isEmpty()) {
+                List<AdminReplacement> theirOwnReps = adminReplacementRepository
+                    .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                        admin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                if (theirOwnReps.isEmpty()) {
+                    boolean allRestored = asRepOf.stream().allMatch(r -> "RESTORED".equals(r.getStatus()));
+                    if (!allRestored) {
+                        continue; // Still an ACTIVE/PERMANENT replacement — show under original
+                    }
+                    // All RESTORED: original was reactivated, this replacement's tenure is done
+                    if ("INACTIVE".equalsIgnoreCase(admin.getStatus())) {
+                        continue; // Fully INACTIVE — hide from list
+                    }
+                    // INACTIVE_PENDING: still counting down — show but flag as replacement row
+                    isRestoredReplacement = true;
+                }
+            }
+
+            Optional<MainBank> bankOpt = mainBankRepository.findByBankCode(admin.getBankCode());
+
+            List<AdminReplacement> reps = adminReplacementRepository
+                .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                    admin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+
+            boolean hasPermanentRep = false;
+            for (AdminReplacement r : reps) {
+                if ("PERMANENT".equals(r.getStatus())) { hasPermanentRep = true; break; }
+            }
+
+            // If permanently replaced, MainBank.primaryFullName is now the replacement's name;
+            // use stored fullName if available, otherwise fall back to username
+            String displayName = bankOpt.isPresent()
+                ? (hasPermanentRep
+                    ? (admin.getFullName() != null ? admin.getFullName() : admin.getUsername())
+                    : bankOpt.get().getPrimaryFullName())
+                : (admin.getFullName() != null ? admin.getFullName() : admin.getUsername());
+
+            java.util.Map<String, Object> row = new java.util.HashMap<>();
+            row.put("adminId", admin.getId());
+            row.put("adminStatus", admin.getStatus());
+            row.put("bankCode", admin.getBankCode());
+            row.put("primaryEmail", admin.getEmail());
+            row.put("primaryFullName", displayName);
+            row.put("updatedAt", admin.getUpdatedAt() != null ? admin.getUpdatedAt().toString() : null);
+            row.put("blockReason", admin.getBlockReason());
+            row.put("blockScheduledAt", admin.getBlockScheduledAt() != null ? admin.getBlockScheduledAt().toString() : null);
+            row.put("inactivateScheduledAt", admin.getInactivateScheduledAt() != null ? admin.getInactivateScheduledAt().toString() : null);
+            row.put("reactivateScheduledAt", admin.getReactivateScheduledAt() != null ? admin.getReactivateScheduledAt().toString() : null);
+            row.put("preBlockStatus", admin.getPreBlockStatus());
+            row.put("replacementStatus", null);
+            row.put("replacedByUsername", null);
+            row.put("replacementAdminRow", isRestoredReplacement);
+
+            if (bankOpt.isPresent()) {
+                MainBank bank = bankOpt.get();
+                row.put("bankId", bank.getBankId());
+                row.put("bankNameFull", bank.getBankNameFull());
+                row.put("bankNameShort", bank.getBankNameShort() != null ? bank.getBankNameShort() : bank.getBankNameFull());
+                row.put("bankAdminId", bank.getBankAdminId());
+                row.put("primaryMobile", bank.getPrimaryMobile());
+                row.put("primaryMobileCode", bank.getPrimaryMobileCode());
+            }
+
+            if (!reps.isEmpty()) {
+                AdminReplacement rep = reps.get(0);
+                row.put("replacementStatus", rep.getStatus());
+                if (rep.getReplacementEntityId() != null) {
+                    Optional<MainAdmin> repAdminOpt = mainAdminRepository.findById(rep.getReplacementEntityId());
+                    if (repAdminOpt.isPresent()) {
+                        MainAdmin repAdmin = repAdminOpt.get();
+                        row.put("replacedByUsername", repAdmin.getEmail());
+
+                        // Only add repRow if the replacement admin is NOT themselves being replaced.
+                        // If they are, they will appear as their own primary row in the loop,
+                        // and adding them here too would cause a duplicate entry.
+                        List<AdminReplacement> repAdminOwnReps = adminReplacementRepository
+                            .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                repAdmin.getId(), "MAIN_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                        if (repAdminOwnReps.isEmpty()) {
+                            java.util.Map<String, Object> repRow = new java.util.HashMap<>();
+                            repRow.put("adminId", repAdmin.getId());
+                            repRow.put("adminStatus", repAdmin.getStatus());
+                            repRow.put("bankCode", repAdmin.getBankCode());
+                            repRow.put("primaryEmail", repAdmin.getEmail());
+                            repRow.put("bankAdminId", repAdmin.getUsername());
+                            repRow.put("primaryFullName", rep.getPendingFullName() != null ? rep.getPendingFullName() : repAdmin.getUsername());
+                            repRow.put("primaryMobile", rep.getPendingMobile() != null ? rep.getPendingMobile() : "");
+                            repRow.put("updatedAt", repAdmin.getUpdatedAt() != null ? repAdmin.getUpdatedAt().toString() : null);
+                            repRow.put("replacementStatus", rep.getStatus());
+                            repRow.put("replacedByUsername", null);
+                            repRow.put("replacementAdminRow", true);
+                            repRow.put("blockReason", repAdmin.getBlockReason());
+                            repRow.put("blockScheduledAt", repAdmin.getBlockScheduledAt() != null ? repAdmin.getBlockScheduledAt().toString() : null);
+                            repRow.put("inactivateScheduledAt", repAdmin.getInactivateScheduledAt() != null ? repAdmin.getInactivateScheduledAt().toString() : null);
+                            repRow.put("reactivateScheduledAt", repAdmin.getReactivateScheduledAt() != null ? repAdmin.getReactivateScheduledAt().toString() : null);
+                            repRow.put("preBlockStatus", repAdmin.getPreBlockStatus());
+                            if (bankOpt.isPresent()) {
+                                MainBank bank = bankOpt.get();
+                                repRow.put("bankId", bank.getBankId());
+                                repRow.put("bankNameFull", bank.getBankNameFull());
+                                repRow.put("bankNameShort", bank.getBankNameShort() != null ? bank.getBankNameShort() : bank.getBankNameFull());
+                                repRow.put("primaryMobileCode", bank.getPrimaryMobileCode());
+                            }
+                            result.add(repRow);
+                        }
+                    }
+                }
+            }
+
+            result.add(row);
+        }
+
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank admins fetched.", result));
     }
 }

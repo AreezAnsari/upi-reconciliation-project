@@ -6,8 +6,10 @@ import org.springframework.stereotype.Repository;
 import com.jpb.reconciliation.reconciliation.entity.RecModule;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RecModuleRepository extends JpaRepository<RecModule, Long> {
     List<RecModule> findAllByOrderByDisplayOrderAsc();
+    Optional<RecModule> findByName(String name);
 }

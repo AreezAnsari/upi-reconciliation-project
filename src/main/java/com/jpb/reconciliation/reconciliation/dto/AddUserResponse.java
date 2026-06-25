@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,7 +25,6 @@ public class AddUserResponse {
     private String mobileNumber;
     private String userType;
     private String role;
-    private String roleType;
     private String status;
 
     private String externalDepartmentName;
@@ -38,6 +38,15 @@ public class AddUserResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    private String replacementStatus;   // ACTIVE / PERMANENT / null — from ADMIN_REPLACEMENT table
-    private String replacedByUsername;  // replacement user's username
+    private LocalDateTime inactivateScheduledAt;
+    private LocalDateTime blockScheduledAt;
+    private LocalDateTime reactivateScheduledAt;
+
+    private String replacementStatus;    // ACTIVE / PERMANENT / null — from ADMIN_REPLACEMENT table
+    private String replacedByUsername;   // replacement user's username
+    private boolean replacementAdminRow; // true = this row IS the replacement user (not the original)
+
+    // Hierarchy fields
+    private Long parentId;
+    private List<AddUserResponse> children; // populated in hierarchy fetch, null in flat list responses
 }

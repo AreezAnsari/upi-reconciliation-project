@@ -162,7 +162,8 @@ public class OtpController {
                     .authorities(new ArrayList<>())
                     .build();
 
-            String accessToken  = jwtHelper.generateToken(userDetails);
+            String jwtRole      = (resolvedBranchCode != null) ? "BRANCH_ADMIN" : "BANK_ADMIN";
+            String accessToken  = jwtHelper.generateToken(userDetails, jwtRole);
             String refreshToken = jwtHelper.generateTokenForRefresh(jwtSubject);
 
             Map<String, Object> res = new HashMap<>();

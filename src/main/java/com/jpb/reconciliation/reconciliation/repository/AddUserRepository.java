@@ -21,6 +21,8 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
 
     boolean existsByEmail(String email);
 
+    Optional<AddUser> findFirstByEmailAndStatusNot(String email, AddUser.UserStatus status);
+
     List<AddUser> findByCreatedBy(String createdBy);
 
     List<AddUser> findByBankCode(String bankCode);
@@ -41,4 +43,10 @@ public interface AddUserRepository extends JpaRepository<AddUser, Long> {
 
     // Quick existence check — used as scheduler pre-check to avoid full queries when nothing is pending
     boolean existsByStatusIn(Collection<AddUser.UserStatus> statuses);
+
+    // Hierarchy queries
+    List<AddUser> findByParentId(Long parentId);
+    List<AddUser> findByBankCodeAndParentIdIsNull(String bankCode);
+    List<AddUser> findByBranchCodeAndParentIdIsNull(String branchCode);
+    List<AddUser> findByBankCodeAndBranchCodeIsNullAndParentIdIsNull(String bankCode);
 }

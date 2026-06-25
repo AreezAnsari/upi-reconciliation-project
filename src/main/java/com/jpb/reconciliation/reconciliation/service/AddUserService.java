@@ -9,6 +9,7 @@ public interface AddUserService {
     RestWithStatusList createUser(AddUserRequest request, Authentication authentication);
 
     RestWithStatusList getUsersByCreator(Authentication authentication);
+    RestWithStatusList getUsersByCreatorUsername(String creatorUsername);
 
     RestWithStatusList getUserById(Long id);
 
@@ -35,4 +36,12 @@ public interface AddUserService {
     RestWithStatusList scheduleBlockUser(Long id, String scheduledBy, String reason);
 
     RestWithStatusList undoBlockUser(Long id, String undoneBy);
+
+    RestWithStatusList getUserHierarchy(Authentication authentication);
+
+    RestWithStatusList getUserHierarchyByBankCode(String bankCode);
+
+    RestWithStatusList getUserHierarchyByBranchCode(String branchCode);
+
+    RestWithStatusList getUserHierarchyByBankDirect(String bankCode);
 }

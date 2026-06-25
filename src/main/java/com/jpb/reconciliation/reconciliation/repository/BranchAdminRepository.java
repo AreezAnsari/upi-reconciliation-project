@@ -45,4 +45,10 @@ public interface BranchAdminRepository extends JpaRepository<BranchAdmin, Long> 
 
     // Quick existence check — used as scheduler pre-check to avoid full queries when nothing is pending
     boolean existsByStatusIn(Collection<String> statuses);
+
+    // All admins for a branch (current + INACTIVE replaced originals)
+    List<BranchAdmin> findByBranchCode(String branchCode);
+
+    // Fetch all branch admins for a set of branch codes (used by getAllBranchAdmins)
+    List<BranchAdmin> findAllByBranchCodeIn(List<String> branchCodes);
 }

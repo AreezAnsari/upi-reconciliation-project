@@ -1,6 +1,8 @@
 package com.jpb.reconciliation.reconciliation.security;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
@@ -11,6 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -123,6 +127,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String username = null;
         String token    = null;
         String jti      = null;
+        String role     = null;
 
         if (requestHeader != null && requestHeader.startsWith("Bearer ")) {
 
@@ -132,6 +137,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 username = jwtHelper.getUsernameFromToken(token);
                 jti      = jwtHelper.getJtiFromToken(token);
+                role     = jwtHelper.getRoleFromToken(token);
 
             } catch (ExpiredJwtException e) {
                 logger.warn("JWT expired for request [{}]: {}", requestURI, e.getMessage());
@@ -163,9 +169,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (validateToken) {
 
+                    List<GrantedAuthority> authorities = (role != null)
+                            ? Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
+                            : (userDetails.getAuthorities() != null
+                                    ? Collections.unmodifiableList(
+                                            new java.util.ArrayList<>(userDetails.getAuthorities()))
+                                    : Collections.emptyList());
+
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
-                                    userDetails, null, userDetails.getAuthorities());
+                                    userDetails, null, authorities);
 
                     authentication.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request));

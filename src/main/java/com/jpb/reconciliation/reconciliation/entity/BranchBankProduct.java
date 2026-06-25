@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 public class BranchBankProduct {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_BRANCH_BANK_PRODUCT")
+    @SequenceGenerator(name = "SEQ_BRANCH_BANK_PRODUCT", sequenceName = "SEQ_BRANCH_BANK_PRODUCT", allocationSize = 1)
     @Column(name = "ID")
     private Long id;
 

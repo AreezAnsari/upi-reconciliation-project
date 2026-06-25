@@ -51,6 +51,20 @@ public class JwtHelper {
 		return doGenerateToken(claims, userDetails.getUsername(), JWT_TOKEN_VALIDITY);
 	}
 
+	public String generateToken(UserDetails userDetails, String role) {
+		Map<String, Object> claims = new HashMap<>();
+		claims.put("role", role);
+		return doGenerateToken(claims, userDetails.getUsername(), JWT_TOKEN_VALIDITY);
+	}
+
+	public String getRoleFromToken(String token) {
+		try {
+			return getClaimFromToken(token, claims -> (String) claims.get("role"));
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
 	public String generateTokenForRefresh(String userName) {
 		Map<String, Object> claims = new HashMap<>();
 		return doGenerateToken(claims, userName, JWT_TOKEN_REFRESH);

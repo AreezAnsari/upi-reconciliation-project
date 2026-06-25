@@ -48,5 +48,8 @@ public class RecCreateRoleRequestDTO {
     private String    bankCode;       // set from JWT context in backend
     private String    branchCode;     // set from JWT context in backend (null for bank admin)
 
+    private Boolean issuer;    // channel: Issuer selected
+    private Boolean acquirer;  // channel: Acquirer selected
+
     private List<RecPermissionRowDTO> permissions; // the checkbox matrix
 }

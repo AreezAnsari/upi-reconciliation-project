@@ -45,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jpb.reconciliation.reconciliation.dto.BranchBankDTO;
 import com.jpb.reconciliation.reconciliation.dto.BranchBankDTO.ProductDateEntry;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.BranchBankProduct;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
@@ -166,15 +167,16 @@ public class BranchBankServiceImpl implements BranchBankService {
         // Save Branch Admin credentials in bankrecord (BCrypt stored, plaintext in email)
         bank .setBranchAdminId(branchAdminId);
         bank .setDefaultPassword(passwordEncoder.encode(defaultPassword));
-        bank .setCreatedBy(createdBy);
 
         // ── Resolve parentbankId from the logged-in BranchAdmin ──
         // Use StatusNot("BLOCKED") email fallback so a re-onboarded BranchAdmin's code resolves correctly.
+        // Also normalize createdBy to username (JWT subject may be email when logged in via email mode).
         try {
             Optional<MainAdmin> suOpt = mainAdminRepository.findFirstByUsername(createdBy);
             if (!suOpt.isPresent()) suOpt = mainAdminRepository.findFirstByEmailAndStatusNot(createdBy, "BLOCKED");
             if (suOpt.isPresent()) {
                 MainAdmin su = suOpt.get();
+                createdBy = su.getUsername();
                 Optional<MainBank> parentOpt = Optional.empty();
                 if (su.getBankCode() != null && !su.getBankCode().isEmpty()) {
                     parentOpt = mainBankRepository.findByBankCode(su.getBankCode());
@@ -191,6 +193,8 @@ public class BranchBankServiceImpl implements BranchBankService {
         } catch (Exception e) {
             logger.warn("createBank: parentbankId resolution failed: {}", e.getMessage());
         }
+
+        bank .setCreatedBy(createdBy);
 
         // Generate verification token — valid for 48 hours
         String token = UUID.randomUUID().toString();
@@ -551,9 +555,10 @@ public class BranchBankServiceImpl implements BranchBankService {
             if (!sections.isEmpty()) {
                 String formattedAt = bank .getUpdatedAt()
                     .format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+                String[] branchContact = resolveBranchBankContact(bank);
                 emailService.sendBankUpdateNotification(
-                    bank .getPrimaryEmail(),
-                    bank .getPrimaryFullName(),
+                    branchContact[0],
+                    branchContact[1],
                     bank .getBranchNameFull(),
                     bank .getBranchCode(),
                     formattedAt, sections
@@ -633,19 +638,14 @@ public class BranchBankServiceImpl implements BranchBankService {
 
         logger.info("Branch bank {} status updated: {} → {}", bankId, currentStatus, newStatus);
 
-        // ── Send email notification on meaningful status transitions ──
+        // ── Send email notification on meaningful status transitions (routes to replacement if original is inactive) ──
         try {
-            if (bank .getPrimaryEmail() != null && !bank .getPrimaryEmail().isEmpty()) {
-                emailService.sendStatusChangeNotification(
-                        bank .getPrimaryEmail(),
-                        bank .getPrimaryFullName() != null ? bank .getPrimaryFullName() : "Branch Admin",
-                        bank .getBranchNameFull(),
-                        bank .getBranchCode(),
-                        currentStatus,
-                        newStatus
-                );
+            String[] branchContact = resolveBranchBankContact(bank);
+            if (branchContact[0] != null && !branchContact[0].isEmpty()) {
+                emailService.sendStatusChangeNotification(branchContact[0], branchContact[1],
+                        bank .getBranchNameFull(), bank .getBranchCode(), currentStatus, newStatus);
                 logger.info("[EMAIL] Status change notification sent to {} for branch bank {}",
-                        bank .getPrimaryEmail(), bank .getBranchCode());
+                        branchContact[0], bank .getBranchCode());
             }
         } catch (Exception e) {
             logger.warn("[EMAIL] Status change notification failed for branch bank {}: {}",
@@ -991,6 +991,31 @@ public class BranchBankServiceImpl implements BranchBankService {
             }
         }
         return changes;
+    }
+
+    private String[] resolveBranchBankContact(BranchBank branch) {
+        try {
+            if (branch.getBranchAdminId() != null) {
+                Optional<BranchAdmin> origOpt = branchAdminRepository.findByBranchCodeAndUsername(
+                        branch.getBranchCode(), branch.getBranchAdminId());
+                if (origOpt.isPresent()) {
+                    BranchAdmin orig = origOpt.get();
+                    List<AdminReplacement> reps = replacementRepository
+                            .findByOriginalEntityIdAndEntityTypeAndStatusIn(
+                                    orig.getId(), "BRANCH_ADMIN", Arrays.asList("ACTIVE", "PERMANENT"));
+                    if (!reps.isEmpty() && reps.get(0).getReplacementEntityId() > 0) {
+                        Optional<BranchAdmin> rep = branchAdminRepository.findById(reps.get(0).getReplacementEntityId());
+                        if (rep.isPresent() && rep.get().getEmail() != null && !rep.get().getEmail().isEmpty()) {
+                            return new String[]{rep.get().getEmail(), rep.get().getUsername()};
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("resolveBranchBankContact failed for {}: {}", branch.getBranchCode(), e.getMessage());
+        }
+        return new String[]{branch.getPrimaryEmail(),
+                branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Branch Admin"};
     }
 
     private String getCurrentUsername() {
@@ -1345,7 +1370,7 @@ public class BranchBankServiceImpl implements BranchBankService {
             try {
                 List<AddUser> branchUsers = addUserRepository.findByBranchCode(bnk.getBranchCode());
                 for (AddUser user : branchUsers) {
-                    if (user.getStatus() != AddUser.UserStatus.BLOCK && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
+                    if (user.getStatus() != AddUser.UserStatus.BLOCKED && user.getStatus() != AddUser.UserStatus.BLOCK_PENDING) {
                         user.setPreBlockStatus(user.getStatus().name());
                         user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                         user.setBlockScheduledAt(LocalDateTime.now());
@@ -1378,15 +1403,11 @@ public class BranchBankServiceImpl implements BranchBankService {
         }
 
         try {
-            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
-                emailService.sendBlockWarning(
-                        bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
-                        bnk.getBranchNameFull(),
-                        bnk.getBranchCode(),
-                        blockAtFormatted
-                );
-                logger.info("[BLOCK-WARN] Warning email sent to Branch Admin: {}", bnk.getPrimaryEmail());
+            String[] branchContact = resolveBranchBankContact(bnk);
+            if (branchContact[0] != null && !branchContact[0].isEmpty()) {
+                emailService.sendBlockWarning(branchContact[0], branchContact[1],
+                        bnk.getBranchNameFull(), bnk.getBranchCode(), blockAtFormatted);
+                logger.info("[BLOCK-WARN] Warning email sent to: {}", branchContact[0]);
             }
         } catch (Exception e) {
             logger.warn("[BLOCK-WARN] Warning email failed for branch bank {}: {}", bnk.getBranchCode(), e.getMessage());
@@ -1473,15 +1494,11 @@ public class BranchBankServiceImpl implements BranchBankService {
         logger.info("Block undone for branch bank {} by {}. Restored to {}", bankId, undoneBy, restoredStatus);
 
         try {
-            if (bnk.getPrimaryEmail() != null && !bnk.getPrimaryEmail().isEmpty()) {
-                emailService.sendBlockCancelled(
-                        bnk.getPrimaryEmail(),
-                        bnk.getPrimaryFullName() != null ? bnk.getPrimaryFullName() : "Branch Admin",
-                        bnk.getBranchNameFull(),
-                        bnk.getBranchCode(),
-                        restoredStatus
-                );
-                logger.info("[UNDO-BLOCK] Cancellation email sent to: {}", bnk.getPrimaryEmail());
+            String[] branchContact = resolveBranchBankContact(bnk);
+            if (branchContact[0] != null && !branchContact[0].isEmpty()) {
+                emailService.sendBlockCancelled(branchContact[0], branchContact[1],
+                        bnk.getBranchNameFull(), bnk.getBranchCode(), restoredStatus);
+                logger.info("[UNDO-BLOCK] Cancellation email sent to: {}", branchContact[0]);
             }
         } catch (Exception e) {
             logger.warn("[UNDO-BLOCK] Cancellation email failed for {}: {}", bnk.getBranchCode(), e.getMessage());
@@ -1510,6 +1527,8 @@ public class BranchBankServiceImpl implements BranchBankService {
             if (cleanPath.startsWith("'") && cleanPath.endsWith("'")) {
                 cleanPath = cleanPath.substring(1, cleanPath.length() - 1);
             }
+            // Normalize Windows backslashes → forward slashes (server runs on Linux)
+            cleanPath = cleanPath.replace('\\', '/');
             Path path = Paths.get(cleanPath);
             if (!Files.exists(path)) {
                 logger.warn("Logo file not found on disk for branch bank {}: {}", branchCode, cleanPath);

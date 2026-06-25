@@ -52,6 +52,11 @@ public class AddUserController {
         return userService.updateUser(id, request);
     }
 
+    @GetMapping("/children")
+    public RestWithStatusList getUsersByCreatorUsername(@RequestParam String createdBy) {
+        return userService.getUsersByCreatorUsername(createdBy);
+    }
+
     @GetMapping("/get-by-bank/{bankCode}")
     public RestWithStatusList getUsersByBank(@PathVariable String bankCode) {
         return userService.getUsersByBankCode(bankCode);
@@ -114,6 +119,31 @@ public class AddUserController {
                                          Authentication authentication) {
         String by = authentication != null ? authentication.getName() : "UNKNOWN";
         return userService.undoBlockUser(id, by);
+    }
+
+    // GET /api/v1/user/hierarchy — for authenticated user who created sub-users
+    @GetMapping("/hierarchy")
+    public RestWithStatusList getHierarchy(Authentication authentication) {
+        if (!contextResolver.isAllowed(authentication)) return forbidden();
+        return userService.getUserHierarchy(authentication);
+    }
+
+    // GET /api/v1/user/hierarchy/bank/{bankCode}
+    @GetMapping("/hierarchy/bank/{bankCode}")
+    public RestWithStatusList getHierarchyByBank(@PathVariable String bankCode) {
+        return userService.getUserHierarchyByBankCode(bankCode);
+    }
+
+    // GET /api/v1/user/hierarchy/branch/{branchCode}
+    @GetMapping("/hierarchy/branch/{branchCode}")
+    public RestWithStatusList getHierarchyByBranch(@PathVariable String branchCode) {
+        return userService.getUserHierarchyByBranchCode(branchCode);
+    }
+
+    // GET /api/v1/user/hierarchy/bank/{bankCode}/direct — bank-level users only (no branch), full recursive tree
+    @GetMapping("/hierarchy/bank/{bankCode}/direct")
+    public RestWithStatusList getHierarchyByBankDirect(@PathVariable String bankCode) {
+        return userService.getUserHierarchyByBankDirect(bankCode);
     }
 
     private RestWithStatusList forbidden() {

@@ -59,4 +59,10 @@ public interface MainAdminRepository
 
     // Quick existence check — used as scheduler pre-check to avoid full queries when nothing is pending
     boolean existsByStatusIn(Collection<String> statuses);
+
+    // All admins for a bank (current + INACTIVE replaced originals)
+    List<MainAdmin> findByBankCode(String bankCode);
+
+    // Fetch all bank admins created by a specific Kal Admin
+    List<MainAdmin> findAllByCreatedBy(String createdBy);
 }

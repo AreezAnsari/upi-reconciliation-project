@@ -1,9 +1,11 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.AdminContext;
+import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
+import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
@@ -11,9 +13,11 @@ import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+
 
 @Slf4j
 @Service
@@ -24,41 +28,82 @@ public class AdminContextResolver {
     private final BranchAdminRepository branchAdminRepository;
     private final BranchBankRepository  branchBankRepository;
     private final MainBankRepository    mainBankRepository;
+    private final AddUserRepository     addUserRepository;
 
-    /**
-     * Returns true if the authenticated principal belongs to either the
-     * BANK_ADMIN or BRANCH_ADMIN table.
-     *
-     * NOTE: We do NOT rely on Spring Security authorities here because the
-     * JWT filter may resolve the principal via KalAdmin (which has null
-     * authorities) before reaching the BranchAdmin lookup. Direct DB check
-     * is the only reliable gate.
-     */
     public boolean isAllowed(Authentication auth) {
+        String role = extractRole(auth);
+        if (role != null) {
+            return "USER".equals(role) || "BANK_ADMIN".equals(role) || "BRANCH_ADMIN".equals(role);
+        }
+        // No role claim (old token / refresh / OAuth) — fall back to DB check
         String principal = auth.getName();
-        return findMainAdmin(principal) != null
-            || branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED").isPresent()
-            || branchAdminRepository.findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED").isPresent();
+        Optional<AddUser> asUser = addUserRepository.findByUsername(principal);
+        if (!asUser.isPresent()) asUser = addUserRepository.findByEmail(principal);
+        if (asUser.isPresent() && asUser.get().getStatus() == AddUser.UserStatus.ACTIVE) return true;
+        if (findMainAdmin(principal) != null) return true;
+        if (branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED").isPresent()) return true;
+        if (branchAdminRepository.findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED").isPresent()) return true;
+        return false;
     }
 
     /**
-     * Resolves bankCode, branchCode, and username for the logged-in admin.
-     * Checks BANK_ADMIN table first, then BRANCH_ADMIN.
-     * Throws if the principal cannot be matched to either table.
+     * Resolves bankCode, branchCode, and username for the logged-in principal.
+     * JWT role claim routes to the exact table — no cross-table fallbacks.
+     * Old tokens without a role claim use a sequential DB lookup (refresh / OAuth flows).
      */
     public AdminContext resolve(Authentication auth) {
         String principal = auth.getName();
+        String role      = extractRole(auth);
 
-        // Step 1: Bank Admin JWT subject = email — check MainAdmin by email first.
-        // This must come before any BranchAdmin lookup to prevent a bank admin's
-        // email from accidentally matching a BranchAdmin email record.
-        Optional<MainAdmin> bankAdminByEmail = mainAdminRepository.findFirstByEmail(principal);
-        if (bankAdminByEmail.isPresent()) {
-            MainAdmin ba = bankAdminByEmail.get();
-            return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
+        if ("USER".equals(role)) {
+            Optional<AddUser> opt = addUserRepository.findByUsername(principal);
+            if (!opt.isPresent() || opt.get().getStatus() != AddUser.UserStatus.ACTIVE) {
+                throw new IllegalStateException("REC_USER not found or inactive: " + principal);
+            }
+            AddUser u = opt.get();
+            log.info("[RESOLVE] USER {} (id={}) — bank: {}, branch: {}", u.getUsername(), u.getId(), u.getBankCode(), u.getBranchCode());
+            return new AdminContext(u.getUsername(), u.getBankCode(), u.getBranchCode(), u.getId());
         }
 
-        // Step 2: Branch Admin JWT subject = username — check BranchAdmin by username.
+        if ("BRANCH_ADMIN".equals(role)) {
+            Optional<BranchAdmin> opt = branchAdminRepository
+                    .findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED");
+            if (!opt.isPresent()) {
+                throw new IllegalStateException("BRANCH_ADMIN not found: " + principal);
+            }
+            BranchAdmin ba = opt.get();
+            String bankCode = resolveBankCodeFromBranch(ba.getBranchCode());
+            return new AdminContext(ba.getUsername(), bankCode, ba.getBranchCode());
+        }
+
+        if ("BANK_ADMIN".equals(role)) {
+            // JWT subject may be email (OTP flow) or username (direct login)
+            Optional<MainAdmin> byEmail = mainAdminRepository.findFirstByEmail(principal);
+            if (byEmail.isPresent()) {
+                MainAdmin ba = byEmail.get();
+                return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
+            }
+            Optional<MainAdmin> byUsername = mainAdminRepository.findFirstByUsername(principal);
+            if (byUsername.isPresent()) {
+                MainAdmin ba = byUsername.get();
+                return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
+            }
+            throw new IllegalStateException("BANK_ADMIN not found: " + principal);
+        }
+
+        // No role claim — old token (refresh / OAuth / KalAdmin). Use sequential DB lookup.
+        log.warn("[RESOLVE] No role claim for principal='{}', falling back to DB lookup", principal);
+
+        Optional<AddUser> userOpt = addUserRepository.findByUsername(principal);
+        if (userOpt.isPresent() && userOpt.get().getStatus() == AddUser.UserStatus.ACTIVE) {
+            AddUser u = userOpt.get();
+            return new AdminContext(u.getUsername(), u.getBankCode(), u.getBranchCode(), u.getId());
+        }
+        Optional<MainAdmin> bankByEmail = mainAdminRepository.findFirstByEmail(principal);
+        if (bankByEmail.isPresent()) {
+            MainAdmin ba = bankByEmail.get();
+            return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
+        }
         Optional<BranchAdmin> branchByUsername = branchAdminRepository
                 .findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED");
         if (branchByUsername.isPresent()) {
@@ -66,39 +111,33 @@ public class AdminContextResolver {
             String bankCode = resolveBankCodeFromBranch(ba.getBranchCode());
             return new AdminContext(ba.getUsername(), bankCode, ba.getBranchCode());
         }
-
-        // Step 3: MainAdmin by username (fallback)
-        Optional<MainAdmin> bankAdminByUsername = mainAdminRepository.findFirstByUsername(principal);
-        if (bankAdminByUsername.isPresent()) {
-            MainAdmin ba = bankAdminByUsername.get();
+        Optional<MainAdmin> bankByUsername = mainAdminRepository.findFirstByUsername(principal);
+        if (bankByUsername.isPresent()) {
+            MainAdmin ba = bankByUsername.get();
             return new AdminContext(ba.getUsername(), ba.getBankCode(), null);
         }
 
-        // Step 4: BranchAdmin by email (edge case fallback)
-        Optional<BranchAdmin> branchByEmail = branchAdminRepository
-                .findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED");
-        if (branchByEmail.isPresent()) {
-            BranchAdmin ba = branchByEmail.get();
-            String bankCode = resolveBankCodeFromBranch(ba.getBranchCode());
-            return new AdminContext(ba.getUsername(), bankCode, ba.getBranchCode());
-        }
-
         throw new IllegalStateException(
-                "Principal is not a Bank Admin or Branch Admin: " + principal);
+                "Principal is not a Bank Admin, Branch Admin, or active User: " + principal);
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────────
+
+    private String extractRole(Authentication auth) {
+        if (auth == null || auth.getAuthorities() == null) return null;
+        for (GrantedAuthority a : auth.getAuthorities()) {
+            String authority = a.getAuthority();
+            if (authority != null && authority.startsWith("ROLE_")) {
+                return authority.substring(5); // strip "ROLE_" prefix
+            }
+        }
+        return null;
+    }
 
     private MainAdmin findMainAdmin(String principal) {
         Optional<MainAdmin> byEmail = mainAdminRepository.findFirstByEmail(principal);
         if (byEmail.isPresent()) return byEmail.get();
         return mainAdminRepository.findFirstByUsername(principal).orElse(null);
-    }
-
-    private BranchAdmin findBranchAdmin(String principal) {
-        Optional<BranchAdmin> byEmail = branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(principal, "BLOCKED");
-        if (byEmail.isPresent()) return byEmail.get();
-        return branchAdminRepository.findFirstByUsernameAndStatusNotOrderByIdDesc(principal, "BLOCKED").orElse(null);
     }
 
     private String resolveBankCodeFromBranch(String branchCode) {

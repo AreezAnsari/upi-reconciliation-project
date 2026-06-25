@@ -167,6 +167,8 @@ public class RecRoleServiceImpl implements RecRoleService {
                     .assignedUserId(req.getAssignedUserId())
                     .assignedUserName(req.getAssignedUserName())
                     .assignedUserEmail(req.getAssignedUserEmail())
+                    .issuer(Boolean.TRUE.equals(req.getIssuer()))
+                    .acquirer(Boolean.TRUE.equals(req.getAcquirer()))
 //                    .externalDepartmentName(
 //                            roleType == RoleType.EXTERNAL ? req.getExternalDepartmentName() : null)
 //                    .externalSupervisorName(
@@ -435,9 +437,19 @@ public class RecRoleServiceImpl implements RecRoleService {
     // ─────────────────────────────────────────────────────────────────────────
 
     private RecRoleModulePermission buildPermission(RecPermissionRowDTO p) {
-        RecModule module = moduleRepo.findById(p.getModuleId())
-                .orElseThrow(() -> new RuntimeException(
-                        "Module not found with id: " + p.getModuleId()));
+        RecModule module;
+        if (p.getModuleId() != null) {
+            module = moduleRepo.findById(p.getModuleId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Module not found with id: " + p.getModuleId()));
+        } else if (p.getModuleName() != null && !p.getModuleName().trim().isEmpty()) {
+            String name = p.getModuleName().trim();
+            module = moduleRepo.findByName(name)
+                    .orElseGet(() -> moduleRepo.save(
+                            RecModule.builder().name(name).displayOrder(0).build()));
+        } else {
+            throw new RuntimeException("Either moduleId or moduleName is required");
+        }
         return RecRoleModulePermission.builder()
                 .module(module)
                 .hasAccess(p.isHasAccess())

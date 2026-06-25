@@ -53,31 +53,31 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         if (type == null || type.trim().isEmpty()) return fail("entityType is required");
 
         if ("MAIN_ADMIN".equalsIgnoreCase(type)) {
-            if (mainAdminRepository.existsByEmail(email.trim())) {
-                Optional<MainAdmin> existingOpt = mainAdminRepository.findFirstByEmail(email.trim());
-                boolean isFormerReplacement = existingOpt.isPresent() &&
-                        replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
-                                existingOpt.get().getId(), "MAIN_ADMIN", "RESTORED");
+            // Skip BLOCKED admins — a BLOCKED bank admin's email is treated as free for re-onboarding
+            Optional<MainAdmin> nonBlockedMainOpt = mainAdminRepository.findFirstByEmailAndStatusNot(email.trim(), "BLOCKED");
+            if (nonBlockedMainOpt.isPresent()) {
+                boolean isFormerReplacement = replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
+                        nonBlockedMainOpt.get().getId(), "MAIN_ADMIN", "RESTORED");
                 if (!isFormerReplacement) {
                     return fail("Email '" + email.trim() + "' is already registered as a bank admin.");
                 }
             }
         } else if ("BRANCH_ADMIN".equalsIgnoreCase(type)) {
-            if (branchAdminRepository.existsByEmail(email.trim())) {
-                Optional<BranchAdmin> existingOpt = branchAdminRepository.findFirstByEmail(email.trim());
-                boolean isFormerReplacement = existingOpt.isPresent() &&
-                        replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
-                                existingOpt.get().getId(), "BRANCH_ADMIN", "RESTORED");
+            // Skip BLOCKED admins — a BLOCKED branch admin's email is treated as free for re-onboarding
+            Optional<BranchAdmin> nonBlockedBranchOpt = branchAdminRepository.findFirstByEmailAndStatusNot(email.trim(), "BLOCKED");
+            if (nonBlockedBranchOpt.isPresent()) {
+                boolean isFormerReplacement = replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
+                        nonBlockedBranchOpt.get().getId(), "BRANCH_ADMIN", "RESTORED");
                 if (!isFormerReplacement) {
                     return fail("Email '" + email.trim() + "' is already registered as a branch admin.");
                 }
             }
         } else if ("USER".equalsIgnoreCase(type)) {
-            if (addUserRepository.existsByEmail(email.trim())) {
-                Optional<AddUser> existingOpt = addUserRepository.findByEmail(email.trim());
-                boolean isFormerReplacement = existingOpt.isPresent() &&
-                        replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
-                                existingOpt.get().getId(), "USER", "RESTORED");
+            // Skip BLOCKED users — a BLOCKED user's email is treated as free for re-onboarding
+            Optional<AddUser> nonBlockedUserOpt = addUserRepository.findFirstByEmailAndStatusNot(email.trim(), AddUser.UserStatus.BLOCKED);
+            if (nonBlockedUserOpt.isPresent()) {
+                boolean isFormerReplacement = replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
+                        nonBlockedUserOpt.get().getId(), "USER", "RESTORED");
                 if (!isFormerReplacement) {
                     return fail("Email '" + email.trim() + "' already exists.");
                 }
@@ -113,11 +113,10 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         if (!originalOpt.isPresent()) return fail("Original admin not found with id: " + req.getOriginalEntityId());
         MainAdmin original = originalOpt.get();
 
-        if (mainAdminRepository.existsByEmail(req.getNewEmail().trim())) {
-            Optional<MainAdmin> existingOpt = mainAdminRepository.findFirstByEmail(req.getNewEmail().trim());
-            boolean isFormerReplacement = existingOpt.isPresent() &&
-                    replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
-                            existingOpt.get().getId(), "MAIN_ADMIN", "RESTORED");
+        Optional<MainAdmin> nonBlockedMainOpt = mainAdminRepository.findFirstByEmailAndStatusNot(req.getNewEmail().trim(), "BLOCKED");
+        if (nonBlockedMainOpt.isPresent()) {
+            boolean isFormerReplacement = replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
+                    nonBlockedMainOpt.get().getId(), "MAIN_ADMIN", "RESTORED");
             if (!isFormerReplacement) {
                 return fail("Email '" + req.getNewEmail().trim() + "' is already registered as a bank admin.");
             }
@@ -140,10 +139,6 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
                 original.getId(), req, scheduledBy);
         replacementRepository.save(r);
         logger.info("Pending replacement scheduled for MainAdmin id={} bank={}", original.getId(), original.getBankCode());
-        String actionedByNameMain = formatUsername(scheduledBy);
-        sendOutgoingEmail(original.getEmail(), original.getUsername(), original.getBankCode(),
-                actionedByNameMain, req.getReason(), req.getFullName(), req.getNewEmail(),
-                req.getOrderedBy());
         return ok("Replacement scheduled. Will take effect after inactivation is confirmed.");
     }
 
@@ -156,11 +151,10 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         if (!originalOpt.isPresent()) return fail("Original branch admin not found with id: " + req.getOriginalEntityId());
         BranchAdmin original = originalOpt.get();
 
-        if (branchAdminRepository.existsByEmail(req.getNewEmail().trim())) {
-            Optional<BranchAdmin> existingOpt = branchAdminRepository.findFirstByEmail(req.getNewEmail().trim());
-            boolean isFormerReplacement = existingOpt.isPresent() &&
-                    replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
-                            existingOpt.get().getId(), "BRANCH_ADMIN", "RESTORED");
+        Optional<BranchAdmin> nonBlockedBranchOpt = branchAdminRepository.findFirstByEmailAndStatusNot(req.getNewEmail().trim(), "BLOCKED");
+        if (nonBlockedBranchOpt.isPresent()) {
+            boolean isFormerReplacement = replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
+                    nonBlockedBranchOpt.get().getId(), "BRANCH_ADMIN", "RESTORED");
             if (!isFormerReplacement) {
                 return fail("Email '" + req.getNewEmail().trim() + "' is already registered as a branch admin.");
             }
@@ -183,10 +177,6 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
                 original.getId(), req, scheduledBy);
         replacementRepository.save(r);
         logger.info("Pending replacement scheduled for BranchAdmin id={} branch={}", original.getId(), original.getBranchCode());
-        String actionedByNameBranch = formatUsername(scheduledBy);
-        sendOutgoingEmail(original.getEmail(), original.getUsername(), original.getBranchCode(),
-                actionedByNameBranch, req.getReason(), req.getFullName(), req.getNewEmail(),
-                req.getOrderedBy());
         return ok("Replacement scheduled. Will take effect after inactivation is confirmed.");
     }
 
@@ -211,11 +201,10 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
             replacementRepository.save(old);
         }
 
-        if (addUserRepository.existsByEmail(req.getNewEmail().trim())) {
-            Optional<AddUser> existingOpt = addUserRepository.findByEmail(req.getNewEmail().trim());
-            boolean isFormerReplacement = existingOpt.isPresent() &&
-                    replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
-                            existingOpt.get().getId(), "USER", "RESTORED");
+        Optional<AddUser> nonBlockedUserOpt = addUserRepository.findFirstByEmailAndStatusNot(req.getNewEmail().trim(), AddUser.UserStatus.BLOCKED);
+        if (nonBlockedUserOpt.isPresent()) {
+            boolean isFormerReplacement = replacementRepository.existsByReplacementEntityIdAndEntityTypeAndStatus(
+                    nonBlockedUserOpt.get().getId(), "USER", "RESTORED");
             if (!isFormerReplacement) {
                 return fail("Email '" + req.getNewEmail().trim() + "' already exists.");
             }
@@ -424,23 +413,34 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
             replacement.setEmail(newEmail);
             replacement.setRole(role);
             replacement.setUserType(userType);
-            replacement.setRoleType(original.getRoleType() != null ? original.getRoleType() : userType.name());
             replacement.setDepartment(original.getDepartment());
             replacement.setDesignation(original.getDesignation());
             replacement.setMobileNumber(pending.getPendingMobile());
             replacement.setBankCode(original.getBankCode());
             replacement.setBranchCode(original.getBranchCode());
+            replacement.setParentId(original.getParentId());
             replacement.setDefaultPassword(passwordEncoder.encode(tempPassword));
             replacement.setPasswordSet(0);
             replacement.setStatus(AddUser.UserStatus.REQUEST);
             replacement.setCreatedBy(pending.getReplacedBy());
+            replacement.setCreatedAt(java.time.LocalDateTime.now());
+            replacement.setUpdatedAt(java.time.LocalDateTime.now());
         }
         addUserRepository.save(replacement);
+
+        // Reassign original's children to replacement
+        java.util.List<AddUser> pendingChildren = addUserRepository.findByParentId(original.getId());
+        for (AddUser child : pendingChildren) {
+            child.setParentId(replacement.getId());
+            addUserRepository.save(child);
+        }
 
         pending.setReplacementEntityId(replacement.getId());
         pending.setStatus("ACTIVE");
         replacementRepository.save(pending);
 
+        // Use the actual stored username (not the generated candidate) — handles same-email reuse correctly
+        String actualUsername = replacement.getUsername();
         boolean isBranchUser = original.getBranchCode() != null;
         String entityCode = isBranchUser ? original.getBranchCode() : original.getBankCode();
         String actionedByName = formatUsername(pending.getReplacedBy());
@@ -450,10 +450,10 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         String userVerifyLink = isBranchUser
                 ? frontendUrl + "/user-verify?bankCode=" + original.getBankCode()
                         + "&branchCode=" + original.getBranchCode()
-                        + "&username=" + newUsername
+                        + "&username=" + actualUsername
                         + "&email=" + newEmail + "&mode=verify"
                 : frontendUrl + "/user-verify?bankCode=" + original.getBankCode()
-                        + "&username=" + newUsername
+                        + "&username=" + actualUsername
                         + "&email=" + newEmail + "&mode=verify";
         String codeLabel = isBranchUser ? "Branch Code" : "Bank Code";
         String replacementDesc = isBranchUser
@@ -461,12 +461,12 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
                 : "You have been assigned as a replacement Bank User on ReconXpert.Ai. Your predecessor's account has been deactivated and you are now taking over their responsibilities.";
         try {
             emailService.sendUserWelcomeReplacement(replacement.getEmail(), repFullName,
-                    entityCode, codeLabel, newUsername, tempPassword, userVerifyLink, replacementDesc);
+                    entityCode, codeLabel, actualUsername, tempPassword, userVerifyLink, replacementDesc);
         } catch (Exception e) {
             logger.warn("Replacement user welcome email failed for {}: {}", replacement.getEmail(), e.getMessage());
         }
 
-        logger.info("Finalized pending User replacement: {} → {}", original.getUsername(), newUsername);
+        logger.info("Finalized pending User replacement: {} → {}", original.getUsername(), actualUsername);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -619,12 +619,12 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         replacement.setEmail(req.getNewEmail().trim());
         replacement.setRole(role);
         replacement.setUserType(userType);
-        replacement.setRoleType(original.getRoleType() != null ? original.getRoleType() : userType.name());
         replacement.setDepartment(req.getDepartment());
         replacement.setDesignation(req.getDesignation());
         replacement.setMobileNumber(req.getMobileNumber());
         replacement.setBankCode(original.getBankCode());
         replacement.setBranchCode(original.getBranchCode());
+        replacement.setParentId(original.getParentId());
         replacement.setDefaultPassword(passwordEncoder.encode(tempPassword));
         replacement.setPasswordSet(0);
         replacement.setStatus(AddUser.UserStatus.REQUEST);
@@ -637,6 +637,13 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
             replacement.setExternalSupervisorPhone(req.getExternalSupervisorPhone());
         }
         addUserRepository.save(replacement);
+
+        // Reassign original's children to replacement
+        java.util.List<AddUser> replaceChildren = addUserRepository.findByParentId(original.getId());
+        for (AddUser child : replaceChildren) {
+            child.setParentId(replacement.getId());
+            addUserRepository.save(child);
+        }
 
         boolean isBranchUser = original.getBranchCode() != null;
         String entityCode = isBranchUser ? original.getBranchCode() : original.getBankCode();
