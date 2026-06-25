@@ -13,7 +13,7 @@ import com.jpb.reconciliation.reconciliation.service.ProcessMasterService;
 
 
 @RestController
-@RequestMapping("/api/v1/")
+@RequestMapping("/api/v1")
 public class ProcessMasterController {
 	
 	@Autowired
