@@ -19,4 +19,8 @@ public interface RecRoleService {
     RestWithStatusList getAllModules();
     
     RestWithStatusList getAllRoles();
+    
+    RestWithStatusList getPrivileges(Long roleId);
+    
+//    RecPermissionRowDTO resolveOrCreateModuleRow(RecPermissionLabelDTO labelDto);
 }

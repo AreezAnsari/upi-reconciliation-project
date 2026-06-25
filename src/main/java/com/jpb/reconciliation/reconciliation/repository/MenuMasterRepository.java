@@ -30,6 +30,15 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 	ReconMenuMaster findByMenuNameAndRoleId(String menuName, Long roleId);
 
 	ReconMenuMaster findByMenuNameAndRoleIdAndParentMenuCode(String menuName, Long roleId, String parentMenuCode);
+	
+	// ── NEW global duplicate-check methods (no roleId) ───────────────────────
+	 
+    // Duplicate check for Main / Submenu: same name + same parent = duplicate
+    ReconMenuMaster findByMenuNameAndParentMenuCode(String menuName, String parentMenuCode);
+ 
+    // Duplicate check for Master menus: same name + same type = duplicate
+    ReconMenuMaster findByMenuNameAndMenuType(String menuName, String menuType);
+    
 
 	Role findByRoleId(Long verifiedRoleId);
 

@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Entity
 @Table(
     name = "REC_ROLE_MODULE_PERMISSIONS_TEST",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"ROLE_ID", "MODULE_ID"})
+    uniqueConstraints = @UniqueConstraint(columnNames = {"ROLE_ID", "MODULE_ID","MENU_ID"})
 )
 @Getter
 @Setter
@@ -32,6 +32,9 @@ public class RecRoleModulePermission {
     @JoinColumn(name = "MODULE_ID", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"}) 
     private RecModule module;
+    
+    @Column(name = "MENU_ID", nullable = true)
+    private Long menuId;  // null = product-level row, non-null = menu row
 
     @Column(name = "HAS_ACCESS")  @Builder.Default private boolean hasAccess  = false;
     @Column(name = "CAN_VIEW")    @Builder.Default private boolean canView     = false;

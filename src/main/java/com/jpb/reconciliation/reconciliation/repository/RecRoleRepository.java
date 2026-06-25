@@ -30,6 +30,9 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
     // ── Check for duplicate roleName within the same roleType ─────────────────
     //    Prevents creating MAKER twice with identical roleType + roleName combo.
     boolean existsByRoleNameIgnoreCaseAndRoleType(String roleName, String roleType);
+
+    // ── Find existing role by name+type (used for forceCreate clone) ──────────
+    Optional<RecRole> findByRoleNameIgnoreCaseAndRoleType(String roleName, String roleType);
  
     // ── Find all roles assigned to a user ─────────────────────────────────────
     List<RecRole> findAllByAssignedUserId(Long userId);

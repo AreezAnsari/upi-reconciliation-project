@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.AdminContext;
 import com.jpb.reconciliation.reconciliation.dto.RecCreateRoleRequestDTO;
+//import com.jpb.reconciliation.reconciliation.dto.RecPermissionLabelDTO;
 import com.jpb.reconciliation.reconciliation.dto.RecPermissionRowDTO;
 import com.jpb.reconciliation.reconciliation.dto.RecRoleResponseDTO;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
@@ -13,21 +14,29 @@ import com.jpb.reconciliation.reconciliation.enums.RoleStatus;
 import com.jpb.reconciliation.reconciliation.enums.RoleType;
 import com.jpb.reconciliation.reconciliation.enums.StandardRole;
 import com.jpb.reconciliation.reconciliation.mapper.RecRoleMapper;
+import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.RecModuleRepository;
 import com.jpb.reconciliation.reconciliation.repository.RecRoleMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.RecRoleRepository;
 import com.jpb.reconciliation.reconciliation.enums.RoleCompatibilityValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -43,6 +52,11 @@ public class RecRoleServiceImpl implements RecRoleService {
     private final RecRoleMapper              roleMapper;
     private final RecRoleCodeGeneratorService codeGenerator;
     private final AdminContextResolver        contextResolver;
+    @Autowired
+    private MenuMasterRepository menuMasterRepository;
+    
+    @javax.persistence.PersistenceContext
+    private javax.persistence.EntityManager em;
 
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE
@@ -118,12 +132,20 @@ public class RecRoleServiceImpl implements RecRoleService {
             //    in different departments — remove the check below if you want
             //    fully unlimited duplicates (sequence alone enforces uniqueness via roleCode).
             if (roleRepo.existsByRoleNameIgnoreCaseAndRoleType(combinedName, roleType.name())) {
-                return RestWithStatusList.builder()
-                        .status("FAILURE")
-                        .statusMsg("A role named '" + combinedName + "' already exists for role type '"
-                                + roleType.name() + "'. Use a different Role Type or add a unique description.")
-                        .data(Collections.emptyList())
-                        .build();
+            	if (!req.isForceCreate()) {
+                    // Don't hard-fail — tell the frontend a duplicate exists so it can show
+                    // the confirmation dialog. Use a distinct status so the UI can branch on it.
+                    return RestWithStatusList.builder()
+                            .status("DUPLICATE_ROLE_EXISTS")
+                            .statusMsg("A role named '" + combinedName + "' already exists for role type '"
+                                    + roleType.name() + "'. Create anyway?")
+                            .data(Collections.emptyList())
+                            .build();
+                }
+
+                // forceCreate=true → admin confirmed. Log for audit (maker/checker platform).
+                log.info("forceCreate=true: creating duplicate role '{}' (type={}) requested by {}",
+                        combinedName, roleType.name(), req.getCreatedBy());
             }
 
             // 6. Generate role code
@@ -167,8 +189,6 @@ public class RecRoleServiceImpl implements RecRoleService {
                     .assignedUserId(req.getAssignedUserId())
                     .assignedUserName(req.getAssignedUserName())
                     .assignedUserEmail(req.getAssignedUserEmail())
-                    .issuer(Boolean.TRUE.equals(req.getIssuer()))
-                    .acquirer(Boolean.TRUE.equals(req.getAcquirer()))
 //                    .externalDepartmentName(
 //                            roleType == RoleType.EXTERNAL ? req.getExternalDepartmentName() : null)
 //                    .externalSupervisorName(
@@ -183,8 +203,31 @@ public class RecRoleServiceImpl implements RecRoleService {
             masters.forEach(role::addRoleMaster);
 
             // 9. Attach module permissions
-            if (req.getPermissions() != null) {
+            if (req.getPermissions() != null && !req.getPermissions().isEmpty()) {
+                // Caller supplied explicit permissions (e.g. from privileges modal) — use those.
                 req.getPermissions().forEach(p -> role.addPermission(buildPermission(p)));
+            } else if (req.isForceCreate()) {
+                // forceCreate with no explicit permissions supplied → clone from the existing
+                // duplicate role so admin starts from its current privilege set.
+                roleRepo.findByRoleNameIgnoreCaseAndRoleType(combinedName, roleType.name())
+                        .ifPresent(existing -> {
+                            RecRole existingWithPerms = roleRepo.findByIdWithPermissions(existing.getId())
+                                    .orElse(existing);
+                            existingWithPerms.getPermissions().forEach(existingPerm -> {
+                                RecRoleModulePermission clonedPerm = RecRoleModulePermission.builder()
+                                        .module(existingPerm.getModule())
+                                        .hasAccess(existingPerm.isHasAccess())
+                                        .canView(existingPerm.isCanView())
+                                        .canCreate(existingPerm.isCanCreate())
+                                        .canEdit(existingPerm.isCanEdit())
+                                        .canApprove(existingPerm.isCanApprove())
+                                        .canDownload(existingPerm.isCanDownload())
+                                        .build();
+                                role.addPermission(clonedPerm);
+                            });
+                            log.info("Cloned {} permission rows from existing role id={} onto new role",
+                                    existingWithPerms.getPermissions().size(), existing.getId());
+                        });
             }
 
             // 10. Persist
@@ -302,6 +345,62 @@ public class RecRoleServiceImpl implements RecRoleService {
 	                .build();
 	    }
 	}
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET PRIVILEGES
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Load existing permissions for a role, joined with module name.
+     * Paste inside RecRoleServiceImpl (implements RecRoleService).
+     * Also add the signature to RecRoleService interface.
+     */
+    
+    @Override
+    @Transactional(readOnly = true)
+    public RestWithStatusList getPrivileges(Long roleId) {
+        RecRole role = roleRepo.findByIdWithPermissions(roleId)
+                .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
+ 
+     // Build permission list with menuName joined from RCN_MENU_MASTER
+        List<Map<String, Object>> permissions = role.getPermissions().stream().map(p -> {
+            Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("moduleId",   p.getModule() != null ? p.getModule().getId()   : null);
+            row.put("moduleName", p.getModule() != null ? p.getModule().getName() : null);
+            row.put("menuId",     p.getMenuId());   // null = product-level row
+            row.put("hasAccess",  p.isHasAccess());
+            row.put("canView",    p.isCanView());
+            row.put("canCreate",  p.isCanCreate());
+            row.put("canEdit",    p.isCanEdit());
+            row.put("canApprove", p.isCanApprove());
+            row.put("canDownload",p.isCanDownload());
+
+            // Join menuName from RCN_MENU_MASTER for non-null menuId rows
+            if (p.getMenuId() != null) {
+                menuMasterRepository.findByMenuId(p.getMenuId()).ifPresent(menu -> {
+                    row.put("menuName", menu.getMenuName());
+                    row.put("menuType", menu.getMenuType());
+                });
+            }
+     
+            return row;
+        }).collect(Collectors.toList());
+     
+        // Wrap in the same shape the frontend expects:
+        // { data: [{ permissions: [...] }] }
+        Map<String, Object> wrapper = new java.util.LinkedHashMap<>();
+        wrapper.put("id",          role.getId());
+        wrapper.put("roleName",    role.getRoleName());
+        wrapper.put("roleCode",    role.getRoleCode());
+        wrapper.put("roleType",    role.getRoleType());
+        wrapper.put("permissions", permissions);
+     
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Privileges fetched successfully")
+                .data(Collections.singletonList(wrapper))
+                .build();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET BY ID
@@ -341,6 +440,83 @@ public class RecRoleServiceImpl implements RecRoleService {
             // KAL Super Admin → all roles
             roles = roleRepo.findAll();
         }
+        
+        if (roles.isEmpty()) {
+            return RestWithStatusList.builder()
+                    .status("SUCCESS")
+                    .statusMsg("No roles found")
+                    .data(Collections.emptyList())
+                    .build();
+        }
+
+        // ── Fetch privilege summary for ALL roles in ONE query ──────────────
+        // Returns: [roleId, privilegeCount, comma-separated product names]
+        List<Long> roleIds = roles.stream()
+                .map(RecRole::getId)
+                .collect(Collectors.toList());
+
+        // Native query — works on Oracle with LISTAGG
+        @SuppressWarnings("unchecked")
+        List<Object[]> privRows = em.createNativeQuery("SELECT " +
+        	    "p.ROLE_ID, " +
+        	    "COUNT(p.ID) AS PRIV_COUNT, " +
+        	    "LISTAGG(DISTINCT m.NAME, ',') WITHIN GROUP (ORDER BY m.NAME) AS PROD_NAMES " +
+        	    "FROM REC_ROLE_MODULE_PERMISSIONS_TEST p " +
+        	    "JOIN REC_MODULES_TEST m ON m.ID = p.MODULE_ID " +
+        	    "WHERE p.HAS_ACCESS = 1 " +
+        	    "AND p.ROLE_ID IN (:roleIds) " +
+        	    "GROUP BY p.ROLE_ID")
+        .setParameter("roleIds", roleIds)
+        .getResultList();
+
+        // Build maps: roleId → count, roleId → productList
+        Map<Long, Integer>      countMap = new HashMap<>();
+        Map<Long, List<String>> prodMap  = new HashMap<>();
+
+        for (Object[] row : privRows) {
+            Long   rid      = ((Number) row[0]).longValue();
+            int    cnt      = ((Number) row[1]).intValue();
+            String prodsCsv = row[2] != null ? (String) row[2] : "";
+
+            countMap.put(rid, cnt);
+            prodMap.put(rid,
+                prodsCsv.isEmpty()
+                    ? Collections.emptyList()
+                    : Arrays.asList(prodsCsv.split(","))
+            );
+        }
+
+        // ── Build response: role fields + privilegeCount + assignedProducts ──
+        List<Map<String, Object>> result = roles.stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id",                r.getId());
+            m.put("roleName",          r.getRoleName());
+            m.put("roleCode",          r.getRoleCode());
+            m.put("roleType",          r.getRoleType());
+            m.put("roleMasterName",    r.getRoleMasterName());
+            m.put("description",       r.getDescription());
+            m.put("department",        r.getDepartment());
+            m.put("sessionTimeout",    r.getSessionTimeout());
+            m.put("validFrom",         r.getValidFrom());
+            m.put("validTo",           r.getValidTo());
+//            m.put("status",            r.getStatus());
+            m.put("bankCode",          r.getBankCode());
+            m.put("branchCode",        r.getBranchCode());
+            m.put("assignedUserId",    r.getAssignedUserId());
+            m.put("assignedUserName",  r.getAssignedUserName());
+            m.put("assignedUserEmail", r.getAssignedUserEmail());
+            m.put("createdAt",         r.getCreatedAt());
+            m.put("createdBy",         r.getCreatedBy());
+            // ── NEW: privilege summary ──
+            int cnt = countMap.getOrDefault(r.getId(), 0);
+            m.put("privilegeCount",   cnt);
+            m.put("assignedProducts",
+                  cnt > 0
+                    ? prodMap.getOrDefault(r.getId(), Collections.emptyList())
+                    : Collections.emptyList());
+            return m;
+        }).collect(Collectors.toList());
+
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Roles fetched successfully")
@@ -366,30 +542,74 @@ public class RecRoleServiceImpl implements RecRoleService {
     // UPDATE PERMISSIONS
     // ─────────────────────────────────────────────────────────────────────────
 
+//    @Override
+//    @Transactional(noRollbackFor = {Exception.class})  // ✅ FIX 7: Same fix here
+//    public RestWithStatusList updatePermissions(Long roleId, List<RecPermissionRowDTO> dtos) {
+//        try {
+//            RecRole role = roleRepo.findByIdWithPermissions(roleId)
+//                    .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
+//
+//            role.getPermissions().clear();
+//            dtos.forEach(p -> role.addPermission(buildPermission(p)));
+//
+//            RecRole updated = roleRepo.save(role);
+//            roleRepo.flush();
+//
+//            return RestWithStatusList.builder()
+//                    .status("SUCCESS")
+//                    .statusMsg("Permissions updated successfully")
+//                    .data(Collections.singletonList(roleMapper.toResponseDTO(updated)))
+//                    .build();
+//
+//        } catch (Exception e) {
+//            log.error("Error updating permissions: {}", e.getMessage(), e);
+//            return RestWithStatusList.builder()
+//                    .status("FAILURE")
+//                    .statusMsg("Failed to update permissions: " + e.getMessage())
+//                    .data(Collections.emptyList())
+//                    .build();
+//        }
+//    }
+    
     @Override
-    @Transactional(noRollbackFor = {Exception.class})  // ✅ FIX 7: Same fix here
+    @Transactional
     public RestWithStatusList updatePermissions(Long roleId, List<RecPermissionRowDTO> dtos) {
-        try {
-            RecRole role = roleRepo.findByIdWithPermissions(roleId)
+
+    	try {
+            // STEP 1: Delete ALL existing permissions for this role
+            em.createQuery("DELETE FROM RecRoleModulePermission p WHERE p.role.id = :roleId")
+                    .setParameter("roleId", roleId)
+                    .executeUpdate();
+     
+            // STEP 2: Flush + clear so Hibernate sees a clean state
+            em.flush();
+            em.clear();
+     
+            // STEP 3: Re-fetch role after clear
+            RecRole role = roleRepo.findById(roleId)
                     .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
-
-            role.getPermissions().clear();
-            dtos.forEach(p -> role.addPermission(buildPermission(p)));
-
-            RecRole updated = roleRepo.save(role);
-            roleRepo.flush();
-
+     
+            // STEP 4: Build and attach new permissions
+            for (RecPermissionRowDTO dto : dtos) {
+                RecRoleModulePermission permission = buildPermission(dto);
+                // menuId is already set in buildPermission below
+                permission.setRole(role);
+                role.addPermission(permission);
+            }
+     
+            roleRepo.save(role);
+     
             return RestWithStatusList.builder()
                     .status("SUCCESS")
-                    .statusMsg("Permissions updated successfully")
-                    .data(Collections.singletonList(roleMapper.toResponseDTO(updated)))
+                    .statusMsg("Privileges updated successfully")
+                    .data(Collections.singletonList(roleMapper.toResponseDTO(role)))
                     .build();
-
+     
         } catch (Exception e) {
-            log.error("Error updating permissions: {}", e.getMessage(), e);
+            log.error("Error updating permissions", e);
             return RestWithStatusList.builder()
                     .status("FAILURE")
-                    .statusMsg("Failed to update permissions: " + e.getMessage())
+                    .statusMsg(e.getMessage())
                     .data(Collections.emptyList())
                     .build();
         }
@@ -431,27 +651,18 @@ public class RecRoleServiceImpl implements RecRoleService {
                     });
         }
     }
-
+    
     // ─────────────────────────────────────────────────────────────────────────
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
 
     private RecRoleModulePermission buildPermission(RecPermissionRowDTO p) {
-        RecModule module;
-        if (p.getModuleId() != null) {
-            module = moduleRepo.findById(p.getModuleId())
-                    .orElseThrow(() -> new RuntimeException(
-                            "Module not found with id: " + p.getModuleId()));
-        } else if (p.getModuleName() != null && !p.getModuleName().trim().isEmpty()) {
-            String name = p.getModuleName().trim();
-            module = moduleRepo.findByName(name)
-                    .orElseGet(() -> moduleRepo.save(
-                            RecModule.builder().name(name).displayOrder(0).build()));
-        } else {
-            throw new RuntimeException("Either moduleId or moduleName is required");
-        }
+        RecModule module = moduleRepo.findById(p.getModuleId())
+                .orElseThrow(() -> new RuntimeException(
+                        "Module not found with id: " + p.getModuleId()));
         return RecRoleModulePermission.builder()
                 .module(module)
+                .menuId(p.getMenuId())
                 .hasAccess(p.isHasAccess())
                 .canView(p.isCanView())
                 .canCreate(p.isCanCreate())
@@ -498,5 +709,6 @@ public class RecRoleServiceImpl implements RecRoleService {
     private boolean isBlank(String v) {
         return v == null || v.trim().isEmpty();
     }
+
 
 }

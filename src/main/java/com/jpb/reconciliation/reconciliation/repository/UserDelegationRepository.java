@@ -10,4 +10,6 @@ public interface UserDelegationRepository extends JpaRepository<UserDelegation, 
     Optional<UserDelegation> findByDelegatorUserIdAndStatus(Long delegatorUserId, String status);
 
     boolean existsByDelegatorUserIdAndStatus(Long delegatorUserId, String status);
+
+    Optional<UserDelegation> findFirstByDelegateeUserIdAndStatus(Long delegateUserId, String status);
 }

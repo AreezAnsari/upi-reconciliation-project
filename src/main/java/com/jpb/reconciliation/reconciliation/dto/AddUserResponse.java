@@ -46,6 +46,11 @@ public class AddUserResponse {
     private String replacedByUsername;   // replacement user's username
     private boolean replacementAdminRow; // true = this row IS the replacement user (not the original)
 
+    // Delegation fields
+    private String delegationStatus;   // "DELEGATING" | "DELEGATEE" | null
+    private String delegateeUsername;  // set when DELEGATING — who took over
+    private String delegatorUsername;  // set when DELEGATEE — who delegated to this user
+
     // Hierarchy fields
     private Long parentId;
     private List<AddUserResponse> children; // populated in hierarchy fetch, null in flat list responses

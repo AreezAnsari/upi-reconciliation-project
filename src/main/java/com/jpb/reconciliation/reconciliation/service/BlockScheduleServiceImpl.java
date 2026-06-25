@@ -1184,20 +1184,41 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     // ─────────────────────────────────────────────
     private void notifyActorFinal(String actorBy, String action, String targetName, String targetCode) {
         if (actorBy == null || actorBy.isEmpty()) return;
-        // Strip CASCADE: prefix if present (should not reach here for cascades, but guard anyway)
         if (actorBy.startsWith("CASCADE:")) actorBy = actorBy.substring(8);
         String when = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
         try {
-            Optional<MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorBy);
+            boolean isEmail = actorBy.contains("@");
+            // MainAdmin — try primary lookup (by username or email), then fallback to the other
+            Optional<MainAdmin> ma = isEmail
+                    ? mainAdminRepository.findFirstByEmail(actorBy)
+                    : mainAdminRepository.findFirstByUsername(actorBy);
+            if (!ma.isPresent()) ma = isEmail
+                    ? mainAdminRepository.findFirstByUsername(actorBy)
+                    : mainAdminRepository.findFirstByEmail(actorBy);
             if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty()) {
                 emailService.sendActorActionConfirmation(ma.get().getEmail(), ma.get().getUsername(), action, targetName, targetCode, when);
                 return;
             }
-            Optional<BranchAdmin> ba = branchAdminRepository.findFirstByUsername(actorBy);
+            // BranchAdmin — same dual lookup
+            Optional<BranchAdmin> ba = isEmail
+                    ? branchAdminRepository.findFirstByEmail(actorBy)
+                    : branchAdminRepository.findFirstByUsername(actorBy);
+            if (!ba.isPresent()) ba = isEmail
+                    ? branchAdminRepository.findFirstByUsername(actorBy)
+                    : branchAdminRepository.findFirstByEmail(actorBy);
             if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty()) {
                 emailService.sendActorActionConfirmation(ba.get().getEmail(), ba.get().getUsername(), action, targetName, targetCode, when);
                 return;
             }
+            // AddUser (actor could be a senior user who scheduled action on sub-user)
+            Optional<com.jpb.reconciliation.reconciliation.entity.AddUser> au = isEmail
+                    ? addUserRepository.findByEmail(actorBy)
+                    : addUserRepository.findByUsername(actorBy);
+            if (au.isPresent() && au.get().getEmail() != null && !au.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(au.get().getEmail(), au.get().getUsername(), action, targetName, targetCode, when);
+                return;
+            }
+            // KalAdmin fallback
             kalAdminRepository.findByUserName(actorBy).ifPresent(ka -> {
                 if (ka.getEmailId() != null && !ka.getEmailId().isEmpty()) {
                     emailService.sendActorActionConfirmation(ka.getEmailId(), ka.getUserName(), action, targetName, targetCode, when);

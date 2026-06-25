@@ -179,6 +179,7 @@ public class AddUserServiceImpl implements AddUserService {
             }
             AddUserResponse resp = AddUserMapper.toResponse(u);
             enrichReplacement(resp, u.getId());
+            enrichDelegation(resp, u.getId());
             users.add(resp);
         }
         return RestWithStatusList.builder()
@@ -231,6 +232,7 @@ public class AddUserServiceImpl implements AddUserService {
             }
             AddUserResponse resp = AddUserMapper.toResponse(u);
             enrichReplacement(resp, u.getId());
+            enrichDelegation(resp, u.getId());
             users.add(resp);
         }
         return RestWithStatusList.builder()
@@ -259,6 +261,7 @@ public class AddUserServiceImpl implements AddUserService {
             }
             AddUserResponse resp = AddUserMapper.toResponse(u);
             enrichReplacement(resp, u.getId());
+            enrichDelegation(resp, u.getId());
             users.add(resp);
         }
         return RestWithStatusList.builder()
@@ -291,6 +294,7 @@ public class AddUserServiceImpl implements AddUserService {
 
             AddUserResponse resp = AddUserMapper.toResponse(u);
             enrichReplacement(resp, u.getId());
+            enrichDelegation(resp, u.getId());
             users.add(resp);
         }
 
@@ -668,17 +672,14 @@ public class AddUserServiceImpl implements AddUserService {
     }
 
     private void notifyActor(String actorBy, String action, String targetName, String targetCode, String when) {
+        if (actorBy == null || actorBy.isEmpty()) return;
         try {
-            Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorBy);
-            if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty()) {
-                emailService.sendActorActionConfirmation(ma.get().getEmail(), ma.get().getUsername(), action, targetName, targetCode, when);
+            String[] contact = resolveActorContact(actorBy);
+            if (contact != null) {
+                emailService.sendActorActionConfirmation(contact[0], contact[1], action, targetName, targetCode, when);
                 return;
             }
-            Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> ba = branchAdminRepository.findFirstByUsername(actorBy);
-            if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty()) {
-                emailService.sendActorActionConfirmation(ba.get().getEmail(), ba.get().getUsername(), action, targetName, targetCode, when);
-                return;
-            }
+            // KalAdmin fallback (not in AddUser/MainAdmin/BranchAdmin tables)
             kalAdminRepository.findByUserName(actorBy).ifPresent(ka -> {
                 if (ka.getEmailId() != null && !ka.getEmailId().isEmpty()) {
                     emailService.sendActorActionConfirmation(ka.getEmailId(), ka.getUserName(), action, targetName, targetCode, when);
@@ -824,9 +825,28 @@ public class AddUserServiceImpl implements AddUserService {
     private AddUserResponse toResponseWithChildren(AddUser user) {
         AddUserResponse resp = AddUserMapper.toResponse(user);
         enrichReplacement(resp, user.getId());
+        enrichDelegation(resp, user.getId());
         List<AddUserResponse> children = buildUserHierarchyForParent(user.getId());
         resp.setChildren(children);
         return resp;
+    }
+
+    private void enrichDelegation(AddUserResponse resp, Long userId) {
+        // Check if this user is currently delegating (they went INACTIVE_PENDING/INACTIVE via delegation)
+        Optional<UserDelegation> asDelegator = delegationRepository.findByDelegatorUserIdAndStatus(userId, "ACTIVE");
+        if (asDelegator.isPresent()) {
+            resp.setDelegationStatus("DELEGATING");
+            userRepository.findById(asDelegator.get().getDelegateeUserId())
+                    .ifPresent(d -> resp.setDelegateeUsername(d.getUsername()));
+            return;
+        }
+        // Check if this user is acting as a delegatee (handling work for someone else)
+        delegationRepository.findFirstByDelegateeUserIdAndStatus(userId, "ACTIVE")
+                .ifPresent(del -> {
+                    resp.setDelegationStatus("DELEGATEE");
+                    userRepository.findById(del.getDelegatorUserId())
+                            .ifPresent(d -> resp.setDelegatorUsername(d.getUsername()));
+                });
     }
 
     private void enrichReplacement(AddUserResponse resp, Long userId) {
@@ -893,9 +913,10 @@ public class AddUserServiceImpl implements AddUserService {
 
         // Schedule delegator for inactivation
         delegator.setStatus(AddUser.UserStatus.INACTIVE_PENDING);
-        delegator.setInactivateScheduledAt(LocalDateTime.now().plusSeconds(30));
+        delegator.setInactivateScheduledAt(LocalDateTime.now());
         delegator.setInactivateScheduledBy(delegatedBy);
         userRepository.save(delegator);
+        BlockScheduleServiceImpl.flagPendingWork();
 
         // Create delegation record
         UserDelegation delegation = new UserDelegation();
@@ -911,20 +932,64 @@ public class AddUserServiceImpl implements AddUserService {
         String orgName = delegator.getBranchCode() != null ? delegator.getBranchCode()
                 : delegator.getBankCode() != null ? delegator.getBankCode() : "";
 
-        // Notify delegator
+        // Notify delegator (user going inactive)
         emailService.sendDelegationToDelegate(
                 delegator.getEmail(), delegator.getFullName(),
                 delegatee.getFullName(), reason, orgName);
 
-        // Notify delegatee
+        // Notify delegatee (ancestor taking over)
         emailService.sendDelegationToDelegatee(
                 delegatee.getEmail(), delegatee.getFullName(),
                 delegator.getFullName(), reason);
+
+        // Notify actor (bank admin / branch admin who triggered delegation)
+        try {
+            String[] actorContact = resolveActorContact(delegatedBy);
+            if (actorContact != null) {
+                String when = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+                String delegatorDisplay = delegator.getFullName() != null ? delegator.getFullName() : delegator.getUsername();
+                emailService.sendActorActionConfirmation(
+                        actorContact[0], actorContact[1],
+                        "Delegation Initiated", delegatorDisplay, delegator.getUsername(), when);
+            }
+        } catch (Exception e) {
+            log.warn("[DELEGATION] Actor confirmation email failed for {}: {}", delegatedBy, e.getMessage());
+        }
 
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Delegation created successfully")
                 .data(Collections.emptyList())
                 .build();
+    }
+
+    private String[] resolveActorContact(String actorBy) {
+        if (actorBy == null || actorBy.isEmpty()) return null;
+        boolean isEmail = actorBy.contains("@");
+        // MainAdmin — try primary, then fallback
+        Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> ma = isEmail
+                ? mainAdminRepository.findFirstByEmail(actorBy)
+                : mainAdminRepository.findFirstByUsername(actorBy);
+        if (!ma.isPresent()) ma = isEmail
+                ? mainAdminRepository.findFirstByUsername(actorBy)
+                : mainAdminRepository.findFirstByEmail(actorBy);
+        if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty())
+            return new String[]{ma.get().getEmail(), ma.get().getUsername()};
+        // BranchAdmin — try primary, then fallback
+        Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> ba = isEmail
+                ? branchAdminRepository.findFirstByEmail(actorBy)
+                : branchAdminRepository.findFirstByUsername(actorBy);
+        if (!ba.isPresent()) ba = isEmail
+                ? branchAdminRepository.findFirstByUsername(actorBy)
+                : branchAdminRepository.findFirstByEmail(actorBy);
+        if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty())
+            return new String[]{ba.get().getEmail(), ba.get().getUsername()};
+        // AddUser (actor could be a senior user)
+        Optional<AddUser> au = isEmail
+                ? userRepository.findByEmail(actorBy)
+                : userRepository.findByUsername(actorBy);
+        if (au.isPresent() && au.get().getEmail() != null && !au.get().getEmail().isEmpty())
+            return new String[]{au.get().getEmail(), au.get().getUsername()};
+        return null;
     }
 }
