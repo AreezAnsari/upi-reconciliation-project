@@ -193,4 +193,30 @@ public interface EmailService {
     void sendActorActionConfirmation(String toEmail, String actorName,
                                      String action, String targetName, String targetCode,
                                      String scheduledAt);
+
+    // ── Delegation emails ──
+
+    /** Sent to delegator when their work is delegated to a parent. */
+    void sendDelegationToDelegate(String toEmail, String delegatorName,
+                                  String delegateeName, String reason, String orgName);
+
+    /** Sent to delegatee when they receive a delegation. */
+    void sendDelegationToDelegatee(String toEmail, String delegateeName,
+                                   String delegatorName, String reason);
+
+    /** Sent to delegatee when delegator is scheduled for block (BLOCK_PENDING). */
+    void sendDelegatorBlockPendingToDelegatee(String toEmail, String delegateeName,
+                                              String delegatorName, String blockAt);
+
+    /** Sent to delegatee when delegator is permanently blocked (BLOCKED). */
+    void sendDelegatorBlockedToDelegatee(String toEmail, String delegateeName, String delegatorName);
+
+    /** Sent to delegatee when delegator's block is undone (back to INACTIVE). */
+    void sendDelegatorUnblockedToDelegatee(String toEmail, String delegateeName, String delegatorName);
+
+    /** Sent to delegator when delegation is restored (delegator reactivated). */
+    void sendDelegationRestoredToDelegator(String toEmail, String delegatorName, String delegateeName);
+
+    /** Sent to delegatee when delegation ends because delegator was reactivated. */
+    void sendDelegationRestoredToDelegatee(String toEmail, String delegateeName, String delegatorName);
 }

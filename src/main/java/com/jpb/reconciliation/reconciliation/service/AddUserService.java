@@ -44,4 +44,8 @@ public interface AddUserService {
     RestWithStatusList getUserHierarchyByBranchCode(String branchCode);
 
     RestWithStatusList getUserHierarchyByBankDirect(String bankCode);
+
+    RestWithStatusList delegateUser(Long userId, Long delegateeId, String reason, String delegatedBy);
+
+    RestWithStatusList getUserAncestors(Long userId);
 }

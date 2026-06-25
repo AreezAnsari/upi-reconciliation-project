@@ -146,6 +146,22 @@ public class AddUserController {
         return userService.getUserHierarchyByBankDirect(bankCode);
     }
 
+    // POST /api/v1/user/{id}/delegate — delegate user's work to a selected ancestor
+    @PostMapping("/{id}/delegate")
+    public RestWithStatusList delegateUser(@PathVariable Long id,
+                                           @RequestParam Long delegateeId,
+                                           @RequestParam(required = false, defaultValue = "") String reason,
+                                           Authentication authentication) {
+        String by = authentication != null ? authentication.getName() : "UNKNOWN";
+        return userService.delegateUser(id, delegateeId, reason, by);
+    }
+
+    // GET /api/v1/user/{id}/ancestors — fetch ancestor chain (closest first) for delegation UI
+    @GetMapping("/{id}/ancestors")
+    public RestWithStatusList getUserAncestors(@PathVariable Long id) {
+        return userService.getUserAncestors(id);
+    }
+
     private RestWithStatusList forbidden() {
         return RestWithStatusList.builder()
                 .status("FAILURE")

@@ -118,6 +118,10 @@ public class AddUser {
     @Column(name = "PARENT_ID")
     private Long parentId;
 
+    // Stores original parentId before delegation child-transfer; restored when delegation ends
+    @Column(name = "PRE_DELEGATION_PARENT_ID")
+    private Long preDelegationParentId;
+
     @Column(name = "CREATED_BY", length = 100)
     private String createdBy;
 

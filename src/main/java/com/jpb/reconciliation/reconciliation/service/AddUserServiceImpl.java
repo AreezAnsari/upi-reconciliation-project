@@ -6,12 +6,14 @@ import com.jpb.reconciliation.reconciliation.dto.AdminContext;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
+import com.jpb.reconciliation.reconciliation.entity.UserDelegation;
 import com.jpb.reconciliation.reconciliation.mapper.AddUserMapper;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
+import com.jpb.reconciliation.reconciliation.repository.UserDelegationRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
@@ -54,6 +56,7 @@ public class AddUserServiceImpl implements AddUserService {
     private final MainAdminRepository        mainAdminRepository;
     private final KalAdminRepository         kalAdminRepository;
     private final AdminReplacementRepository replacementRepository;
+    private final UserDelegationRepository   delegationRepository;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -634,7 +637,7 @@ public class AddUserServiceImpl implements AddUserService {
                     child.setPreBlockStatus(child.getStatus().name());
                     child.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                     child.setBlockScheduledAt(LocalDateTime.now());
-                    child.setBlockScheduledBy(scheduledBy);
+                    child.setBlockScheduledBy("CASCADE:" + scheduledBy);
                     child.setBlockReason(reason != null ? reason : "Cascaded from parent block");
                     child.setInactivateScheduledAt(null);
                     child.setInactivateScheduledBy(null);
@@ -842,5 +845,86 @@ public class AddUserServiceImpl implements AddUserService {
                         .ifPresent(rep -> resp.setReplacedByUsername(rep.getUsername()));
             }
         }
+    }
+
+    @Override
+    public RestWithStatusList getUserAncestors(Long userId) {
+        Optional<AddUser> userOpt = userRepository.findById(userId);
+        if (!userOpt.isPresent()) return fail("User not found");
+
+        List<AddUserResponse> ancestors = new ArrayList<>();
+        Long currentParentId = userOpt.get().getParentId();
+        while (currentParentId != null) {
+            Optional<AddUser> parentOpt = userRepository.findById(currentParentId);
+            if (!parentOpt.isPresent()) break;
+            AddUser parent = parentOpt.get();
+            ancestors.add(AddUserMapper.toResponse(parent));
+            currentParentId = parent.getParentId();
+        }
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Ancestors fetched")
+                .data(new ArrayList<>(ancestors))
+                .build();
+    }
+
+    @Override
+    public RestWithStatusList delegateUser(Long userId, Long delegateeId, String reason, String delegatedBy) {
+        Optional<AddUser> delegatorOpt = userRepository.findById(userId);
+        if (!delegatorOpt.isPresent()) return fail("Delegator user not found");
+
+        Optional<AddUser> delegateeOpt = userRepository.findById(delegateeId);
+        if (!delegateeOpt.isPresent()) return fail("Delegatee user not found");
+
+        AddUser delegator = delegatorOpt.get();
+        AddUser delegatee = delegateeOpt.get();
+
+        if (delegationRepository.existsByDelegatorUserIdAndStatus(userId, "ACTIVE")) {
+            return fail("An active delegation already exists for this user");
+        }
+
+        // Transfer delegator's direct children to delegatee, remembering original parentId
+        List<AddUser> children = userRepository.findByParentId(userId);
+        for (AddUser child : children) {
+            child.setPreDelegationParentId(child.getParentId());
+            child.setParentId(delegateeId);
+            userRepository.save(child);
+        }
+
+        // Schedule delegator for inactivation
+        delegator.setStatus(AddUser.UserStatus.INACTIVE_PENDING);
+        delegator.setInactivateScheduledAt(LocalDateTime.now().plusSeconds(30));
+        delegator.setInactivateScheduledBy(delegatedBy);
+        userRepository.save(delegator);
+
+        // Create delegation record
+        UserDelegation delegation = new UserDelegation();
+        delegation.setDelegatorUserId(userId);
+        delegation.setDelegateeUserId(delegateeId);
+        delegation.setReason(reason);
+        delegation.setStatus("ACTIVE");
+        delegation.setDelegatedAt(LocalDateTime.now());
+        delegation.setCreatedBy(delegatedBy);
+        delegationRepository.save(delegation);
+
+        // Determine org name for delegator email
+        String orgName = delegator.getBranchCode() != null ? delegator.getBranchCode()
+                : delegator.getBankCode() != null ? delegator.getBankCode() : "";
+
+        // Notify delegator
+        emailService.sendDelegationToDelegate(
+                delegator.getEmail(), delegator.getFullName(),
+                delegatee.getFullName(), reason, orgName);
+
+        // Notify delegatee
+        emailService.sendDelegationToDelegatee(
+                delegatee.getEmail(), delegatee.getFullName(),
+                delegator.getFullName(), reason);
+
+        return RestWithStatusList.builder()
+                .status("SUCCESS")
+                .statusMsg("Delegation created successfully")
+                .data(Collections.emptyList())
+                .build();
     }
 }

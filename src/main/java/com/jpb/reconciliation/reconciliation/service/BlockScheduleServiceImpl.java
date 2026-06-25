@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
 import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
+import com.jpb.reconciliation.reconciliation.entity.UserDelegation;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
 import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
@@ -26,6 +27,7 @@ import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.AdminReplacementRepository;
+import com.jpb.reconciliation.reconciliation.repository.UserDelegationRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
@@ -57,6 +59,9 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
 
     @Autowired
     private AdminReplacementRepository adminReplacementRepository;
+
+    @Autowired
+    private UserDelegationRepository userDelegationRepository;
 
     @Autowired
     private AdminReplacementService adminReplacementService;
@@ -186,7 +191,7 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     user.setPreBlockStatus(user.getStatus().name());
                     user.setStatus(AddUser.UserStatus.BLOCK_PENDING);
                     user.setBlockScheduledAt(LocalDateTime.now());
-                    user.setBlockScheduledBy(scheduledBy);
+                    user.setBlockScheduledBy("CASCADE:" + scheduledBy);
                     user.setBlockReason(reason);
                     user.setInactivateScheduledAt(null);
                     user.setInactivateScheduledBy(null);
@@ -617,7 +622,6 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             }
             notifyActorFinal(user.getInactivateScheduledBy(), "Inactivated",
                     user.getFullName() != null ? user.getFullName() : user.getUsername(), user.getUsername());
-            notifyParentFinal(user, "Child User Inactivated");
             // Finalize any pending replacement now that user is INACTIVE
             try {
                 Optional<AdminReplacement> pendingRep = adminReplacementRepository
@@ -690,6 +694,52 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
                     }
                 }
             }
+            // Restore delegation if one was active for this user
+            try {
+                Optional<UserDelegation> activeDelegation = userDelegationRepository
+                        .findByDelegatorUserIdAndStatus(user.getId(), "ACTIVE");
+                if (activeDelegation.isPresent()) {
+                    UserDelegation delegation = activeDelegation.get();
+                    // Return children to delegator (their preDelegationParentId)
+                    List<AddUser> delegatedChildren = addUserRepository.findByParentId(delegation.getDelegateeUserId());
+                    for (AddUser child : delegatedChildren) {
+                        if (child.getPreDelegationParentId() != null
+                                && child.getPreDelegationParentId().equals(user.getId())) {
+                            child.setParentId(child.getPreDelegationParentId());
+                            child.setPreDelegationParentId(null);
+                            addUserRepository.save(child);
+                        }
+                    }
+                    // Close delegation record
+                    delegation.setStatus("RESTORED");
+                    delegation.setRestoredAt(LocalDateTime.now());
+                    delegation.setRestoredBy("SYSTEM");
+                    userDelegationRepository.save(delegation);
+                    // Notify both parties
+                    Optional<AddUser> delegateeOpt = addUserRepository.findById(delegation.getDelegateeUserId());
+                    if (delegateeOpt.isPresent()) {
+                        AddUser delegatee = delegateeOpt.get();
+                        String delegatorName = user.getFullName() != null ? user.getFullName() : user.getUsername();
+                        String delegateeName = delegatee.getFullName() != null ? delegatee.getFullName() : delegatee.getUsername();
+                        try {
+                            emailService.sendDelegationRestoredToDelegator(user.getEmail(), delegatorName, delegateeName);
+                        } catch (Exception ex) {
+                            logger.warn("Delegation restoration email to delegator failed: {}", ex.getMessage());
+                        }
+                        try {
+                            if (delegatee.getEmail() != null) {
+                                emailService.sendDelegationRestoredToDelegatee(delegatee.getEmail(), delegateeName, delegatorName);
+                            }
+                        } catch (Exception ex) {
+                            logger.warn("Delegation restoration email to delegatee failed: {}", ex.getMessage());
+                        }
+                    }
+                    logger.info("Delegation RESTORED for user {} (was delegated to {})", user.getUsername(), delegation.getDelegateeUserId());
+                }
+            } catch (Exception e) {
+                logger.warn("Delegation restoration failed for user {}: {}", user.getUsername(), e.getMessage());
+            }
+
             // Send "Final Active" notification + "Credentials" email with new temp password
             try {
                 if (user.getEmail() != null) {
@@ -730,7 +780,6 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             }
             notifyActorFinal(user.getReactivateScheduledBy(), "Reactivated",
                     user.getFullName() != null ? user.getFullName() : user.getUsername(), user.getUsername());
-            notifyParentFinal(user, "Child User Reactivated");
         }
 
         // ── AddUser: BLOCK_PENDING → BLOCK ──
@@ -762,31 +811,57 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
             } catch (Exception e) {
                 logger.warn("Auto-block email failed for user {}: {}", user.getUsername(), e.getMessage());
             }
-            notifyActorFinal(user.getBlockScheduledBy(), "Blocked",
-                    user.getFullName() != null ? user.getFullName() : user.getUsername(), user.getUsername());
-            notifyParentFinal(user, "Child User Blocked");
-            // When original user is permanently blocked → replacement becomes PERMANENT
-            try {
-                Optional<AdminReplacement> activeRepOpt = adminReplacementRepository
-                    .findByOriginalEntityIdAndEntityTypeAndStatus(user.getId(), "USER", "ACTIVE");
-                if (activeRepOpt.isPresent()) {
-                    AdminReplacement rep = activeRepOpt.get();
-                    rep.setStatus("PERMANENT");
-                    adminReplacementRepository.save(rep);
-                    logger.info("Replacement for user {} promoted to PERMANENT", user.getUsername());
-                    if (rep.getReplacementEntityId() > 0L) {
-                        addUserRepository.findById(rep.getReplacementEntityId()).ifPresent(repUser -> {
-                            try {
-                                String repName = repUser.getFullName() != null ? repUser.getFullName() : repUser.getUsername();
-                                emailService.sendReplacementBecamePermanent(repUser.getEmail(), repName);
-                            } catch (Exception ex) {
-                                logger.warn("Permanent-promotion email failed for user {}: {}", repUser.getUsername(), ex.getMessage());
-                            }
-                        });
+            boolean isCascadeBlock = user.getBlockScheduledBy() != null && user.getBlockScheduledBy().startsWith("CASCADE:");
+            // Only send actor email for direct blocks, not cascade blocks
+            if (!isCascadeBlock) {
+                notifyActorFinal(user.getBlockScheduledBy(), "Blocked",
+                        user.getFullName() != null ? user.getFullName() : user.getUsername(), user.getUsername());
+            }
+            // Replacement becomes PERMANENT only for direct individual blocks, not cascade
+            if (!isCascadeBlock) {
+                try {
+                    Optional<AdminReplacement> activeRepOpt = adminReplacementRepository
+                        .findByOriginalEntityIdAndEntityTypeAndStatus(user.getId(), "USER", "ACTIVE");
+                    if (activeRepOpt.isPresent()) {
+                        AdminReplacement rep = activeRepOpt.get();
+                        rep.setStatus("PERMANENT");
+                        adminReplacementRepository.save(rep);
+                        logger.info("Replacement for user {} promoted to PERMANENT", user.getUsername());
+                        if (rep.getReplacementEntityId() > 0L) {
+                            addUserRepository.findById(rep.getReplacementEntityId()).ifPresent(repUser -> {
+                                try {
+                                    String repName = repUser.getFullName() != null ? repUser.getFullName() : repUser.getUsername();
+                                    emailService.sendReplacementBecamePermanent(repUser.getEmail(), repName);
+                                } catch (Exception ex) {
+                                    logger.warn("Permanent-promotion email failed for user {}: {}", repUser.getUsername(), ex.getMessage());
+                                }
+                            });
+                        }
                     }
+                } catch (Exception e) {
+                    logger.warn("Replacement PERMANENT promotion failed for user {}: {}", user.getUsername(), e.getMessage());
+                }
+            }
+            // Notify delegatee if blocked user had an active delegation
+            try {
+                Optional<UserDelegation> activeDelegation = userDelegationRepository
+                        .findByDelegatorUserIdAndStatus(user.getId(), "ACTIVE");
+                if (activeDelegation.isPresent()) {
+                    UserDelegation delegation = activeDelegation.get();
+                    addUserRepository.findById(delegation.getDelegateeUserId()).ifPresent(delegatee -> {
+                        if (delegatee.getEmail() != null) {
+                            String delegatorName = user.getFullName() != null ? user.getFullName() : user.getUsername();
+                            String delegateeName = delegatee.getFullName() != null ? delegatee.getFullName() : delegatee.getUsername();
+                            try {
+                                emailService.sendDelegatorBlockedToDelegatee(delegatee.getEmail(), delegateeName, delegatorName);
+                            } catch (Exception ex) {
+                                logger.warn("Delegation block-final email to delegatee failed: {}", ex.getMessage());
+                            }
+                        }
+                    });
                 }
             } catch (Exception e) {
-                logger.warn("Replacement PERMANENT promotion failed for user {}: {}", user.getUsername(), e.getMessage());
+                logger.warn("Delegation block-final notification failed for user {}: {}", user.getUsername(), e.getMessage());
             }
         }
 
@@ -1109,6 +1184,8 @@ public class BlockScheduleServiceImpl implements BlockScheduleService {
     // ─────────────────────────────────────────────
     private void notifyActorFinal(String actorBy, String action, String targetName, String targetCode) {
         if (actorBy == null || actorBy.isEmpty()) return;
+        // Strip CASCADE: prefix if present (should not reach here for cascades, but guard anyway)
+        if (actorBy.startsWith("CASCADE:")) actorBy = actorBy.substring(8);
         String when = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
         try {
             Optional<MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorBy);

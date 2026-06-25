@@ -1848,6 +1848,251 @@ public class EmailServiceImpl implements EmailService {
             + "</td></tr></table></td></tr></table></body></html>";
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // DELEGATION EMAILS
+    // ─────────────────────────────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void sendDelegationToDelegate(String toEmail, String delegatorName,
+                                         String delegateeName, String reason, String orgName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — Your Work Has Been Delegated");
+            h.setText(buildDelegationToDelegatorHtml(delegatorName, delegateeName, reason, orgName), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegationToDelegate failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendDelegationToDelegatee(String toEmail, String delegateeName,
+                                           String delegatorName, String reason) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — You Have Received a Work Delegation");
+            h.setText(buildDelegationToDelegateeHtml(delegateeName, delegatorName, reason), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegationToDelegatee failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendDelegatorBlockPendingToDelegatee(String toEmail, String delegateeName,
+                                                     String delegatorName, String blockAt) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — FYI: Delegated User Block Scheduled");
+            h.setText(buildDelegatorBlockPendingHtml(delegateeName, delegatorName, blockAt), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegatorBlockPendingToDelegatee failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendDelegatorBlockedToDelegatee(String toEmail, String delegateeName, String delegatorName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — FYI: Delegated User Has Been Blocked");
+            h.setText(buildDelegatorBlockedHtml(delegateeName, delegatorName), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegatorBlockedToDelegatee failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendDelegatorUnblockedToDelegatee(String toEmail, String delegateeName, String delegatorName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — FYI: Delegated User Has Been Unblocked");
+            h.setText(buildDelegatorUnblockedHtml(delegateeName, delegatorName), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegatorUnblockedToDelegatee failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendDelegationRestoredToDelegator(String toEmail, String delegatorName, String delegateeName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — Your Delegation Has Ended, You Are Restored");
+            h.setText(buildDelegationRestoredToDelegatorHtml(delegatorName, delegateeName), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegationRestoredToDelegator failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendDelegationRestoredToDelegatee(String toEmail, String delegateeName, String delegatorName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai — Delegation Ended: Team Returned to Original Manager");
+            h.setText(buildDelegationRestoredToDelegateeHtml(delegateeName, delegatorName), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[DELEGATION] sendDelegationRestoredToDelegatee failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    private String buildDelegationToDelegatorHtml(String delegatorName, String delegateeName, String reason, String orgName) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Work Delegation Confirmation</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegatorName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Your work responsibilities have been delegated and your account has been inactivated. Below are the details:</p>"
+            + "<div style='background:#fef3c7;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:8px;padding:20px 24px;margin:20px 0;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='padding:6px 0;width:40%;font-size:13px;color:#64748b;'>Delegated To</td><td style='font-size:13px;font-weight:700;color:#d97706;'>" + sanitize(delegateeName) + "</td></tr>"
+            + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Organization</td><td style='font-size:13px;color:#1e293b;'>" + sanitize(orgName != null ? orgName : "") + "</td></tr>"
+            + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Reason</td><td style='font-size:13px;color:#1e293b;'>" + sanitize(reason) + "</td></tr>"
+            + "</table></div>"
+            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>Your team members have been temporarily moved under <strong>" + sanitize(delegateeName) + "</strong> until you are reactivated.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
+    private String buildDelegationToDelegateeHtml(String delegateeName, String delegatorName, String reason) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Work Delegation Received</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>You have been assigned a work delegation. The team members of <strong>" + sanitize(delegatorName) + "</strong> are now temporarily under your management.</p>"
+            + "<div style='background:#dcfce7;border:1px solid #86efac;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin:20px 0;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0'>"
+            + "<tr><td style='padding:6px 0;width:40%;font-size:13px;color:#64748b;'>Delegated From</td><td style='font-size:13px;font-weight:700;color:#16a34a;'>" + sanitize(delegatorName) + "</td></tr>"
+            + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Reason</td><td style='font-size:13px;color:#1e293b;'>" + sanitize(reason) + "</td></tr>"
+            + "</table></div>"
+            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>This is a temporary arrangement. When <strong>" + sanitize(delegatorName) + "</strong> is reactivated, their team will be returned to them automatically.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
+    private String buildDelegatorBlockPendingHtml(String delegateeName, String delegatorName, String blockAt) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — Block Scheduled</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>FYI: <strong>" + sanitize(delegatorName) + "</strong> (whose work is currently delegated to you) has been scheduled for blocking at <strong>" + sanitize(blockAt) + "</strong>.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Your delegation and their team members remain under your management. No action is required from you.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
+    private String buildDelegatorBlockedHtml(String delegateeName, String delegatorName) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — User Blocked</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>FYI: <strong>" + sanitize(delegatorName) + "</strong> has been permanently blocked. Your delegation and their team members continue to remain under your management.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
+    private String buildDelegatorUnblockedHtml(String delegateeName, String delegatorName) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — User Unblocked</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>FYI: <strong>" + sanitize(delegatorName) + "</strong> has been unblocked and is back to inactive status. Your delegation continues to be active.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
+    private String buildDelegationRestoredToDelegatorHtml(String delegatorName, String delegateeName) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>You Are Restored — Delegation Ended</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegatorName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Welcome back! Your account has been reactivated. Your delegation to <strong>" + sanitize(delegateeName) + "</strong> has ended and your team members have been returned to you.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
+    private String buildDelegationRestoredToDelegateeHtml(String delegateeName, String delegatorName) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Ended</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>The delegation from <strong>" + sanitize(delegatorName) + "</strong> has ended as they have been reactivated. Their team members have been automatically returned to them.</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
+
     // Prevent XSS — sanitize user input before putting in HTML
     private String sanitize(String input) {
         if (input == null) return "";

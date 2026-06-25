@@ -57,7 +57,12 @@ public class AdminContextResolver {
 
         if ("USER".equals(role)) {
             Optional<AddUser> opt = addUserRepository.findByUsername(principal);
-            if (!opt.isPresent() || opt.get().getStatus() != AddUser.UserStatus.ACTIVE) {
+            if (!opt.isPresent()) {
+                throw new IllegalStateException("REC_USER not found or inactive: " + principal);
+            }
+            AddUser.UserStatus st = opt.get().getStatus();
+            // Allow transitional statuses — only hard-block INACTIVE / BLOCKED / RETIRED
+            if (st == AddUser.UserStatus.INACTIVE || st == AddUser.UserStatus.BLOCKED || st == AddUser.UserStatus.RETIRED) {
                 throw new IllegalStateException("REC_USER not found or inactive: " + principal);
             }
             AddUser u = opt.get();
