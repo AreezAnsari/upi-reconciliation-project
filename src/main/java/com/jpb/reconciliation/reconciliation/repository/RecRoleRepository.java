@@ -52,5 +52,7 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
     // Bank Admin: roles they created (no branch scope — bank-level only)
     List<RecRole> findByBankCodeAndBranchCodeIsNull(String bankCode);
     
+    Optional<RecRole> findByRoleNameIgnoreCaseAndRoleType(String roleName, String roleType);
+    
 
 }

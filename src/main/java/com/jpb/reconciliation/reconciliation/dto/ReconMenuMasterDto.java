@@ -27,4 +27,6 @@ public class ReconMenuMasterDto {
 	private Long menuProcessId;
 	private String processType; 
 	private String reconFilePath;
+	
+	
 }

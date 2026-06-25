@@ -11,6 +11,8 @@ public class RecPermissionRowDTO {
 	 // moduleId from RecModule.id — call GET /api/v1/roles/modules to get valid ids
     private Long   moduleId;
     private String moduleName;  // populated in response, ignored on request
+    private Long   menuId;      // null = product-level, non-null = menu-level
+    
  
     @Builder.Default private boolean hasAccess   = false;
     @Builder.Default private boolean canView     = false;
