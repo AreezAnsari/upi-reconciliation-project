@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -57,7 +58,212 @@ public class EmailServiceImpl implements EmailService {
             throw new EmailDeliveryException("Failed to deliver OTP email (unexpected error): " + e.getMessage(), toEmail, e);
         }
     }
+ // ─────────────────────────────────────────────────────────────────────
+ // SEND PASSWORD CHANGE OTP EMAIL
+ // Sent when user updates password from Security page (different from forgot-password)
+ // ─────────────────────────────────────────────────────────────────────
+ @Override
+ public void sendPasswordChangeOtp(String toEmail, String userName,
+                                   String otpCode, int expiryMins) {
+     try {
+         MimeMessage message = mailSender.createMimeMessage();
+         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+         helper.setFrom(fromEmail, fromName);
+         helper.setTo(toEmail);
+         helper.setSubject("ReconXpert.Ai — Your OTP for Password Change");
+         helper.setText(buildPasswordChangeOtpHtml(userName, otpCode, expiryMins), true);
+
+         mailSender.send(message);
+         logger.info("Password change OTP email sent successfully to: {}", toEmail);
+
+     } catch (MessagingException e) {
+         logger.error("[EMAIL-DELIVERY-FAIL] Password change OTP — recipient: {} | reason: {}",
+                 toEmail, e.getMessage());
+         throw new EmailDeliveryException(
+                 "Failed to deliver password change OTP (messaging error): " + e.getMessage(),
+                 toEmail, e);
+     } catch (Exception e) {
+         logger.error("[EMAIL-DELIVERY-FAIL] Password change OTP — unexpected error — recipient: {} | reason: {}",
+                 toEmail, e.getMessage());
+         throw new EmailDeliveryException(
+                 "Failed to deliver password change OTP (unexpected error): " + e.getMessage(),
+                 toEmail, e);
+     }
+ }
+
+//─────────────────────────────────────────────────────────────────────
+//SEND PASSWORD CHANGED CONFIRMATION EMAIL
+//Sent after user successfully updates their password
+//─────────────────────────────────────────────────────────────────────
+@Override
+public void sendPasswordChangedConfirmation(String toEmail, String userName) {
+  try {
+      MimeMessage message = mailSender.createMimeMessage();
+      MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+      helper.setFrom(fromEmail, fromName);
+      helper.setTo(toEmail);
+      helper.setSubject("ReconXpert.Ai — Password Changed Successfully");
+      helper.setText(buildPasswordChangedHtml(userName), true);
+
+      mailSender.send(message);
+      logger.info("Password changed confirmation email sent to: {}", toEmail);
+
+  } catch (MessagingException e) {
+      logger.error("[EMAIL-DELIVERY-FAIL] Password changed confirmation — recipient: {} | reason: {}",
+              toEmail, e.getMessage());
+  } catch (Exception e) {
+      logger.error("[EMAIL-DELIVERY-FAIL] Password changed confirmation — unexpected — recipient: {} | reason: {}",
+              toEmail, e.getMessage());
+  }
+}
+
+//─────────────────────────────────────────────────────────────────────
+//HTML TEMPLATE — Password Changed Confirmation
+//─────────────────────────────────────────────────────────────────────
+private String buildPasswordChangedHtml(String userName) {
+  return "<!DOCTYPE html>"
+      + "<html lang='en'>"
+      + "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+      + "<title>Password Changed</title></head>"
+      + "<body style='margin:0;padding:0;background-color:#f4f6f9;font-family:Arial,Helvetica,sans-serif;'>"
+      + "<table width='100%' cellpadding='0' cellspacing='0' style='background-color:#f4f6f9;padding:40px 0;'>"
+      + "<tr><td align='center'>"
+      + "<table width='600' cellpadding='0' cellspacing='0' style='background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+      // ── Header ──
+      + "<tr><td style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:32px 40px;text-align:center;'>"
+      + "<h1 style='color:#d4a843;margin:0;font-size:24px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+      + "<p style='color:#94a3b8;margin:6px 0 0 0;font-size:13px;'>by KalInfotech</p>"
+      + "</td></tr>"
+
+      // ── Success banner ──
+      + "<tr><td style='background:rgba(34,197,94,0.08);border-bottom:3px solid #22c55e;padding:24px 40px;text-align:center;'>"
+      + "<p style='margin:0;font-size:36px;'>✅</p>"
+      + "<p style='margin:10px 0 0;font-size:20px;font-weight:700;color:#15803d;'>Password Changed Successfully</p>"
+      + "</td></tr>"
+
+      // ── Body ──
+      + "<tr><td style='padding:40px 40px 20px 40px;'>"
+      + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px 0;'>Dear <strong>" + sanitize(userName) + "</strong>,</p>"
+      + "<p style='font-size:14px;color:#64748b;margin:0 0 24px 0;line-height:1.7;'>"
+      + "Your password on <strong>ReconXpert.Ai</strong> has been successfully updated. "
+      + "Your 90-day password expiry cycle has been reset."
+      + "</p>"
+
+      // ── Details box ──
+      + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
+      + "<p style='margin:0 0 12px;font-size:13px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:1px;'>Update Details</p>"
+      + "<table width='100%' cellpadding='0' cellspacing='0'>"
+      + "<tr><td style='font-size:13px;color:#166534;padding:4px 0;width:160px;'>Action</td>"
+      + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>Password Changed</td></tr>"
+      + "<tr><td style='font-size:13px;color:#166534;padding:4px 0;'>Status</td>"
+      + "<td style='font-size:13px;font-weight:700;color:#15803d;padding:4px 0;'>Successful ✓</td></tr>"
+      + "<tr><td style='font-size:13px;color:#166534;padding:4px 0;'>Next Expiry</td>"
+      + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:4px 0;'>90 days from now</td></tr>"
+      + "</table></div>"
+
+      // ── What to do next ──
+      + "<p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>Important reminders:</p>"
+      + "<ol style='font-size:13px;color:#64748b;margin:0 0 24px 0;padding-left:20px;line-height:1.8;'>"
+      + "<li>Use your new password for all future logins</li>"
+      + "<li>Do not share your password with anyone</li>"
+      + "<li>You will receive reminder emails on day 80, 85, and 90</li>"
+      + "<li>Password must be updated before it expires to avoid lockout</li>"
+      + "</ol>"
+
+      // ── Security warning ──
+      + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;padding:12px 16px;margin-bottom:24px;'>"
+      + "<p style='margin:0;font-size:12px;color:#991b1b;'>"
+      + "<strong>Security Alert:</strong> If you did not make this change, please contact your administrator "
+      + "immediately at <strong>support@kalinfotech.com</strong> and reset your password."
+      + "</p></div>"
+
+      // ── Help ──
+      + "<p style='font-size:12px;color:#64748b;margin:0;text-align:center;'>"
+      + "Need help? Contact <strong>support@kalinfotech.com</strong>"
+      + "</p>"
+
+      + "</td></tr>"
+
+      // ── Footer ──
+      + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+      + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
+      + "<p style='margin:6px 0 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+      + "</td></tr>"
+
+      + "</table></td></tr></table></body></html>";
+}
+ // ─────────────────────────────────────────────────────────────────────
+ // HTML TEMPLATE — Password Change OTP Email
+ // ─────────────────────────────────────────────────────────────────────
+ private String buildPasswordChangeOtpHtml(String userName, String otpCode, int expiryMins) {
+     return "<!DOCTYPE html>"
+         + "<html lang='en'>"
+         + "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Password Change OTP</title></head>"
+         + "<body style='margin:0;padding:0;background-color:#f4f6f9;font-family:Arial,Helvetica,sans-serif;'>"
+         + "<table width='100%' cellpadding='0' cellspacing='0' style='background-color:#f4f6f9;padding:40px 0;'>"
+         + "<tr><td align='center'>"
+         + "<table width='600' cellpadding='0' cellspacing='0' style='background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+
+         // ── Header ──
+         + "<tr><td style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:32px 40px;text-align:center;'>"
+         + "<h1 style='color:#d4a843;margin:0;font-size:24px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+         + "<p style='color:#94a3b8;margin:6px 0 0 0;font-size:13px;'>by KalInfotech</p>"
+         + "</td></tr>"
+
+         // ── Status banner ──
+         + "<tr><td style='background:rgba(212,168,67,0.08);border-bottom:3px solid #d4a843;padding:20px 40px;text-align:center;'>"
+         + "<p style='margin:0;font-size:28px;'>🔐</p>"
+         + "<p style='margin:8px 0 0;font-size:18px;font-weight:700;color:#92400e;'>Password Change Request</p>"
+         + "</td></tr>"
+
+         // ── Body ──
+         + "<tr><td style='padding:40px 40px 20px 40px;'>"
+         + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px 0;'>Dear <strong>" + sanitize(userName) + "</strong>,</p>"
+         + "<p style='font-size:14px;color:#64748b;margin:0 0 28px 0;line-height:1.7;'>"
+         + "We received a request to <strong>change your password</strong> on ReconXpert.Ai. "
+         + "To confirm and proceed with this action, please use the One-Time Password (OTP) below."
+         + "</p>"
+
+         // ── OTP box ──
+         + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:8px 0 28px 0;'>"
+         + "<div style='background:#f8fafc;border:2px dashed #d4a843;border-radius:12px;padding:24px 32px;display:inline-block;text-align:center;'>"
+         + "<p style='margin:0 0 8px 0;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;'>Your One-Time Password</p>"
+         + "<p style='margin:0;font-size:40px;font-weight:bold;color:#1a1a2e;letter-spacing:10px;'>" + sanitize(otpCode) + "</p>"
+         + "<p style='margin:8px 0 0 0;font-size:12px;color:#ef4444;'>Valid for " + expiryMins + " minutes only</p>"
+         + "</div></td></tr></table>"
+
+         // ── Steps ──
+         + "<p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>To complete your password change:</p>"
+         + "<ol style='font-size:13px;color:#64748b;margin:0 0 24px 0;padding-left:20px;line-height:1.8;'>"
+         + "<li>Return to the password change page on ReconXpert.Ai</li>"
+         + "<li>Enter this 6-digit OTP in the verification field</li>"
+         + "<li>Click <strong>Verify &amp; Update Password</strong> to confirm</li>"
+         + "<li>Use your new password for future logins</li>"
+         + "</ol>"
+
+         // ── Security notice ──
+         + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;padding:12px 16px;margin-bottom:24px;'>"
+         + "<p style='margin:0;font-size:12px;color:#991b1b;'>"
+         + "<strong>Security Notice:</strong> If you did not request a password change, please ignore this email "
+         + "and contact your administrator immediately. Never share this OTP with anyone — KalInfotech will never ask for your OTP."
+         + "</p></div>"
+
+         // ── Help note ──
+         + "<p style='font-size:12px;color:#64748b;margin:0;text-align:center;'>"
+         + "Need help? Contact <strong>support@kalinfotech.com</strong>"
+         + "</p>"
+         + "</td></tr>"
+
+         // ── Footer ──
+         + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+         + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
+         + "<p style='margin:6px 0 0 0;font-size:11px;color:#cbd5e1;'>© KalInfotech | support@kalinfotech.com</p>"
+         + "</td></tr>"
+         + "</table></td></tr></table></body></html>";
+ }
     // ─────────────────────────────────────────────────────────────────────
     // SEND Bank Admin WELCOME EMAIL
     // Includes: Bank Code, User ID, Default Password, Verify Link
@@ -87,7 +293,7 @@ public class EmailServiceImpl implements EmailService {
             logger.error("[EMAIL-DELIVERY-FAIL] SuperUser welcome — unexpected error — recipient: {} | reason: {}", toEmail, e.getMessage());
         }
     }
-
+ 
     // ─────────────────────────────────────────────────────────────────────
     // HTML TEMPLATE — OTP Email
     // ─────────────────────────────────────────────────────────────────────

@@ -41,6 +41,7 @@ import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
+import com.jpb.reconciliation.reconciliation.security.PasswordAndSecurityUserAccessValidator;
 
 @Service
 public class BranchAdminServiceImpl implements BranchAdminService {
@@ -58,6 +59,7 @@ public class BranchAdminServiceImpl implements BranchAdminService {
     @Autowired private EmailService emailService;
     @Autowired private JwtHelper jwtHelper;
     @Autowired private AdminReplacementRepository adminReplacementRepository;
+    @Autowired private PasswordAndSecurityUserAccessValidator validator;
 
     // =========================================================================
     // verifyEmail — NEW_USER / OLD_USER check
@@ -125,7 +127,10 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                 new RestWithStatusList("OLD_USER", "Login directly.", null),
                 HttpStatus.OK);
     }
+    public void login(BranchAdmin user) {
 
+        validator.validate(user.getStatus());
+    }
     // =========================================================================
     // STEP 1 — verifyCredentials
     // POST /test/api/v1/BranchBank/verify-credentials
@@ -289,6 +294,8 @@ public class BranchAdminServiceImpl implements BranchAdminService {
             if (creatorOpt.isPresent()) resolvedCreatedBy = creatorOpt.get().getUsername();
         }
         branchAdmin.setCreatedBy(resolvedCreatedBy);
+        branchAdmin.setCreatedBy(bank.getCreatedBy());
+        branchAdmin.setPasswordUpdatedAt(LocalDateTime.now());
         branchAdminRepository.save(branchAdmin);
         logger.info("BRANCH_ADMIN record created for username={} BranchCode={}", username, branchCode);
 
@@ -415,6 +422,9 @@ public class BranchAdminServiceImpl implements BranchAdminService {
                             data),
                     HttpStatus.OK);
         }
+        data.add(user.getPasswordUpdatedAt() != null
+                ? user.getPasswordUpdatedAt().toString()
+                : null);
 
         return new ResponseEntity<>(
                 new RestWithStatusList("SUCCESS", "OTP sent successfully.", data),

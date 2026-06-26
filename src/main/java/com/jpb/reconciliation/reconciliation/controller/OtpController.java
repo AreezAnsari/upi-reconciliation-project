@@ -1,5 +1,7 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
+import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
+import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/otp")
@@ -47,6 +50,9 @@ public class OtpController {
     @Autowired
     private BranchBankRepository branchBankRepository;
 
+   // ✅ FIX: needed to look up the MainAdmin row by email so we can return
+    // its passwordUpdatedAt in the OTP-verify response (this is the row that
+    // actually has the field, per your entity confirmation).
     @Autowired
     private MainAdminRepository mainAdminRepository;
 
@@ -166,6 +172,53 @@ public class OtpController {
             String accessToken  = jwtHelper.generateToken(userDetails, jwtRole);
             String refreshToken = jwtHelper.generateTokenForRefresh(jwtSubject);
 
+            String bankCode = mainBankRepository
+                    .findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED")
+                    .map(bnk -> bnk.getBankCode())
+                    .orElseGet(() ->
+                        branchAdminRepository.findFirstByEmail(email)
+                            .map(ba -> ba.getBranchCode())
+                            .orElse(null)
+                    );
+            logger.info("[OTP-VERIFY] bankCode resolved for {}: {}", maskEmail(email), bankCode);
+
+            
+            String passwordUpdatedAt = null;
+
+            Optional<MainAdmin> mainAdminOpt =
+                    mainAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
+
+            if (mainAdminOpt.isPresent()) {
+
+                MainAdmin user = mainAdminOpt.get();
+
+                passwordUpdatedAt =
+                        user.getPasswordUpdatedAt() != null
+                                ? user.getPasswordUpdatedAt().toString()
+                                : user.getCreatedAt() != null
+                                        ? user.getCreatedAt().toString()
+                                        : null;
+
+            } else {
+
+                Optional<BranchAdmin> branchAdminOpt =
+                        branchAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
+
+                if (branchAdminOpt.isPresent()) {
+
+                    BranchAdmin user = branchAdminOpt.get();
+
+                    passwordUpdatedAt =
+                            user.getPasswordUpdatedAt() != null
+                                    ? user.getPasswordUpdatedAt().toString()
+                                    : user.getCreatedAt() != null
+                                            ? user.getCreatedAt().toString()
+                                            : null;
+                }
+            }
+            
+            logger.info("[OTP-VERIFY] passwordUpdatedAt resolved for {}: {}", maskEmail(email), passwordUpdatedAt);
+
             Map<String, Object> res = new HashMap<>();
             res.put("success",      true);
             res.put("message",      "OTP verified successfully.");
@@ -176,6 +229,13 @@ public class OtpController {
             if (resolvedBranchCode != null) {
                 res.put("branchCode", resolvedBranchCode);
             }
+            res.put("success",         true);
+            res.put("message",         "OTP verified successfully.");
+            res.put("accessToken",     accessToken);
+            res.put("refreshToken",    refreshToken);
+            res.put("email",           email);
+            res.put("bankCode", bankCode); // ← "47050033" → frontend stores first 4 as prefix
+            res.put("passwordUpdatedAt", passwordUpdatedAt); // ✅ FIX: fresh DB value, not client time
 
             return ResponseEntity.ok(res);
 

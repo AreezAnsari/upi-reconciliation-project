@@ -21,7 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
-
+import com.jpb.reconciliation.reconciliation.security.PasswordAndSecurityUserAccessValidator;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminSetPasswordDto;
 import com.jpb.reconciliation.reconciliation.dto.MainAdminVerifyDto;
@@ -81,6 +81,8 @@ public class MainAdminServiceImpl implements MainAdminService {
     @Autowired
     private JwtHelper jwtHelper;
 
+    @Autowired private PasswordAndSecurityUserAccessValidator validator;
+
     // =========================================================================
     // verifyEmail
     // GET /test/api/v1/bank/verify-email?bankCode=xxx&username=yyy
@@ -89,6 +91,12 @@ public class MainAdminServiceImpl implements MainAdminService {
     //   - Record nahi / passwordSet=false → NEW_USER
     //   - passwordSet=true                → OLD_USER
     // =========================================================================
+    
+    public void login(MainAdmin user) {
+
+        validator.validate(user.getStatus());
+
+    }
     @Override
     public ResponseEntity<RestWithStatusList> verifyEmail(
             String bankCode, String username) {
@@ -347,6 +355,8 @@ public class MainAdminServiceImpl implements MainAdminService {
             if (kalCreatorOpt.isPresent()) resolvedCreatedBy = kalCreatorOpt.get().getUserName();
         }
         mainAdmin.setCreatedBy(resolvedCreatedBy);
+        mainAdmin.setCreatedBy(bank.getCreatedBy()); // admin username from TEST_BANK
+        mainAdmin.setPasswordUpdatedAt(LocalDateTime.now());
         mainAdminRepository.save(mainAdmin);
         logger.info("BANK_ADMIN record created for username={} bankCode={}", username, bankCode);
 
@@ -502,8 +512,12 @@ public class MainAdminServiceImpl implements MainAdminService {
         user.setUpdatedAt(LocalDateTime.now());
         mainAdminRepository.save(user);
 
+     // ✅ FIX — email + passwordUpdatedAt dono return karo
         List<Object> data = new ArrayList<>();
         data.add(email);
+        data.add(user.getPasswordUpdatedAt() != null
+                ? user.getPasswordUpdatedAt().toString()
+                : null);
 
         if ("INACTIVE_PENDING".equalsIgnoreCase(userStatus)) {
             return new ResponseEntity<>(
@@ -904,6 +918,7 @@ public class MainAdminServiceImpl implements MainAdminService {
         // Password reset + OTP clear (one-time use)
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setPasswordSet(1);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
         user.setForgotOtp(null);
         user.setForgotOtpExpiry(null);
         user.setUpdatedAt(LocalDateTime.now());

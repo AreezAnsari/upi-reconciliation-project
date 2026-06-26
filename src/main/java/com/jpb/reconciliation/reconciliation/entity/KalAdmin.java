@@ -1,7 +1,7 @@
 package com.jpb.reconciliation.reconciliation.entity;
 
 import java.time.LocalDateTime;
-
+import com.fasterxml.jackson.annotation.JsonFormat;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -89,7 +89,12 @@ public class KalAdmin {
 	
 	@Column(name = "LAST_LOGIN")
 	private LocalDateTime lastLoginDateTime;
-
+	
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @Column(name = "password_updated_at")
+    private LocalDateTime passwordUpdatedAt;
+	
+	
 	public Long getUserId() {
 		return userId;
 	}

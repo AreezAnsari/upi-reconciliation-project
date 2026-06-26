@@ -23,6 +23,9 @@ public class OtpService {
 
     @Autowired
     private JavaMailSender mailSender;
+    
+    @Autowired
+    EmailService emailService;
 
     // Use the configured from address — must match SMTP authenticated account
     @Value("${app.mail.from}")
@@ -60,6 +63,32 @@ public class OtpService {
         }
     }
 
+ // ─────────────────────────────────────────────────────────────────────
+ // Generate + send OTP for PASSWORD CHANGE
+ // Different from forgot-password OTP — uses different email template
+ // ─────────────────────────────────────────────────────────────────────
+ public void generateAndSendPasswordChangeOtp(String email, String userName) {
+     String key = email.toLowerCase();
+     String otp = generateOtp();
+     LocalDateTime expiry = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
+
+     // Store OTP tentatively
+     otpStore.put(key, new OtpEntry(otp, expiry, 0));
+
+     try {
+         // ✅ Call NEW email method (password change template)
+         emailService.sendPasswordChangeOtp(email, userName, otp, OTP_EXPIRY_MINUTES);
+         logger.info("[OTP-OK] Password change OTP generated and delivered to: {}", key);
+     } catch (Exception e) {
+         // Rollback on email failure
+         otpStore.remove(key);
+         logger.error("[OTP-ROLLBACK] Password change OTP removed for {} after email delivery failure: {}",
+                 key, e.getMessage());
+         throw new EmailDeliveryException(
+             "Password change OTP could not be delivered to " + email + ". Please try again.",
+             email, e);
+     }
+ }
     // Generates + stores OTP but returns the code so caller can send via EmailService
     public String generateOtpForEmail(String email) {
         String otp = generateOtp();
