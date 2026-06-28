@@ -13,9 +13,8 @@ import org.springframework.stereotype.Service;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
-import com.jpb.reconciliation.reconciliation.entity.KalAdminPasswordManager;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
-import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;
 
 @Service
@@ -30,7 +29,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
     private EmailService emailService;
 
     @Autowired
-    private KalAdminRepository KalAdminRepository;
+    private ReconUserRepository reconUserRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -48,7 +47,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
         }
         String email = request.getEmail().trim().toLowerCase();
 
-        Optional<KalAdmin> userOpt = KalAdminRepository.findByEmailId(email);
+        Optional<ReconUser> userOpt = reconUserRepository.findByEmail(email);
         if (!userOpt.isPresent()) {
             logger.warn("Forgot password requested for unregistered email: {}", email);
             return ResponseEntity.ok(
@@ -58,7 +57,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
             );
         }
 
-        KalAdmin user = userOpt.get();
+        ReconUser user = userOpt.get();
 
         String otpCode = null;
         try {
@@ -66,7 +65,7 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
             otpCode = otpService.generateOtpForEmail(email);
 
             // Attempt email delivery — throws RuntimeException on failure
-            emailService.sendForgotPasswordOtp(email, user.getUserName(), otpCode, otpService.getOtpExpiryMinutes());
+            emailService.sendForgotPasswordOtp(email, user.getUsername(), otpCode, otpService.getOtpExpiryMinutes());
 
             logger.info("OTP generated and delivered successfully to: {}", email);
 
@@ -147,17 +146,14 @@ public class ForgotPasswordServiceImpl implements ForgotPasswordService {
                 );
         }
 
-        Optional<KalAdmin> userOpt = KalAdminRepository.findByEmailId(email);
+        Optional<ReconUser> userOpt = reconUserRepository.findByEmail(email);
         if (!userOpt.isPresent()) {
             return ResponseEntity.ok(new ForgotPasswordResponseDto("400", "User not found."));
         }
 
-        KalAdmin user = userOpt.get();
-        KalAdminPasswordManager pm = user.getPasswordManager();
-        pm.setUserPassword(passwordEncoder.encode(newPwd));
-        pm.setExpirationDate(LocalDateTime.now());
-        user.setPasswordManager(pm);
-        KalAdminRepository.save(user);
+        ReconUser user = userOpt.get();
+        user.setPasswordHash(passwordEncoder.encode(newPwd));
+        reconUserRepository.save(user);
 
         logger.info("Password reset successfully for: {}", email);
         return ResponseEntity.ok(

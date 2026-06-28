@@ -24,12 +24,12 @@ import com.jpb.reconciliation.reconciliation.controller.ExtractionController;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.entity.SchedulerJob;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessDefMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.SchedulerRepository;
 
 import net.sf.jasperreports.engine.JRException;
@@ -53,7 +53,7 @@ public class SchedulerServiceImpl implements SchedulerService {
 	SchedulerRepository schedulerRepository;
 
 	@Autowired
-	KalAdminRepository KalAdminRepository;
+	ReconUserRepository reconUserRepository;
 
 	@Autowired
 	ExtractionController extractionController;
@@ -134,7 +134,8 @@ public class SchedulerServiceImpl implements SchedulerService {
 				job.getFileId());
 		Long userId = new Long(job.getInsUser());
 		Long processId = new Long(job.getFileId());
-		KalAdmin userData = KalAdminRepository.findByUserId(userId).get();
+		ReconUser userData = reconUserRepository.findById(userId)
+				.orElseThrow(() -> new RuntimeException("Scheduled job user not found: " + userId));
 		if (job.getScheduleType().equalsIgnoreCase("Extraction")) {
 			ReconFileDetailsMaster reconFileDetails = reconFileDetailsMasterRepository.findByReconFileId(processId);
 			logger.info("FILE DETAILS WITH TEMPLATE DETAILS :::::::::::::::::" + reconFileDetails);

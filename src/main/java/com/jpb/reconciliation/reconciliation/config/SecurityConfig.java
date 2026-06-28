@@ -50,9 +50,12 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/auth/forgot-password")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/auth/reset-password")).permitAll()
 
+                // V2 Auth — login, refresh, logout, /me (all JWT-free login flows)
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/auth/**")).permitAll()
+
                 // User APIs
-                .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create-user")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/api/v1/user/create")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/user/create-user")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/user/create")).permitAll()
 
                 // User Auth (onboarding + login flow — no JWT required)
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/user/auth/**")).permitAll()

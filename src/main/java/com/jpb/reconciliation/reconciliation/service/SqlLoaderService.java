@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 
 import net.sf.jasperreports.engine.JRException;
 
@@ -15,7 +15,7 @@ import net.sf.jasperreports.engine.JRException;
 public interface SqlLoaderService {
 
 	String startLoading(String generateControlFile, String generateLogFile, String generateBadFile,
-			ReconFileDetailsMaster reconFileDetails, ReconBatchProcessEntity reconProcessManager, KalAdmin userDetails, File file)
+			ReconFileDetailsMaster reconFileDetails, ReconBatchProcessEntity reconProcessManager, ReconUser userDetails, File file)
 			throws JRException, IOException;
 
 }

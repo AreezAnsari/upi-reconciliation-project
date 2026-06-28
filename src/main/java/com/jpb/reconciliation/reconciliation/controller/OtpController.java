@@ -1,12 +1,11 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
-import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
-import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
-import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
-import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
+import com.jpb.reconciliation.reconciliation.entity.ReconBankMaster;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.ReconBankMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
-import com.jpb.reconciliation.reconciliation.service.MainAdminService;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;
 
@@ -36,19 +35,10 @@ public class OtpController {
     private JwtHelper jwtHelper;
 
     @Autowired
-    private MainAdminService mainAdminService;
+    private ReconUserRepository reconUserRepository;
 
     @Autowired
-    private MainBankRepository mainBankRepository;
-
-    @Autowired
-    private BranchAdminRepository branchAdminRepository;
-
-    @Autowired
-    private BranchBankRepository branchBankRepository;
-
-    @Autowired
-    private MainAdminRepository mainAdminRepository;
+    private ReconBankMasterRepository reconBankMasterRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -108,49 +98,39 @@ public class OtpController {
 
         if (result == OtpVerifyResult.SUCCESS) {
 
-            // ── Bank status → ACTIVE (first login ke baad) ──
-            try {
-                mainAdminService.activateBank(email);
-            } catch (Exception e) {
-                System.out.println("Warning: Could not activate bank for "
-                    + email + ": " + e.getMessage());
-                e.printStackTrace();
-            }
-
             // ── Resolve bankCode, branchCode, and JWT subject by email ──
-            // Bank Admin  → subject = email   (MainAdmin lookup uses email)
-            // Branch Admin → subject = username (avoids collision with BANK_ADMIN email records)
             String resolvedBankCode   = null;
             String resolvedBranchCode = null;
-            String jwtSubject         = email; // default for Bank Admin
+            String jwtSubject         = email;
 
-            java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> mainBankOpt =
-                    mainBankRepository.findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED");
-            if (mainBankOpt.isPresent()) {
-                resolvedBankCode = mainBankOpt.get().getBankCode();
-            } else {
-                java.util.Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> baOpt =
-                        branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
-                if (baOpt.isPresent()) {
-                    resolvedBranchCode = baOpt.get().getBranchCode();
-                    resolvedBankCode = branchBankRepository.findByBranchCode(resolvedBranchCode)
-                            .map(bb -> mainBankRepository.findById(bb.getParentBankId())
-                                    .map(bnk -> bnk.getBankCode())
-                                    .orElse(null))
-                            .orElse(null);
-                    jwtSubject = baOpt.get().getUsername(); // Branch Admin: username as subject
-                } else {
-                    // Replacement bank admin: their email is not the bank's primaryEmail,
-                    // so look them up directly in MainAdmin to get bankCode and real username.
-                    java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> maOpt =
-                            mainAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
-                    if (maOpt.isPresent() && maOpt.get().getBankCode() != null) {
-                        resolvedBankCode = maOpt.get().getBankCode();
-                        jwtSubject = maOpt.get().getUsername(); // use actual DB username, not email
-                        logger.info("[OTP-VERIFY] Replacement bank admin detected — username='{}' bankCode='{}'",
-                                jwtSubject, resolvedBankCode);
+            java.util.Optional<ReconUser> userOpt = reconUserRepository.findByEmail(email);
+            if (userOpt.isPresent()) {
+                ReconUser user = userOpt.get();
+                jwtSubject = user.getUsername();
+
+                // Activate user on first OTP login if still ACTIVE_PENDING
+                if ("ACTIVE_PENDING".equals(user.getStatus())) {
+                    user.setStatus("ACTIVE");
+                    user.setApprovedYn("Y");
+                    reconUserRepository.save(user);
+                }
+
+                if (user.getBankId() != null) {
+                    java.util.Optional<ReconBankMaster> bankOpt = reconBankMasterRepository.findById(user.getBankId());
+                    if (bankOpt.isPresent()) {
+                        ReconBankMaster bank = bankOpt.get();
+                        resolvedBankCode = bank.getBankCode();
+                        if ("BRANCH".equals(bank.getBankType())) {
+                            resolvedBranchCode = bank.getBankCode();
+                            if (bank.getParentBankId() != null) {
+                                resolvedBankCode = reconBankMasterRepository.findById(bank.getParentBankId())
+                                        .map(ReconBankMaster::getBankCode).orElse(null);
+                            }
+                        }
                     }
                 }
+                logger.info("[OTP-VERIFY] user='{}' userType='{}' bankCode='{}' branchCode='{}'",
+                        jwtSubject, user.getUserType(), resolvedBankCode, resolvedBranchCode);
             }
             logger.info("[OTP-VERIFY] bankCode={} branchCode={} jwtSubject={} for {}",
                     resolvedBankCode, resolvedBranchCode, jwtSubject, maskEmail(email));

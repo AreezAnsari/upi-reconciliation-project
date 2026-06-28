@@ -1,28 +1,21 @@
 package com.jpb.reconciliation.reconciliation.dto;
 
-public class AdminContext {
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-    private final String username;
-    private final String bankCode;
-    private final String branchCode;   // null for Bank Admin
-    private final Long   creatorUserId; // non-null only when creator is a USER (not admin)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class AdminContext {
+    private String username;
+    private String bankCode;
+    private String branchCode;
+    private Long userId;
 
     public AdminContext(String username, String bankCode, String branchCode) {
-        this(username, bankCode, branchCode, null);
+        this.username = username;
+        this.bankCode = bankCode;
+        this.branchCode = branchCode;
     }
-
-    public AdminContext(String username, String bankCode, String branchCode, Long creatorUserId) {
-        this.username       = username;
-        this.bankCode       = bankCode;
-        this.branchCode     = branchCode;
-        this.creatorUserId  = creatorUserId;
-    }
-
-    public String getUsername()      { return username;      }
-    public String getBankCode()      { return bankCode;      }
-    public String getBranchCode()    { return branchCode;    }
-    public Long   getCreatorUserId() { return creatorUserId; }
-
-    public boolean isBranchAdmin()  { return branchCode != null && creatorUserId == null; }
-    public boolean isUserCreator()  { return creatorUserId != null; }
 }

@@ -7,14 +7,14 @@ import java.util.concurrent.CompletableFuture;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 
 public interface LoadMasterService {
 	
 			CompletableFuture<String> startDataLoading(Long processId, ReconFileDetailsMaster reconFileDetails,
-			KalAdmin userData, ReconBatchProcessEntity extractionStatus, LoadMasterEntity loadMasterEntity);
+			ReconUser userData, ReconBatchProcessEntity extractionStatus, LoadMasterEntity loadMasterEntity);
 	public ReconBatchProcessEntity extractionRunningStatusforGlFlagY( Long processId,
-			ReconFileDetailsMaster reconFileDetails, KalAdmin userData);
+			ReconFileDetailsMaster reconFileDetails, ReconUser userData);
 	
 	
 }

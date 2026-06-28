@@ -21,10 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessManagerRepository;
-import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReportRepository;
 import com.jpb.reconciliation.reconciliation.service.jasper.JasperReportService;
 
@@ -53,9 +52,6 @@ public class SqlLoaderServiceImpl implements SqlLoaderService {
 	SegretionService segretionService;
 
 	@Autowired
-	KalAdminRepository KalAdminRepository;
-
-	@Autowired
 	ReconBatchProcessEntityRepository reconBatchProcessEntityRepository;
 
 	@Autowired
@@ -75,7 +71,7 @@ public class SqlLoaderServiceImpl implements SqlLoaderService {
 
 	@Override
 	public String startLoading(String controlFile, String logFile, String badFile,
-			ReconFileDetailsMaster reconFileDetails, ReconBatchProcessEntity reconProcessManager, KalAdmin userDetails,
+			ReconFileDetailsMaster reconFileDetails, ReconBatchProcessEntity reconProcessManager, ReconUser userDetails,
 			File file) throws JRException, IOException {
 
 		String cmd = "sqlldr " + userName + "/" + password + url + " control=" + controlFile + " log=" + logFile
@@ -200,7 +196,7 @@ public class SqlLoaderServiceImpl implements SqlLoaderService {
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	private void updateBatchProcessStatus(ReconBatchProcessEntity reconProcessManager,
-			ReconFileDetailsMaster reconFileDetails, KalAdmin userDetails, int exitCode, String processOutput,
+			ReconFileDetailsMaster reconFileDetails, ReconUser userDetails, int exitCode, String processOutput,
 			String errorOutput, String dataCount) {
 		if (exitCode != 0) {
 			reconProcessManager.setExtractionStatus("Error");

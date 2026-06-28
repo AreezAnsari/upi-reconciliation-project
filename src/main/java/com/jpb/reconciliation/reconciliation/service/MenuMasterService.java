@@ -11,20 +11,19 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 @Service
 public interface MenuMasterService {
 
-	boolean updateMenu(ReconMenuMasterDto menuDto);
+    boolean updateMenu(ReconMenuMasterDto menuDto);
 
-	ResponseEntity<RestWithStatusList> getMenus(Long menuId);
+    ResponseEntity<RestWithStatusList> getMenus(Long menuId);
 
-	ResponseEntity<RestWithStatusList> getAllMenus();
+    ResponseEntity<RestWithStatusList> getAllMenus();
 
-	ResponseEntity<RestWithStatusList> getMenuByUserId(Long userId);
+    ResponseEntity<RestWithStatusList> getMenuByUserId(Long userId);
 
-	ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails);
+    ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails);
 
-	ResponseEntity<ResponseDto> removeMenu(Long menuId);
+    ResponseEntity<ResponseDto> removeMenu(Long menuId);
 
-	ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId);
+    ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId);
 
-	Long getVerifiedRoleId(String username);
-
+    Long getVerifiedRoleId(String username);
 }

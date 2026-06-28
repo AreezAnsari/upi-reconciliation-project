@@ -27,7 +27,7 @@ import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.LoadMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 
@@ -63,7 +63,7 @@ public class LoadMasterServiceImpl implements LoadMasterService {
 	@Override
 
 	public CompletableFuture<String> startDataLoading(Long processId, ReconFileDetailsMaster reconFileDetails,
-			KalAdmin userData, ReconBatchProcessEntity extractionStatus, LoadMasterEntity loadMasterEntity) {
+			ReconUser userData, ReconBatchProcessEntity extractionStatus, LoadMasterEntity loadMasterEntity) {
 
 		try {
 			if (callProcedure(processId, loadMasterEntity)) {
@@ -140,7 +140,7 @@ public class LoadMasterServiceImpl implements LoadMasterService {
 
 	@Override
 	public ReconBatchProcessEntity extractionRunningStatusforGlFlagY(Long processId,
-			ReconFileDetailsMaster reconFileDetails, KalAdmin userData) {
+			ReconFileDetailsMaster reconFileDetails, ReconUser userData) {
 
 		logger.info("PROCESS ID ::::::::::::" + processId);
 		ReconBatchProcessEntity process = new ReconBatchProcessEntity();

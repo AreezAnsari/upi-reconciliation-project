@@ -13,18 +13,18 @@ import lombok.ToString;
 @ToString
 public class ReconMenuMasterDto {
 
-	private Long menuId;
-	private String menuType;
-	private String menuName;
-	private String menuDescription;
-	private String parentMenuCode;
-	private String masterMenuParent;
-	private String subMenuReq;
-	private String menuUrl;
-	private String operations;
-	private Long userId;
-	private Long roleId;
-	private Long menuProcessId;
-	private String processType; 
-	private String reconFilePath;
+    private Long menuId;
+    private String menuType;
+    private String menuName;
+    private String menuDescription;
+    private String parentMenuCode;
+    private String masterMenuParent;
+    private String subMenuReq;
+    private String menuUrl;
+    private String operations;
+    private Long userId;
+    private Long roleId;
+    private Long menuProcessId;
+    private String processType;
+    private String reconFilePath;
 }

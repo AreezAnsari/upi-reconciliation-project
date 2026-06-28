@@ -71,8 +71,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/h2-console")
 
                 // User APIs
-                || path.startsWith("/api/v1/user/create-user")
-                || path.startsWith("/api/v1/user/auth/")
+                || path.startsWith("/api/v2/user/create")
+                || path.startsWith("/api/v2/user/auth/")
 
                 // Bank APIs
                 || path.startsWith("/test/api/v1/bank/verify-credentials")

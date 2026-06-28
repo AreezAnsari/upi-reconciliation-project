@@ -33,10 +33,9 @@ import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto.ProcessManage
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessManagerRepository;
-import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.service.jasper.JasperReportService;
 
 @Service
@@ -59,9 +58,6 @@ public class ReconciliationServiceImpl implements ReconciliationService {
 	ReportGenerationService reportGenerationService;
 
 	@Autowired
-	KalAdminRepository KalAdminRepository;
-
-	@Autowired
 	AuditLogManagerService auditLogManagerService;
 
 	@Autowired
@@ -77,7 +73,7 @@ public class ReconciliationServiceImpl implements ReconciliationService {
 
 	@Override
 	public List<ReconBatchProcessEntity> runReconciliation(Long processId, ReconProcessDefMaster reconProcessDefMaster,
-			KalAdmin userData) {
+			ReconUser userData) {
 		List<ReconBatchProcessEntity> processList = new ArrayList<>();
 		ReconBatchProcessEntity process = new ReconBatchProcessEntity();
 		process.setProcessId(reconProcessDefMaster.getReconProcessId());
@@ -142,7 +138,7 @@ public class ReconciliationServiceImpl implements ReconciliationService {
 	@Async
 	public CompletableFuture<String> startReconciliation(Long processId,
 			List<ReconBatchProcessEntity> reconciliationStatus, ReconProcessDefMaster reconProcessDefMaster,
-			KalAdmin userData) {
+			ReconUser userData) {
 		try {
 			boolean purgeReconStatus = this.purgeReconProcess(processId);
 			logger.info("preReconProcessStatus ::::::::::::::::::" + purgeReconStatus);

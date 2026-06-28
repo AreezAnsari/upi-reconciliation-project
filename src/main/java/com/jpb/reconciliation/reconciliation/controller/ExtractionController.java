@@ -28,11 +28,11 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.LoadMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.ExtractionService;
 import com.jpb.reconciliation.reconciliation.service.LoadMasterService;
 import com.jpb.reconciliation.reconciliation.service.LoadMasterServiceImpl;
@@ -59,7 +59,7 @@ public class ExtractionController {
 	ReportGenerationService reportGenerationService;
 
 	@Autowired
-	KalAdminRepository KalAdminRepository;
+	ReconUserRepository reconUserRepository;
 
 	@Autowired
 	private LoadMasterRepository loadMasterRepository;
@@ -84,7 +84,8 @@ public class ExtractionController {
 		// Find file details by file id
 		ReconFileDetailsMaster reconFileDetails = reconFileDetailsMasterRepository.findByReconFileId(processId);
 		logger.info("FILE DETAILS WITH TEMPLATE DETAILS :::::::::::::::::" + reconFileDetails);
-		KalAdmin userData = KalAdminRepository.findByUserName(userDetails.getUsername()).get();
+		ReconUser userData = reconUserRepository.findByUsername(userDetails.getUsername())
+				.orElseThrow(() -> new RuntimeException("User not found: " + userDetails.getUsername()));
 		// Find running process by file id
 		List<ReconBatchProcessEntity> checkProcessIsRunning = reconBatchProcessEntityRepository
 				.findByProcessIdAndStatus(processId, "Running");

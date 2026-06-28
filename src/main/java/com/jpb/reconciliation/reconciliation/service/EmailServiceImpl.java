@@ -43,7 +43,7 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Your Password Reset OTP");
+            helper.setSubject("ReconXpert.Ai | Password Reset Verification Code");
             helper.setText(buildOtpEmailHtml(userName, otpCode, expiryMins), true);
 
             mailSender.send(message);
@@ -74,7 +74,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — You have been added as Bank Admin of " + bankName);
+            helper.setSubject("ReconXpert.Ai | Welcome! Your Bank Administrator Account Has Been Created");
             helper.setText(buildSuperUserWelcomeHtml(
                 superUserName, bankName, bankCode,
                 superUserId, defaultPassword, verifyLink), true);
@@ -105,7 +105,7 @@ public class EmailServiceImpl implements EmailService {
             + "</td></tr>"
             + "<tr><td style='padding:40px 40px 20px 40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px 0;'>Dear <strong>" + sanitize(userName) + "</strong>,</p>"
-            + "<p style='font-size:14px;color:#64748b;margin:0 0 28px 0;'>We received a request to reset your password on ReconXpert.Ai. Use the OTP below to proceed.</p>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 28px 0;'>We have received a request to reset the password associated with your ReconXpert.Ai account. To proceed, please use the One-Time Password (OTP) provided below to verify your identity.</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:8px 0 28px 0;'>"
             + "<div style='background:#f8fafc;border:2px dashed #d4a843;border-radius:12px;padding:24px 32px;display:inline-block;text-align:center;'>"
             + "<p style='margin:0 0 8px 0;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;'>Your One-Time Password</p>"
@@ -119,7 +119,7 @@ public class EmailServiceImpl implements EmailService {
             + "<li>Log in with your new credentials</li>"
             + "</ol>"
             + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:6px;padding:12px 16px;margin-bottom:24px;'>"
-            + "<p style='margin:0;font-size:12px;color:#991b1b;'><strong>Security Notice:</strong> Never share this OTP with anyone. KalInfotech will never ask for your OTP. If you did not request this, please ignore this email — your account is safe.</p>"
+            + "<p style='margin:0;font-size:12px;color:#991b1b;'><strong>Security Notice:</strong> For your security, never share your OTP with anyone. KalInfotech will never ask you to disclose your OTP through email, phone, or any other communication channel. If you did not request a password reset, please disregard this email. Your account will remain secure.</p>"
             + "</div>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
@@ -153,8 +153,10 @@ public class EmailServiceImpl implements EmailService {
             // Greeting
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
-            + "You have been added as the <strong>Bank Admin</strong> of "
-            + "<strong>" + sanitize(bankName) + "</strong> on ReconXpert.Ai by KalInfotech Admin."
+            + "Welcome to <strong>ReconXpert.Ai</strong>. "
+            + "You have been successfully appointed as the <strong>Bank Administrator</strong> for "
+            + "<strong>" + sanitize(bankName) + "</strong> by the KalInfotech Administration. "
+            + "Please use the credentials below to activate your account."
             + "</p>"
 
             // Credentials box — Bank Code, User ID, Default Password
@@ -217,7 +219,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Bank Status Update: " + bankName);
+            helper.setSubject("ReconXpert.Ai | Account Status Update for " + bankName);
             helper.setText(buildStatusChangeHtml(superUserName, bankName, bankCode, oldStatus, newStatus), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Status change — recipient: {} | bank: {} | {} → {}", toEmail, bankCode, oldStatus, newStatus);
@@ -337,7 +339,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Sub-Institute Status Update: " + branchBankName);
+            helper.setSubject("ReconXpert.Ai | Branch Institution Status Update – " + branchBankName);
             helper.setText(buildSubInstituteStatusHtml(
                     contactName, branchBankName, branchBankCode,
                     oldStatus, newStatus, parentBankName, parentBankCode), true);
@@ -488,7 +490,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + bankName);
+            helper.setSubject("ReconXpert.Ai | Important Notice: Scheduled Account Block for " + bankName);
             helper.setText(buildBlockWarningHtml(superUserName, bankName, bankCode, blockAt), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Block warning — recipient: {} | bank: {} | blockAt: {}",
@@ -516,7 +518,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("⚠️ ReconXpert.Ai — Block Notice: " + branchBankName);
+            helper.setSubject("ReconXpert.Ai | Important Notice: Scheduled Account Block for " + branchBankName);
             helper.setText(buildSubBlockWarningHtml(contactName, branchBankName, branchBankCode,
                     parentBankName, parentBankCode, blockAt), true);
             mailSender.send(message);
@@ -544,7 +546,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + bankName);
+            helper.setSubject("ReconXpert.Ai | Scheduled Account Block Cancelled – " + bankName);
             helper.setText(buildBlockCancelledHtml(superUserName, bankName, bankCode, restoredStatus), true);
             mailSender.send(message);
             logger.info("[EMAIL-OK] Block cancelled — recipient: {} | bank: {}", toEmail, bankCode);
@@ -570,7 +572,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("✅ ReconXpert.Ai — Block Cancelled: " + branchBankName);
+            helper.setSubject("ReconXpert.Ai | Scheduled Account Block Cancelled – " + branchBankName);
             helper.setText(buildSubBlockCancelledHtml(contactName, branchBankName, branchBankCode,
                     parentBankName, parentBankCode), true);
             mailSender.send(message);
@@ -884,7 +886,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Bank Profile Updated: " + bankName);
+            helper.setSubject("ReconXpert.Ai | Bank Profile Update Notification – " + bankName);
             helper.setText(buildBankUpdateHtml(contactName, bankName, bankCode,
                     updatedAt, changesBySections), true);
             mailSender.send(message);
@@ -1027,11 +1029,11 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Inactivation Scheduled: " + entityName);
+            helper.setSubject("ReconXpert.Ai | Scheduled Account Inactivation – " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
                     "ACTIVE", "INACTIVE_PENDING",
-                    "Your account has been scheduled for inactivation. It will be marked <strong>Inactive</strong> on "
-                    + sanitize(inactivateAt) + ". If this was not authorized, please contact your administrator immediately to cancel.",
+                    "Your account has been scheduled for inactivation. Your account will automatically become <strong>Inactive</strong> on <strong>"
+                    + sanitize(inactivateAt) + "</strong>. If this change was not authorized or requires review, please contact your administrator before the scheduled inactivation time.",
                     "#6366f1", "⏸");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1053,11 +1055,11 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Inactivation Cancelled: " + entityName);
+            helper.setSubject("ReconXpert.Ai | Scheduled Account Inactivation Cancelled – " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
                     "INACTIVE_PENDING", "ACTIVE",
-                    "The scheduled inactivation of your account has been successfully cancelled by the administrator. "
-                    + "Your account has been restored to <strong>Active</strong> status — no further action is required.",
+                    "We are pleased to inform you that the scheduled inactivation of your account has been cancelled by the administrator. "
+                    + "Your account has been restored to <strong>Active</strong> status, and no further action is required.",
                     "#22c55e", "✅");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1079,11 +1081,12 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Account Inactivated: " + entityName);
+            helper.setSubject("ReconXpert.Ai | Account Successfully Inactivated – " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
                     "INACTIVE_PENDING", "INACTIVE",
-                    "Your account has been marked <strong>Inactive</strong>. Access to the ReconXpert.Ai platform has been suspended. "
-                    + "Please contact your administrator if you require reactivation.",
+                    "This is to notify you that your account has been successfully changed to <strong>Inactive</strong> status. "
+                    + "As a result, access to the ReconXpert.Ai platform has been suspended. "
+                    + "If you require your account to be reactivated, please contact your administrator.",
                     "#6366f1", "⏸");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1106,11 +1109,12 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Reactivation Scheduled: " + entityName);
+            helper.setSubject("ReconXpert.Ai | Scheduled Account Reactivation – " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
                     "INACTIVE", "ACTIVE_PENDING",
-                    "Your account has been scheduled for reactivation. It will be marked <strong>Active</strong> on "
-                    + sanitize(reactivateAt) + ". No action is required on your part.",
+                    "We are pleased to inform you that your account has been scheduled for reactivation. "
+                    + "Your account status will automatically change to <strong>Active</strong> on <strong>"
+                    + sanitize(reactivateAt) + "</strong>. No action is required from your side.",
                     "#22c55e", "🔄");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1132,11 +1136,12 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Reactivation Cancelled: " + entityName);
+            helper.setSubject("ReconXpert.Ai | Scheduled Account Reactivation Cancelled – " + entityName);
             String body = buildStatusPendingHtml(contactName, entityName, entityCode,
                     "ACTIVE_PENDING", "INACTIVE",
-                    "The scheduled reactivation of your account has been cancelled by the administrator. "
-                    + "Your account status remains <strong>Inactive</strong>. Please contact your administrator if you require assistance.",
+                    "This is to inform you that the scheduled reactivation of your account has been cancelled by the administrator. "
+                    + "Your account will remain <strong>Inactive</strong> until further notice. "
+                    + "If you believe this action was made in error or require assistance, please contact your administrator.",
                     "#6366f1", "⏸");
             helper.setText(body, true);
             mailSender.send(message);
@@ -1159,7 +1164,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Account Reactivated: " + entityName);
+            helper.setSubject("ReconXpert.Ai | Your Account Has Been Reactivated");
             String safe     = sanitize(contactName);
             String safeOrg  = sanitize(entityName);
             String safeCode = sanitize(entityCode);
@@ -1182,8 +1187,8 @@ public class EmailServiceImpl implements EmailService {
                 // Greeting
                 + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + safe + "</strong>,</p>"
                 + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
-                + "Your account on <strong>ReconXpert.Ai</strong> has been successfully <strong>Reactivated</strong>. "
-                + "You can now log in using your existing credentials below."
+                + "We are pleased to inform you that your ReconXpert.Ai account has been successfully reactivated. "
+                + "You may now access the platform using your existing login credentials."
                 + "</p>"
 
                 // Credentials box — green like onboarding
@@ -1318,7 +1323,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Your Account Has Been Replaced: " + sanitize(entityCode));
+            helper.setSubject("ReconXpert.Ai | Account Replacement Notification – " + sanitize(entityCode));
             helper.setText(buildReplacementOutgoingHtml(contactName, entityCode, replacedBy, reason,
                     replacementFullName, replacementEmail, orderedBy), true);
             mailSender.send(message);
@@ -1340,7 +1345,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — You Have Been Assigned as Replacement: " + sanitize(entityCode));
+            helper.setSubject("ReconXpert.Ai | Welcome! Your Replacement Account Is Ready");
             helper.setText(buildReplacementWelcomeHtml(contactName, entityCode, username, tempPassword), true);
             mailSender.send(message);
             logger.info("Replacement welcome email sent to: {}", toEmail);
@@ -1370,7 +1375,7 @@ public class EmailServiceImpl implements EmailService {
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
-            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>This is to inform you that your account on ReconXpert.Ai has been handed over to a replacement. Your account is now <strong>INACTIVE</strong>.</p>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>This email is to inform you that your responsibilities on ReconXpert.Ai have been officially transferred to another user. As part of this transition, your account has been changed to <strong>Inactive</strong> status.</p>"
             + "<div style='background:#fef2f2;border-left:4px solid #ef4444;border-radius:8px;padding:20px 24px;margin:0 0 24px;'>"
             + "<p style='margin:0 0 10px;font-size:15px;font-weight:bold;color:#b91c1c;'>&#x26A0; Account Replaced</p>"
             + "<table cellpadding='0' cellspacing='0' width='100%'>"
@@ -1408,7 +1413,7 @@ public class EmailServiceImpl implements EmailService {
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
-            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>You have been assigned as a replacement on ReconXpert.Ai. Your account is now <strong>ACTIVE</strong>. Please find your login credentials below.</p>"
+            + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>Welcome to ReconXpert.Ai. You have been assigned as a replacement user, and your account has been successfully activated. Please use the credentials below to access your account.</p>"
             + "<div style='background:#f0fdf4;border-left:4px solid #16a34a;border-radius:8px;padding:24px;margin:0 0 24px;'>"
             + "<p style='margin:0 0 16px;font-size:15px;font-weight:bold;color:#15803d;'>&#x2705; Your Login Credentials</p>"
             + "<table cellpadding='0' cellspacing='0' width='100%'>"
@@ -1420,7 +1425,7 @@ public class EmailServiceImpl implements EmailService {
             + "<td><span style='background:#1a1a2e;color:#d4a843;font-size:15px;font-weight:bold;letter-spacing:2px;padding:4px 12px;border-radius:6px;display:inline-block;'>" + sanitize(tempPassword) + "</span></td></tr>"
             + "</table></div>"
             + "<div style='background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;padding:12px 16px;margin:0 0 16px;'>"
-            + "<p style='margin:0;font-size:13px;color:#1e40af;'><strong>&#128274; Security:</strong> Please change your password immediately after your first login using the Forgot Password option.</p>"
+            + "<p style='margin:0;font-size:13px;color:#1e40af;'><strong>&#128274; Security:</strong> For security reasons, we strongly recommend changing your password immediately after your first login using the <strong>Forgot Password</strong> option.</p>"
             + "</div>"
             + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not share your credentials with anyone. Do not reply to this email.</p>"
@@ -1446,7 +1451,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — You Have Been Assigned as Replacement Admin");
+            helper.setSubject("ReconXpert.Ai | Welcome! Your Replacement Administrator Account Has Been Created");
             helper.setText(buildReplacementAdminWelcomeHtml(contactName, bankCode, userId, defaultPassword, verifyLink), true);
             mailSender.send(message);
             logger.info("Replacement admin welcome email sent to: {} | userId: {}", toEmail, userId);
@@ -1472,8 +1477,8 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(name) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
-            + "You have been designated as a <strong>Replacement Admin</strong> on ReconXpert.Ai. "
-            + "Please find your login credentials below and complete email verification to activate your account."
+            + "You have been designated as the <strong>Replacement Bank Administrator</strong> for your institution on ReconXpert.Ai. "
+            + "To activate your account, please verify your email address and create a new password using the credentials below."
             + "</p>"
             + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
             + "<p style='margin:0 0 4px;font-size:13px;color:#166534;font-weight:bold;'>Your Login Credentials</p>"
@@ -1515,7 +1520,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("Your Temporary Assignment Has Ended — ReconXpert.Ai");
+            helper.setSubject("ReconXpert.Ai | Temporary Assignment Completed");
             helper.setText(buildReplacementTenureEndedHtml(contactName), true);
             mailSender.send(message);
             logger.info("Replacement tenure-ended email sent to {}", toEmail);
@@ -1537,12 +1542,13 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 16px;'>Dear <strong>" + safe + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;line-height:1.7;margin:0 0 20px;'>"
-            + "Your temporary assignment on <strong>ReconXpert.Ai</strong> has now ended. "
-            + "The original administrator has been reactivated and your account has been set to <strong>Inactive</strong>."
+            + "This is to inform you that your temporary assignment on ReconXpert.Ai has now concluded. "
+            + "The original administrator has been successfully reactivated, and your replacement account has been changed to <strong>Inactive</strong> status. "
+            + "We appreciate your contribution during this assignment."
             + "</p>"
             + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;'>"
             + "<p style='margin:0;font-size:13px;color:#92400e;'>"
-            + "If you believe this is an error, please contact your KalInfotech administrator."
+            + "If you believe this change was made in error or require clarification, please contact your KalInfotech Administrator."
             + "</p>"
             + "</div>"
             + "</td></tr>"
@@ -1559,7 +1565,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("You Are Now a Permanent Administrator — ReconXpert.Ai");
+            helper.setSubject("ReconXpert.Ai | Congratulations! You Are Now the Permanent Administrator");
             helper.setText(buildReplacementBecamePermanentHtml(contactName), true);
             mailSender.send(message);
             logger.info("Replacement became-permanent email sent to {}", toEmail);
@@ -1581,11 +1587,13 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 16px;'>Dear <strong>" + safe + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;line-height:1.7;margin:0 0 20px;'>"
-            + "The previous administrator has been permanently removed. You are now the <strong>Permanent Administrator</strong> on <strong>ReconXpert.Ai</strong>."
+            + "We are pleased to inform you that you have been appointed as the <strong>Permanent Administrator</strong> for your institution on ReconXpert.Ai. "
+            + "Following the permanent removal of the previous administrator, your account has been granted full administrative privileges. "
+            + "You may now continue managing your institution using your existing login credentials."
             + "</p>"
             + "<div style='background:#f0fdf4;border-left:4px solid #16a34a;border-radius:6px;padding:14px 18px;'>"
             + "<p style='margin:0;font-size:13px;color:#166534;'>"
-            + "Your account now has full permanent admin access. Please log in to continue managing your institution."
+            + "If you require any assistance, please contact the KalInfotech Support Team at <a href='mailto:support@kalinfotech.com' style='color:#16a34a;'>support@kalinfotech.com</a>."
             + "</p>"
             + "</div>"
             + "</td></tr>"
@@ -1612,7 +1620,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Welcome! Your User Account Has Been Created");
+            helper.setSubject("ReconXpert.Ai | Welcome! Your User Account Has Been Created");
             helper.setText(buildUserWelcomeHtml(fullName, code, codeLabel, username, defaultPassword, verifyLink), true);
             mailSender.send(message);
             logger.info("User welcome email sent to: {} | username: {}", toEmail, username);
@@ -1633,7 +1641,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — You’ve Been Added as a Replacement User");
+            helper.setSubject("ReconXpert.Ai | Welcome! Your Replacement User Account Has Been Created");
             helper.setText(buildUserWelcomeReplacementHtml(fullName, code, codeLabel, username, defaultPassword, verifyLink, replacementDescription), true);
             mailSender.send(message);
             logger.info("Replacement user welcome email sent to: {} | username: {}", toEmail, username);
@@ -1672,7 +1680,7 @@ public class EmailServiceImpl implements EmailService {
             + "</div>"
 
             + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
-            + "Please use the credentials below to verify your account and set your password."
+            + "To activate your account, please verify your email address and create a secure password using the credentials below."
             + "</p>"
 
             // Credentials box
@@ -1740,8 +1748,9 @@ public class EmailServiceImpl implements EmailService {
             // Greeting
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(fullName) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;margin:0 0 24px;'>"
-            + "You have been added as a <strong>User</strong> on ReconXpert.Ai. "
-            + "Please use the credentials below to verify your account and set your password."
+            + "Welcome to <strong>ReconXpert.Ai</strong>. "
+            + "Your user account has been successfully created by your administrator. "
+            + "To activate your account, please verify your email address and create a secure password using the credentials provided below."
             + "</p>"
 
             // Credentials box
@@ -1802,7 +1811,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
-            helper.setSubject("ReconXpert.Ai — Action Confirmation: " + action);
+            helper.setSubject("ReconXpert.Ai | Confirmation of Your Recent Activity – " + sanitize(action));
             helper.setText(buildActorConfirmationHtml(actorName, action, targetName, targetCode, scheduledAt), true);
             mailSender.send(message);
             logger.info("[ACTOR-CONFIRM] Sent to {} — action: {} on {}", toEmail, action, targetCode);
@@ -1828,7 +1837,7 @@ public class EmailServiceImpl implements EmailService {
             + "</td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;margin:0 0 6px;'>Dear <strong>" + sanitize(actorName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;margin:0 0 24px;line-height:1.6;'>This confirms that you have successfully performed the following action on the ReconXpert.Ai platform.</p>"
+            + "<p style='font-size:13px;color:#64748b;margin:0 0 24px;line-height:1.6;'>This email confirms that the following action has been successfully completed on your ReconXpert.Ai account.</p>"
             + "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid " + actionColor + ";border-radius:8px;padding:20px 24px;margin-bottom:24px;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
             + "<tr><td style='padding:6px 0;width:40%;font-size:13px;color:#64748b;'>Action</td>"
@@ -1861,7 +1870,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — Your Work Has Been Delegated");
+            h.setSubject("ReconXpert.Ai | Work Delegation Notification");
             h.setText(buildDelegationToDelegatorHtml(delegatorName, delegateeName, reason, orgName), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1878,7 +1887,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — You Have Received a Work Delegation");
+            h.setSubject("ReconXpert.Ai | You Have Been Assigned a Work Delegation");
             h.setText(buildDelegationToDelegateeHtml(delegateeName, delegatorName, reason), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1895,7 +1904,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — FYI: Delegated User Block Scheduled");
+            h.setSubject("ReconXpert.Ai | Notification: Scheduled Block for Delegated User");
             h.setText(buildDelegatorBlockPendingHtml(delegateeName, delegatorName, blockAt), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1911,7 +1920,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — FYI: Delegated User Has Been Blocked");
+            h.setSubject("ReconXpert.Ai | Notification: Delegated User Account Blocked");
             h.setText(buildDelegatorBlockedHtml(delegateeName, delegatorName), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1927,7 +1936,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — FYI: Delegated User Has Been Unblocked");
+            h.setSubject("ReconXpert.Ai | Notification: Delegated User Account Restored");
             h.setText(buildDelegatorUnblockedHtml(delegateeName, delegatorName), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1943,7 +1952,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — Your Delegation Has Ended, You Are Restored");
+            h.setSubject("ReconXpert.Ai | Welcome Back! Your Delegated Responsibilities Have Been Restored");
             h.setText(buildDelegationRestoredToDelegatorHtml(delegatorName, delegateeName), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1959,7 +1968,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
             h.setFrom(fromEmail, fromName);
             h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai — Delegation Ended: Team Returned to Original Manager");
+            h.setSubject("ReconXpert.Ai | Delegation Completed – Team Successfully Restored");
             h.setText(buildDelegationRestoredToDelegateeHtml(delegateeName, delegatorName), true);
             mailSender.send(msg);
         } catch (Exception e) {
@@ -1976,14 +1985,14 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Work Delegation Confirmation</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegatorName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Your work responsibilities have been delegated and your account has been inactivated. Below are the details:</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>This is to inform you that your work responsibilities have been temporarily delegated, and your account has been changed to <strong>Inactive</strong> status.</p>"
             + "<div style='background:#fef3c7;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:8px;padding:20px 24px;margin:20px 0;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
             + "<tr><td style='padding:6px 0;width:40%;font-size:13px;color:#64748b;'>Delegated To</td><td style='font-size:13px;font-weight:700;color:#d97706;'>" + sanitize(delegateeName) + "</td></tr>"
             + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Organization</td><td style='font-size:13px;color:#1e293b;'>" + sanitize(orgName != null ? orgName : "") + "</td></tr>"
             + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Reason</td><td style='font-size:13px;color:#1e293b;'>" + sanitize(reason) + "</td></tr>"
             + "</table></div>"
-            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>Your team members have been temporarily moved under <strong>" + sanitize(delegateeName) + "</strong> until you are reactivated.</p>"
+            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>During this period, your assigned team members will be managed by <strong>" + sanitize(delegateeName) + "</strong> until your account is reactivated. If you require any clarification, please contact your administrator.</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
@@ -1999,13 +2008,13 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Work Delegation Received</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>You have been assigned a work delegation. The team members of <strong>" + sanitize(delegatorName) + "</strong> are now temporarily under your management.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>You have been assigned responsibility for managing delegated work within ReconXpert.Ai. As part of this temporary assignment, the team members previously managed by <strong>" + sanitize(delegatorName) + "</strong> have been assigned to you.</p>"
             + "<div style='background:#dcfce7;border:1px solid #86efac;border-left:4px solid #22c55e;border-radius:8px;padding:20px 24px;margin:20px 0;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0'>"
             + "<tr><td style='padding:6px 0;width:40%;font-size:13px;color:#64748b;'>Delegated From</td><td style='font-size:13px;font-weight:700;color:#16a34a;'>" + sanitize(delegatorName) + "</td></tr>"
             + "<tr><td style='padding:6px 0;font-size:13px;color:#64748b;'>Reason</td><td style='font-size:13px;color:#1e293b;'>" + sanitize(reason) + "</td></tr>"
             + "</table></div>"
-            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>This is a temporary arrangement. When <strong>" + sanitize(delegatorName) + "</strong> is reactivated, their team will be returned to them automatically.</p>"
+            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>Once the original user is reactivated, all delegated responsibilities and team members will automatically be restored. No additional action is required at this time.</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
@@ -2021,8 +2030,9 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — Block Scheduled</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>FYI: <strong>" + sanitize(delegatorName) + "</strong> (whose work is currently delegated to you) has been scheduled for blocking at <strong>" + sanitize(blockAt) + "</strong>.</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Your delegation and their team members remain under your management. No action is required from you.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>This is to inform you that <strong>" + sanitize(delegatorName) + "</strong>, whose responsibilities are currently delegated to you, has been scheduled for permanent account blocking.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'><strong>Scheduled Date &amp; Time:</strong> " + sanitize(blockAt) + "</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Your delegated responsibilities and management of the assigned team members will remain unchanged. No action is required from your side.</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
@@ -2038,7 +2048,7 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — User Blocked</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>FYI: <strong>" + sanitize(delegatorName) + "</strong> has been permanently blocked. Your delegation and their team members continue to remain under your management.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>This is to notify you that the account of <strong>" + sanitize(delegatorName) + "</strong> has been permanently blocked. Your delegated responsibilities remain active, and the associated team members will continue to report to you until further administrative changes are made. No action is required at this time.</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
@@ -2054,7 +2064,7 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — User Unblocked</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>FYI: <strong>" + sanitize(delegatorName) + "</strong> has been unblocked and is back to inactive status. Your delegation continues to be active.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>This is to inform you that <strong>" + sanitize(delegatorName) + "</strong> has been restored from <strong>Blocked</strong> status and is now <strong>Inactive</strong>. Your delegated responsibilities remain active, and you will continue managing the assigned team members until the delegation officially concludes. No further action is required.</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
@@ -2070,7 +2080,8 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>You Are Restored — Delegation Ended</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegatorName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Welcome back! Your account has been reactivated. Your delegation to <strong>" + sanitize(delegateeName) + "</strong> has ended and your team members have been returned to you.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>Welcome back. Your account has been successfully reactivated, and your delegated responsibilities have been restored. Your assigned team members have now been automatically returned to your management. You may continue your responsibilities using your existing account.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'><strong>Previous Delegate:</strong> " + sanitize(delegateeName) + "</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
@@ -2086,7 +2097,7 @@ public class EmailServiceImpl implements EmailService {
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Ended</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>The delegation from <strong>" + sanitize(delegatorName) + "</strong> has ended as they have been reactivated. Their team members have been automatically returned to them.</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>This is to inform you that the temporary delegation assigned to you has been completed. As <strong>" + sanitize(delegatorName) + "</strong> has been successfully reactivated, all associated team members have been automatically transferred back to their original manager. We appreciate your support during this temporary assignment. No further action is required from your side.</p>"
             + "</td></tr>"
             + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
             + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"

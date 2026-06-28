@@ -12,19 +12,19 @@ import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 
 import net.sf.jasperreports.engine.JRException;
 
 @Service
 public interface ExtractionService {
     
-	CompletableFuture<String> startExtraction(ReconFileDetailsMaster reconFileDetails, List<ReconBatchProcessEntity> extractionProcessList, List<File> fileList, KalAdmin userData) throws IOException, InterruptedException, JRException;
+	CompletableFuture<String> startExtraction(ReconFileDetailsMaster reconFileDetails, List<ReconBatchProcessEntity> extractionProcessList, List<File> fileList, ReconUser userData) throws IOException, InterruptedException, JRException;
 
 	ResponseEntity<RestWithStatusList> refreshProcessData(Long processId);
 
 	List<ReconBatchProcessEntity> extractionRunningStatus(List<File> fileList,
-			ReconFileDetailsMaster reconFileDetails, KalAdmin userData);
+			ReconFileDetailsMaster reconFileDetails, ReconUser userData);
 
 	ResponseEntity<RestWithStatusList> refreshExtraction(List<RefreshRequestDto.ProcessManager> requestProcess);
     

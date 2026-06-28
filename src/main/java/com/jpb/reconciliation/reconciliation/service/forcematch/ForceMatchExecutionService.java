@@ -33,11 +33,11 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.dto.ReportDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.entity.ReportEntity;
 import com.jpb.reconciliation.reconciliation.entity.TTUMRefundQueryMasterEntity;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessDefMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReportRepository;
 import com.jpb.reconciliation.reconciliation.repository.TTUMRefundQueryMasterRepository;
 
@@ -62,7 +62,7 @@ public class ForceMatchExecutionService {
 	TTUMRefundQueryMasterRepository refundQueryMasterRepository;
 
 	@Autowired
-	KalAdminRepository KalAdminRepository;
+	ReconUserRepository reconUserRepository;
 	@Autowired
 	ReconProcessDefMasterRepository reconProcessDefMasterRepository;
 
@@ -82,7 +82,7 @@ public class ForceMatchExecutionService {
 		RestWithStatusList restWithStatusList = null;
 		List<Object> forceMatchReportList = new ArrayList<>();
 		String prmError = null;
-		Optional<KalAdmin> user = KalAdminRepository.findByUserName(userDetails.getUsername());
+		Optional<ReconUser> user = reconUserRepository.findByUsername(userDetails.getUsername());
 		Long userId = null;
 		if (user.isPresent()) {
 			userId = user.get().getUserId();

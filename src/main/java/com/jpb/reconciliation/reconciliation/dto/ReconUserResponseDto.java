@@ -24,5 +24,5 @@ public class ReconUserResponseDto {
 	private String createdBy;
 	private LocalDateTime updatedAt;
 	private String updatedBy;
-	private RoleDto role;
+	private Long roleId;
 }
