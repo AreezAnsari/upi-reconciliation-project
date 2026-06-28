@@ -32,29 +32,13 @@ public class OtpController {
 
     private static final Logger logger = LoggerFactory.getLogger(OtpController.class);
 
-    @Autowired
-    private OtpService otpService;
-
-    @Autowired
-    private JwtHelper jwtHelper;
-
-    @Autowired
-    private MainAdminService mainAdminService;
-
-    @Autowired
-    private MainBankRepository mainBankRepository;
-
-    @Autowired
-    private BranchAdminRepository branchAdminRepository;
-
-    @Autowired
-    private BranchBankRepository branchBankRepository;
-
-   // ✅ FIX: needed to look up the MainAdmin row by email so we can return
-    // its passwordUpdatedAt in the OTP-verify response (this is the row that
-    // actually has the field, per your entity confirmation).
-    @Autowired
-    private MainAdminRepository mainAdminRepository;
+    @Autowired private OtpService           otpService;
+    @Autowired private JwtHelper            jwtHelper;
+    @Autowired private MainAdminService     mainAdminService;
+    @Autowired private MainBankRepository   mainBankRepository;
+    @Autowired private BranchAdminRepository branchAdminRepository;
+    @Autowired private BranchBankRepository branchBankRepository;
+    @Autowired private MainAdminRepository  mainAdminRepository;
 
     // ───────────────── SEND OTP ─────────────────
 
@@ -65,8 +49,7 @@ public class OtpController {
         String email = body.get("email");
 
         if (email == null || email.trim().isEmpty()) {
-            return ResponseEntity
-                    .badRequest()
+            return ResponseEntity.badRequest()
                     .body(errorResponse("Email is required."));
         }
 
@@ -80,22 +63,22 @@ public class OtpController {
             return ResponseEntity.ok(res);
 
         } catch (EmailDeliveryException e) {
-            // OTP was already rolled back inside OtpService — safe to return error
-            logger.error("[OTP-SEND-FAIL] Email delivery failed for: {} | reason: {}", maskEmail(email), e.getMessage());
-            return ResponseEntity
-                    .status(500)
-                    .body(errorResponse("We could not deliver the OTP to your email address. " +
+            logger.error("[OTP-SEND-FAIL] Email delivery failed for: {} | reason: {}",
+                    maskEmail(email), e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(errorResponse(
+                            "We could not deliver the OTP to your email address. " +
                             "Please check the address and try again. " +
                             "If the problem persists, contact support@kalinfotech.com"));
         } catch (Exception e) {
-            logger.error("[OTP-SEND-FAIL] Unexpected error for: {} | reason: {}", maskEmail(email), e.getMessage());
-            return ResponseEntity
-                    .status(500)
+            logger.error("[OTP-SEND-FAIL] Unexpected error for: {} | reason: {}",
+                    maskEmail(email), e.getMessage());
+            return ResponseEntity.status(500)
                     .body(errorResponse("An unexpected error occurred. Please try again."));
         }
     }
 
-    // ───────────────── VERIFY OTP — JWT return karo on success ─────────────────
+    // ───────────────── VERIFY OTP ─────────────────
 
     @PostMapping("/verify")
     public ResponseEntity<Map<String, Object>> verifyOtp(
@@ -105,8 +88,7 @@ public class OtpController {
         String otp   = body.get("otp");
 
         if (email == null || otp == null) {
-            return ResponseEntity
-                    .badRequest()
+            return ResponseEntity.badRequest()
                     .body(errorResponse("Email and OTP are required."));
         }
 
@@ -118,50 +100,55 @@ public class OtpController {
             try {
                 mainAdminService.activateBank(email);
             } catch (Exception e) {
-                System.out.println("Warning: Could not activate bank for "
-                    + email + ": " + e.getMessage());
-                e.printStackTrace();
+                logger.warn("[OTP-VERIFY] Could not activate bank for {}: {}",
+                        maskEmail(email), e.getMessage());
             }
 
-            // ── Resolve bankCode, branchCode, and JWT subject by email ──
-            // Bank Admin  → subject = email   (MainAdmin lookup uses email)
-            // Branch Admin → subject = username (avoids collision with BANK_ADMIN email records)
+            // ── Step 1: Resolve bankCode, branchCode, JWT subject ──
             String resolvedBankCode   = null;
             String resolvedBranchCode = null;
-            String jwtSubject         = email; // default for Bank Admin
+            String jwtSubject         = email; // default Bank Admin
 
-            java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> mainBankOpt =
+            // ── Check MainBank by primaryEmail ──
+            Optional<com.jpb.reconciliation.reconciliation.entity.MainBank> mainBankOpt =
                     mainBankRepository.findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED");
+
             if (mainBankOpt.isPresent()) {
                 resolvedBankCode = mainBankOpt.get().getBankCode();
+
             } else {
-                java.util.Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> baOpt =
+                // ── Check BranchAdmin ──
+                // ✅ FIX — OrderByIdDesc: newest record milega
+                Optional<com.jpb.reconciliation.reconciliation.entity.BranchAdmin> baOpt =
                         branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
+
                 if (baOpt.isPresent()) {
                     resolvedBranchCode = baOpt.get().getBranchCode();
-                    resolvedBankCode = branchBankRepository.findByBranchCode(resolvedBranchCode)
+                    resolvedBankCode   = branchBankRepository
+                            .findByBranchCode(resolvedBranchCode)
                             .map(bb -> mainBankRepository.findById(bb.getParentBankId())
                                     .map(bnk -> bnk.getBankCode())
                                     .orElse(null))
                             .orElse(null);
-                    jwtSubject = baOpt.get().getUsername(); // Branch Admin: username as subject
+                    jwtSubject = baOpt.get().getUsername();
+
                 } else {
-                    // Replacement bank admin: their email is not the bank's primaryEmail,
-                    // so look them up directly in MainAdmin to get bankCode and real username.
-                    java.util.Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> maOpt =
+                    // ── Replacement bank admin ──
+                    Optional<com.jpb.reconciliation.reconciliation.entity.MainAdmin> maOpt =
                             mainAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
                     if (maOpt.isPresent() && maOpt.get().getBankCode() != null) {
                         resolvedBankCode = maOpt.get().getBankCode();
-                        jwtSubject = maOpt.get().getUsername(); // use actual DB username, not email
-                        logger.info("[OTP-VERIFY] Replacement bank admin detected — username='{}' bankCode='{}'",
+                        jwtSubject       = maOpt.get().getUsername();
+                        logger.info("[OTP-VERIFY] Replacement bank admin — username='{}' bankCode='{}'",
                                 jwtSubject, resolvedBankCode);
                     }
                 }
             }
+
             logger.info("[OTP-VERIFY] bankCode={} branchCode={} jwtSubject={} for {}",
                     resolvedBankCode, resolvedBranchCode, jwtSubject, maskEmail(email));
 
-            // ── JWT generate karo resolved subject se ──
+            // ── JWT generate ──
             UserDetails userDetails = User.builder()
                     .username(jwtSubject)
                     .password("")
@@ -172,101 +159,86 @@ public class OtpController {
             String accessToken  = jwtHelper.generateToken(userDetails, jwtRole);
             String refreshToken = jwtHelper.generateTokenForRefresh(jwtSubject);
 
+            // ── bankCode resolve ──
             String bankCode = mainBankRepository
                     .findFirstByPrimaryEmailAndStatusNot(email, "BLOCKED")
                     .map(bnk -> bnk.getBankCode())
                     .orElseGet(() ->
-                        branchAdminRepository.findFirstByEmail(email)
-                            .map(ba -> ba.getBranchCode())
-                            .orElse(null)
+                            branchAdminRepository.findFirstByEmail(email)
+                                    .map(ba -> ba.getBranchCode())
+                                    .orElse(null)
                     );
             logger.info("[OTP-VERIFY] bankCode resolved for {}: {}", maskEmail(email), bankCode);
 
-            
+            // ── passwordUpdatedAt resolve ──
             String passwordUpdatedAt = null;
 
+            // ✅ Step 1: MainAdmin check
             Optional<MainAdmin> mainAdminOpt =
                     mainAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
 
             if (mainAdminOpt.isPresent()) {
-
-                MainAdmin user = mainAdminOpt.get();
-
-                passwordUpdatedAt =
-                        user.getPasswordUpdatedAt() != null
-                                ? user.getPasswordUpdatedAt().toString()
-                                : user.getCreatedAt() != null
-                                        ? user.getCreatedAt().toString()
-                                        : null;
+                MainAdmin user    = mainAdminOpt.get();
+                passwordUpdatedAt = user.getPasswordUpdatedAt() != null
+                        ? user.getPasswordUpdatedAt().toString()
+                        : user.getCreatedAt() != null
+                                ? user.getCreatedAt().toString()
+                                : null;
 
             } else {
-
+                // ✅ Step 2: BranchAdmin check
+                // ✅ FIX — OrderByIdDesc: newest record ka passwordUpdatedAt milega
                 Optional<BranchAdmin> branchAdminOpt =
-                        branchAdminRepository.findFirstByEmailAndStatusNot(email, "BLOCKED");
+                        branchAdminRepository.findFirstByEmailAndStatusNotOrderByIdDesc(email, "BLOCKED");
 
                 if (branchAdminOpt.isPresent()) {
-
-                    BranchAdmin user = branchAdminOpt.get();
-
-                    passwordUpdatedAt =
-                            user.getPasswordUpdatedAt() != null
-                                    ? user.getPasswordUpdatedAt().toString()
-                                    : user.getCreatedAt() != null
-                                            ? user.getCreatedAt().toString()
-                                            : null;
+                    BranchAdmin user  = branchAdminOpt.get();
+                    passwordUpdatedAt = user.getPasswordUpdatedAt() != null
+                            ? user.getPasswordUpdatedAt().toString()
+                            : user.getCreatedAt() != null
+                                    ? user.getCreatedAt().toString()
+                                    : null;
                 }
             }
-            
-            logger.info("[OTP-VERIFY] passwordUpdatedAt resolved for {}: {}", maskEmail(email), passwordUpdatedAt);
 
+            logger.info("[OTP-VERIFY] passwordUpdatedAt resolved for {}: {}",
+                    maskEmail(email), passwordUpdatedAt);
+
+            // ── ✅ Response — duplicate lines remove kiye ──
             Map<String, Object> res = new HashMap<>();
-            res.put("success",      true);
-            res.put("message",      "OTP verified successfully.");
-            res.put("accessToken",  accessToken);
-            res.put("refreshToken", refreshToken);
-            res.put("email",        email);
-            res.put("bankCode",     resolvedBankCode);
+            res.put("success",          true);
+            res.put("message",          "OTP verified successfully.");
+            res.put("accessToken",      accessToken);
+            res.put("refreshToken",     refreshToken);
+            res.put("email",            email);
+            res.put("bankCode",         bankCode);
+            res.put("passwordUpdatedAt", passwordUpdatedAt);
+
+            // branchCode sirf add karo agar hai
             if (resolvedBranchCode != null) {
                 res.put("branchCode", resolvedBranchCode);
             }
-            res.put("success",         true);
-            res.put("message",         "OTP verified successfully.");
-            res.put("accessToken",     accessToken);
-            res.put("refreshToken",    refreshToken);
-            res.put("email",           email);
-            res.put("bankCode", bankCode); // ← "47050033" → frontend stores first 4 as prefix
-            res.put("passwordUpdatedAt", passwordUpdatedAt); // ✅ FIX: fresh DB value, not client time
 
             return ResponseEntity.ok(res);
 
         } else if (result == OtpVerifyResult.INVALID) {
-
-            return ResponseEntity
-                    .status(400)
+            return ResponseEntity.status(400)
                     .body(errorResponse("Invalid OTP. Please try again."));
 
         } else if (result == OtpVerifyResult.EXPIRED) {
-
-            return ResponseEntity
-                    .status(400)
+            return ResponseEntity.status(400)
                     .body(errorResponse("OTP has expired. Please request a new one."));
 
         } else if (result == OtpVerifyResult.NOT_FOUND) {
-
-            return ResponseEntity
-                    .status(400)
+            return ResponseEntity.status(400)
                     .body(errorResponse("No OTP found. Please request a new one."));
 
         } else if (result == OtpVerifyResult.MAX_ATTEMPTS_EXCEEDED) {
-
-            return ResponseEntity
-                    .status(429)
+            return ResponseEntity.status(429)
                     .body(errorResponse("Too many incorrect attempts. Please request a new OTP."));
 
         } else {
-
-            return ResponseEntity
-                    .status(500)
+            return ResponseEntity.status(500)
                     .body(errorResponse("Something went wrong."));
         }
     }
@@ -280,8 +252,7 @@ public class OtpController {
         String email = body.get("email");
 
         if (email == null || email.trim().isEmpty()) {
-            return ResponseEntity
-                    .badRequest()
+            return ResponseEntity.badRequest()
                     .body(errorResponse("Email is required."));
         }
 
@@ -295,17 +266,18 @@ public class OtpController {
             return ResponseEntity.ok(res);
 
         } catch (EmailDeliveryException e) {
-            // OTP rollback already handled inside OtpService
-            logger.error("[OTP-RESEND-FAIL] Email delivery failed for: {} | reason: {}", maskEmail(email), e.getMessage());
-            return ResponseEntity
-                    .status(500)
-                    .body(errorResponse("We could not deliver the OTP to your email address. " +
+            logger.error("[OTP-RESEND-FAIL] Email delivery failed for: {} | reason: {}",
+                    maskEmail(email), e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(errorResponse(
+                            "We could not deliver the OTP to your email address. " +
                             "Please check the address and try again."));
         } catch (Exception e) {
-            logger.error("[OTP-RESEND-FAIL] Unexpected error for: {} | reason: {}", maskEmail(email), e.getMessage());
-            return ResponseEntity
-                    .status(500)
-                    .body(errorResponse("An unexpected error occurred while resending OTP. Please try again."));
+            logger.error("[OTP-RESEND-FAIL] Unexpected error for: {} | reason: {}",
+                    maskEmail(email), e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(errorResponse(
+                            "An unexpected error occurred while resending OTP. Please try again."));
         }
     }
 
@@ -335,8 +307,7 @@ public class OtpController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            return ResponseEntity
-                    .status(500)
+            return ResponseEntity.status(500)
                     .body(errorResponse(e.getMessage()));
         }
     }
