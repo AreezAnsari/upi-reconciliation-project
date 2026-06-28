@@ -17,7 +17,7 @@ public class UpiAdjReportController {
 
     @Autowired
     private UpiAdjSummaryService upiAdjSummaryService;
-
+    
     /**
      * GET /api/v1/upi/adj-summary
      * By Adjustment Type — grouped data for HTML frontend
