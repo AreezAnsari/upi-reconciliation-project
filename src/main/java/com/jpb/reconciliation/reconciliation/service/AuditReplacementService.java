@@ -17,4 +17,16 @@ public interface AuditReplacementService {
     ResponseEntity<RestWithStatusList> restoreReplacement(Long replacementId, String restoredBy);
 
     ResponseEntity<RestWithStatusList> getActiveReplacementForUser(Long originalUserId);
+
+    ResponseEntity<RestWithStatusList> schedulePendingReplacement(
+            Long originalUserId, String pendingEmail, String pendingFullName,
+            String pendingMobile, String orderedBy, String reason, String scheduledBy);
+
+    void cancelPendingReplacement(Long originalUserId);
+
+    void finalizePendingReplacement(Long originalUserId);
+
+    void onOriginalBlocked(Long originalUserId);
+
+    void onOriginalReactivated(Long originalUserId);
 }

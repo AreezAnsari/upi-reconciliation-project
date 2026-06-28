@@ -1,14 +1,20 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.entity.AuditLog;
+import com.jpb.reconciliation.reconciliation.entity.CBankProductMap;
 import com.jpb.reconciliation.reconciliation.entity.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconPasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.ReconProductMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconRoleMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.AuditLogRepository;
+import com.jpb.reconciliation.reconciliation.repository.CBankProductMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconPasswordManagerRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconProductMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconRoleMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import org.slf4j.Logger;
@@ -23,10 +29,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -41,6 +50,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Autowired private MenuMasterRepository menuMasterRepository;
     @Autowired private ReconUserRepository reconUserRepository;
     @Autowired private ReconPasswordManagerRepository reconPasswordManagerRepository;
+    @Autowired private AuditLogRepository auditLogRepository;
+    @Autowired private CBankProductMapRepository bankProductMapRepository;
+    @Autowired private ReconProductMasterRepository productMasterRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private EmailService emailService;
 
@@ -65,75 +77,96 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         bank.setBankCode(bank.getBankCode().trim().toUpperCase());
         bank.setCreatedAt(LocalDateTime.now());
         bank.setCreatedBy(createdBy);
-        if (bank.getStatus() == null) {
-            bank.setStatus("ACTIVE");
-        }
-        ReconBankMaster saved = reconBankMasterRepository.save(bank);
-        createDefaultBankAdminMenus(saved.getBankCode(), createdBy);
+        if (bank.getStatus() == null) bank.setStatus("REQUEST");
 
-        // Auto-create Bank Admin user in RCN_RECON_USER and send welcome email
-        String adminUserId = null;
-        String defaultPassword = null;
+        // Determine admin userType based on parentBankId
+        boolean isBranch = bank.getParentBankId() != null;
+        String adminUserType = isBranch ? "BRANCH_ADMIN" : "BANK_ADMIN";
+        String roleName = isBranch ? "BRANCH_ADMIN_" : "BANK_ADMIN_";
+
+        ReconBankMaster saved = reconBankMasterRepository.save(bank);
+        saveProductMappings(saved.getBankId(), bank, createdBy);
+        String roleCode = roleName + saved.getBankCode();
+        createDefaultAdminMenus(saved.getBankCode(), roleCode, isBranch, createdBy);
+
+        // Audit: bank/branch created
+        saveAuditLog("RECON_BANK_MASTER", saved.getBankId(), "CREATE", null, null,
+                createdBy, adminUserType, saved.getBankId(),
+                "Bank " + (isBranch ? "(Branch) " : "") + saved.getBankCode() + " onboarded");
+
         if (bank.getPrimaryEmail() != null && !bank.getPrimaryEmail().trim().isEmpty()) {
             try {
-                defaultPassword = generatePassword(10);
+                String defaultPwd = generatePassword(10);
                 String username = deriveUsername(bank.getPrimaryEmail(), bank.getPrimaryFullName());
 
-                ReconUser admin = new ReconUser();
-                admin.setBankId(saved.getBankId());
-                admin.setFullName(bank.getPrimaryFullName() != null ? bank.getPrimaryFullName() : username);
-                admin.setEmail(bank.getPrimaryEmail().trim().toLowerCase());
-                admin.setMobileNumber(bank.getPrimaryMobile());
-                admin.setUsername(username);
-                admin.setUserType("SUPER_USER");
-                admin.setContactRank("PRIMARY");
-                admin.setPasswordHash(passwordEncoder.encode(defaultPassword));
-                admin.setPasswordSet(0);
-                admin.setStatus("ACTIVE_PENDING");
-                admin.setApprovedYn("N");
-                admin.setCreatedAt(LocalDateTime.now());
-                admin.setCreatedBy(createdBy);
+                // PRIMARY user — starts ACTIVE_PENDING, goes through 3-step login
+                ReconUser primary = buildAdminUser(
+                        saved.getBankId(), bank.getPrimaryFullName(), bank.getPrimaryEmail(),
+                        bank.getPrimaryMobile(), username, adminUserType, "PRIMARY",
+                        defaultPwd, "ACTIVE_PENDING", createdBy);
 
-                Optional<ReconRoleMaster> roleOpt = reconRoleMasterRepository.findByRoleCode("BANK_ADMIN_" + saved.getBankCode());
-                if (roleOpt.isPresent()) {
-                    admin.setRoleId(roleOpt.get().getRoleId());
+                Optional<ReconRoleMaster> roleOpt = reconRoleMasterRepository.findByRoleCode(roleCode);
+                roleOpt.ifPresent(r -> primary.setRoleId(r.getRoleId()));
+
+                ReconUser savedPrimary = reconUserRepository.saveAndFlush(primary);
+                savePasswordHistory(savedPrimary, createdBy);
+
+                // Store username + defaultPassword (plaintext) in bank record for 3-step verify
+                saved.setBankAdminUsername(username);
+                saved.setDefaultPassword(defaultPwd);
+                reconBankMasterRepository.save(saved);
+
+                // Audit: primary admin created
+                saveAuditLog("RCN_RECON_USER", savedPrimary.getUserId(), "CREATE", null,
+                        "userType=" + adminUserType + ",contactRank=PRIMARY,status=ACTIVE_PENDING",
+                        createdBy, adminUserType, saved.getBankId(),
+                        "Primary " + adminUserType + " created: " + username);
+
+                // Welcome email with credentials
+                String verifyLink = frontendUrl + (isBranch ? "/branch-admin-login" : "/bank-admin-login");
+                emailService.sendBankAdminWelcome(
+                        savedPrimary.getEmail(), savedPrimary.getFullName(),
+                        saved.getBankName(), saved.getBankCode(),
+                        username, defaultPwd, verifyLink);
+
+                // SECONDARY user — always INACTIVE, future use
+                if (bank.getSecondaryEmail() != null && !bank.getSecondaryEmail().trim().isEmpty()) {
+                    String secUsername = deriveUsername(bank.getSecondaryEmail(), bank.getSecondaryFullName());
+                    String secDefaultPwd = generatePassword(10);
+
+                    ReconUser secondary = buildAdminUser(
+                            saved.getBankId(), bank.getSecondaryFullName(), bank.getSecondaryEmail(),
+                            bank.getSecondaryMobile(), secUsername, adminUserType, "SECONDARY",
+                            secDefaultPwd, "INACTIVE", createdBy);
+                    roleOpt.ifPresent(r -> secondary.setRoleId(r.getRoleId()));
+
+                    ReconUser savedSecondary = reconUserRepository.saveAndFlush(secondary);
+                    savePasswordHistory(savedSecondary, createdBy);
+
+                    saveAuditLog("RCN_RECON_USER", savedSecondary.getUserId(), "CREATE", null,
+                            "userType=" + adminUserType + ",contactRank=SECONDARY,status=INACTIVE",
+                            createdBy, adminUserType, saved.getBankId(),
+                            "Secondary " + adminUserType + " created (INACTIVE): " + secUsername);
+
+                    logger.info("Secondary {} created (INACTIVE): {} for bank {}", adminUserType, secUsername, saved.getBankCode());
                 }
 
-                ReconUser savedAdmin = reconUserRepository.saveAndFlush(admin);
-                adminUserId = savedAdmin.getUsername();
-
-                ReconPasswordManager pwd = new ReconPasswordManager();
-                pwd.setReconUser(savedAdmin);
-                pwd.setUserPassword(savedAdmin.getPasswordHash());
-                pwd.setCreatedAt(LocalDateTime.now());
-                pwd.setCreatedBy(createdBy);
-                pwd.setExpirationDate(LocalDateTime.now().plusDays(90));
-                reconPasswordManagerRepository.save(pwd);
-
-                String verifyLink = frontendUrl + "/bank-admin-login";
-                emailService.sendBankAdminWelcome(
-                        savedAdmin.getEmail(),
-                        savedAdmin.getFullName(),
-                        saved.getBankName(),
-                        saved.getBankCode(),
-                        adminUserId,
-                        defaultPassword,
-                        verifyLink
-                );
-                logger.info("Bank Admin user created and welcome email sent: {} for bank {}", adminUserId, saved.getBankCode());
+                logger.info("Primary {} created and welcome email sent: {} for bank {}", adminUserType, username, saved.getBankCode());
             } catch (Exception e) {
-                logger.error("Failed to create Bank Admin user for bank {}: {}", saved.getBankCode(), e.getMessage());
+                logger.error("Failed to create admin users for bank {}: {}", saved.getBankCode(), e.getMessage(), e);
             }
         }
 
         logger.info("ReconBankMaster created: {} by {}", saved.getBankCode(), createdBy);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new RestWithStatusList("SUCCESS", "Bank created successfully.", Collections.singletonList(saved)));
+                .body(new RestWithStatusList("SUCCESS",
+                        (isBranch ? "Branch" : "Bank") + " created successfully.", Collections.singletonList(saved)));
     }
 
     @Override
     public ResponseEntity<RestWithStatusList> getAllBanks() {
         List<ReconBankMaster> banks = reconBankMasterRepository.findAll();
+        banks.forEach(this::enrichWithProducts);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Banks fetched.", banks));
     }
 
@@ -144,7 +177,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new RestWithStatusList("FAILURE", "Bank not found with ID: " + bankId, null));
         }
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(opt.get())));
+        ReconBankMaster found = opt.get();
+        enrichWithProducts(found);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(found)));
     }
 
     @Override
@@ -154,7 +189,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new RestWithStatusList("FAILURE", "Bank not found with code: " + bankCode, null));
         }
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(opt.get())));
+        ReconBankMaster found = opt.get();
+        enrichWithProducts(found);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(found)));
     }
 
     @Override
@@ -191,6 +228,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         if (bank.getRegState() != null) existing.setRegState(bank.getRegState());
         if (bank.getRegCountry() != null) existing.setRegCountry(bank.getRegCountry());
         if (bank.getRegPhone() != null) existing.setRegPhone(bank.getRegPhone());
+        if (bank.getSelectedProducts() != null && !bank.getSelectedProducts().isEmpty()) {
+            saveProductMappings(bankId, bank, updatedBy);
+        }
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(updatedBy);
         reconBankMasterRepository.save(existing);
@@ -394,10 +434,110 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", scheduleType + " schedule cancelled.", null));
     }
 
+    // ── Helper: build a ReconUser for primary/secondary admin ──────────────────
+    private ReconUser buildAdminUser(Long bankId, String fullName, String email,
+                                     String mobile, String username, String userType,
+                                     String contactRank, String plainPassword,
+                                     String status, String createdBy) {
+        ReconUser u = new ReconUser();
+        u.setBankId(bankId);
+        u.setFullName(fullName != null && !fullName.trim().isEmpty() ? fullName : username);
+        u.setEmail(email.trim().toLowerCase());
+        u.setMobileNumber(mobile);
+        u.setUsername(username);
+        u.setUserType(userType);
+        u.setContactRank(contactRank);
+        u.setPasswordHash(passwordEncoder.encode(plainPassword));
+        u.setPasswordSet(0);
+        u.setStatus(status);
+        u.setApprovedYn("N");
+        u.setCreatedAt(LocalDateTime.now());
+        u.setCreatedBy(createdBy);
+        return u;
+    }
+
+    // ── Helper: save to RCN_RECON_PWD_MANAGER ──────────────────────────────────
+    private void savePasswordHistory(ReconUser user, String createdBy) {
+        ReconPasswordManager pwd = new ReconPasswordManager();
+        pwd.setReconUser(user);
+        pwd.setUserPassword(user.getPasswordHash());
+        pwd.setCreatedAt(LocalDateTime.now());
+        pwd.setCreatedBy(createdBy);
+        pwd.setExpirationDate(LocalDateTime.now().plusDays(90));
+        reconPasswordManagerRepository.save(pwd);
+    }
+
+    // ── Helper: save to AUDIT_LOG ───────────────────────────────────────────────
+    private void saveAuditLog(String tableName, Long recordId, String operation,
+                               String oldValue, String newValue,
+                               String actorUsername, String actorType,
+                               Long bankId, String actionLabel) {
+        try {
+            AuditLog log = new AuditLog();
+            log.setTableName(tableName);
+            log.setRecordId(recordId);
+            log.setOperation(operation);
+            log.setOldValue(oldValue);
+            log.setNewValue(newValue);
+            log.setActorUsername(actorUsername);
+            log.setActorType(actorType);
+            log.setBankId(bankId);
+            log.setActionLabel(actionLabel);
+            log.setChangedAt(LocalDateTime.now());
+            auditLogRepository.save(log);
+        } catch (Exception e) {
+            logger.warn("AuditLog save failed: {}", e.getMessage());
+        }
+    }
+
+    // ── Product helpers ──────────────────────────────────────────────────────────
+
+    private void saveProductMappings(Long bankId, ReconBankMaster bank, String actorBy) {
+        List<String> products = bank.getSelectedProducts();
+        if (products == null || products.isEmpty()) return;
+        bankProductMapRepository.deleteByBankId(bankId);
+        bankProductMapRepository.flush();
+        Map<String, ReconBankMaster.ProductDateEntry> dates = bank.getProductDates();
+        for (String productName : products) {
+            Optional<ReconProductMaster> prodOpt = productMasterRepository.findByProductName(productName);
+            if (!prodOpt.isPresent()) {
+                ReconProductMaster newProd = new ReconProductMaster();
+                newProd.setProductName(productName);
+                newProd.setStatus("ACTIVE");
+                newProd.setCreatedAt(LocalDateTime.now());
+                newProd.setCreatedBy(actorBy);
+                prodOpt = Optional.of(productMasterRepository.save(newProd));
+            }
+            ReconBankMaster.ProductDateEntry entry = (dates != null) ? dates.get(productName) : null;
+            CBankProductMap mapping = new CBankProductMap();
+            mapping.setBankId(bankId);
+            mapping.setProductId(prodOpt.get().getProductId());
+            mapping.setValidFrom(entry != null ? entry.getValidFrom() : null);
+            mapping.setValidTo(entry != null ? entry.getValidTo() : null);
+            mapping.setStatus("ACTIVE");
+            bankProductMapRepository.save(mapping);
+        }
+        logger.info("Product mappings saved for bankId={}: {}", bankId, products);
+    }
+
+    private void enrichWithProducts(ReconBankMaster bank) {
+        List<CBankProductMap> mappings = bankProductMapRepository.findByBankIdAndStatus(bank.getBankId(), "ACTIVE");
+        List<String> products = new ArrayList<>();
+        Map<String, ReconBankMaster.ProductDateEntry> dates = new LinkedHashMap<>();
+        for (CBankProductMap m : mappings) {
+            productMasterRepository.findById(m.getProductId()).ifPresent(prod -> {
+                products.add(prod.getProductName());
+                dates.put(prod.getProductName(),
+                        new ReconBankMaster.ProductDateEntry(m.getValidFrom(), m.getValidTo()));
+            });
+        }
+        bank.setSelectedProducts(products);
+        bank.setProductDates(dates);
+    }
+
     private String generatePassword(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) sb.append(CHARS.charAt(RNG.nextInt(CHARS.length())));
-        return sb.toString();
+        int digits = 1000 + RNG.nextInt(9000); // 4-digit number: 1000–9999
+        return "Recon@" + digits;
     }
 
     private String deriveUsername(String email, String fullName) {
@@ -416,9 +556,8 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         return candidate;
     }
 
-    private void createDefaultBankAdminMenus(String bankCode, String createdBy) {
+    private void createDefaultAdminMenus(String bankCode, String roleCode, boolean isBranch, String createdBy) {
         try {
-            String roleCode = "BANK_ADMIN_" + bankCode;
 
             // Role already exists? Skip
             Optional<ReconRoleMaster> existingRole = reconRoleMasterRepository.findByRoleCode(roleCode);
@@ -427,9 +566,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             // Create role for this bank's admin
             ReconRoleMaster role = new ReconRoleMaster();
             role.setRoleCode(roleCode);
-            role.setRoleName("Bank Admin - " + bankCode);
+            role.setRoleName((isBranch ? "Branch Admin - " : "Bank Admin - ") + bankCode);
             role.setRoleType("EXTERNAL");
-            role.setRoleDesc("Default Bank Admin role for " + bankCode);
+            role.setRoleDesc("Default " + (isBranch ? "Branch" : "Bank") + " Admin role for " + bankCode);
             role.setStatus("ACTIVE");
             role.setCreatedBy(createdBy);
             role.setCreatedAt(java.time.LocalDateTime.now());
@@ -440,33 +579,33 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, createdBy);
             String myOrgId = String.valueOf(myOrg.getMenuId());
 
+            String prefix = isBranch ? "/branch-admin" : "/bank-admin";
             for (String[] item : Arrays.asList(
-                new String[]{"Dashboard",         "/bank-admin/my-organization/overview"},
-                new String[]{"Branches",          "/bank-admin/my-organization/branches"},
-                new String[]{"Branch Onboarding", "/bank-admin/branch-onboarding"},
-                new String[]{"Hierarchy",         "/bank-admin/my-organization/hierarchy"},
-                new String[]{"User Status",       "/bank-admin/my-organization/user-status"},
-                new String[]{"Admin Status",      "/bank-admin/my-organization/admin-status"}
+                new String[]{"Dashboard",         prefix + "/my-organization/overview"},
+                new String[]{"Branches",          prefix + "/my-organization/branches"},
+                new String[]{"Branch Onboarding", prefix + "/branch-onboarding"},
+                new String[]{"Hierarchy",         prefix + "/my-organization/hierarchy"},
+                new String[]{"User Status",       prefix + "/my-organization/user-status"},
+                new String[]{"Admin Status",      prefix + "/my-organization/admin-status"}
             )) {
                 saveMenu(myOrgId, "Main", item[0], item[1], roleId, createdBy);
             }
 
-            // Master Menu 2: Administration
-            ReconMenuMaster admin = saveMenu(null, "Master", "Administration", null, roleId, createdBy);
-            String adminId = String.valueOf(admin.getMenuId());
+            ReconMenuMaster adminMenu = saveMenu(null, "Master", "Administration", null, roleId, createdBy);
+            String adminMenuId = String.valueOf(adminMenu.getMenuId());
 
             for (String[] item : Arrays.asList(
-                new String[]{"Add User",  "/bank-admin/add-user"},
-                new String[]{"Add Role",  "/bank-admin/admin/add-new-role"},
-                new String[]{"Add Menu",  "/bank-admin/add-menu"},
-                new String[]{"User List", "/bank-admin/user-list"},
-                new String[]{"Role List", "/bank-admin/role-list"},
-                new String[]{"Menu List", "/bank-admin/menu-list"}
+                new String[]{"Add User",  prefix + "/add-user"},
+                new String[]{"Add Role",  prefix + "/admin/add-new-role"},
+                new String[]{"Add Menu",  prefix + "/add-menu"},
+                new String[]{"User List", prefix + "/user-list"},
+                new String[]{"Role List", prefix + "/role-list"},
+                new String[]{"Menu List", prefix + "/menu-list"}
             )) {
-                saveMenu(adminId, "Main", item[0], item[1], roleId, createdBy);
+                saveMenu(adminMenuId, "Main", item[0], item[1], roleId, createdBy);
             }
 
-            logger.info("Default Bank Admin menus created for bank: {}", bankCode);
+            logger.info("Default {} menus created for: {}", isBranch ? "Branch Admin" : "Bank Admin", bankCode);
         } catch (Exception e) {
             logger.error("Failed to create default menus for bank {}: {}", bankCode, e.getMessage());
         }

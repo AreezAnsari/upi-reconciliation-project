@@ -23,4 +23,10 @@ public interface AuditReplacementRepository extends JpaRepository<AuditReplaceme
     Optional<AuditReplacement> findByOriginalUserIdAndStatus(Long originalUserId, String status);
 
     List<AuditReplacement> findByEntityType(String entityType);
+
+    boolean existsByOriginalUserIdAndStatus(Long originalUserId, String status);
+
+    boolean existsByReplacementUserIdAndStatus(Long replacementUserId, String status);
+
+    Optional<AuditReplacement> findByReplacementUserIdAndStatus(Long replacementUserId, String status);
 }

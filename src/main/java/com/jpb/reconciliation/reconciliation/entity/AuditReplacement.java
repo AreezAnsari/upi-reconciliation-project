@@ -36,6 +36,19 @@ public class AuditReplacement {
     @Column(name = "REASON", length = 500)
     private String reason;
 
+    // Pending replacement info — stored before the replacement user is created
+    @Column(name = "PENDING_EMAIL", length = 150)
+    private String pendingEmail;
+
+    @Column(name = "PENDING_FULL_NAME", length = 200)
+    private String pendingFullName;
+
+    @Column(name = "PENDING_MOBILE", length = 20)
+    private String pendingMobile;
+
+    @Column(name = "PENDING_ORDERED_BY", length = 200)
+    private String pendingOrderedBy;
+
     @Column(name = "REPLACED_AT")
     private LocalDateTime replacedAt;
 

@@ -219,4 +219,18 @@ public interface EmailService {
 
     /** Sent to delegatee when delegation ends because delegator was reactivated. */
     void sendDelegationRestoredToDelegatee(String toEmail, String delegateeName, String delegatorName);
+
+    // ── Scheduler / cascade notification shortcuts ──
+
+    /** Sent when a user is automatically blocked by the scheduler (24h window elapsed). */
+    void sendBlockedNotification(String toEmail, String contactName);
+
+    /** Sent to bank primary contact when the bank is automatically inactivated. */
+    void sendBankInactivatedNotification(String toEmail, String bankName);
+
+    /** Sent to bank primary contact when the bank is automatically reactivated. */
+    void sendBankReactivatedNotification(String toEmail, String bankName);
+
+    /** Sent to bank primary contact when the bank is automatically blocked. */
+    void sendBankBlockedNotification(String toEmail, String bankName);
 }

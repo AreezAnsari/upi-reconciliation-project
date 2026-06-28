@@ -2114,4 +2114,99 @@ public class EmailServiceImpl implements EmailService {
             .replace("\"", "&quot;")
             .replace("'", "&#x27;");
     }
+
+    // ── Scheduler / cascade notification shortcuts ───────────────────────────────
+
+    @Override
+    @Async
+    public void sendBlockedNotification(String toEmail, String contactName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai | Your Account Has Been Blocked");
+            h.setText(simpleNotice(contactName,
+                    "Account Blocked",
+                    "Your account on <strong>ReconXpert.Ai</strong> has been permanently blocked.",
+                    "If you believe this is a mistake, please contact your administrator."), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[SCHEDULER] sendBlockedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendBankInactivatedNotification(String toEmail, String bankName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai | Institution Inactivated — " + sanitize(bankName));
+            h.setText(simpleNotice("Administrator",
+                    "Institution Inactivated",
+                    "The institution <strong>" + sanitize(bankName) + "</strong> has been automatically inactivated on <strong>ReconXpert.Ai</strong>.",
+                    "All associated users have been inactivated. Please contact KalInfotech Admin to reactivate."), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[SCHEDULER] sendBankInactivatedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendBankReactivatedNotification(String toEmail, String bankName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai | Institution Reactivated — " + sanitize(bankName));
+            h.setText(simpleNotice("Administrator",
+                    "Institution Reactivated",
+                    "The institution <strong>" + sanitize(bankName) + "</strong> has been reactivated on <strong>ReconXpert.Ai</strong>.",
+                    "You may now log in and resume operations."), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[SCHEDULER] sendBankReactivatedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendBankBlockedNotification(String toEmail, String bankName) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(fromEmail, fromName);
+            h.setTo(toEmail);
+            h.setSubject("ReconXpert.Ai | Institution Blocked — " + sanitize(bankName));
+            h.setText(simpleNotice("Administrator",
+                    "Institution Blocked",
+                    "The institution <strong>" + sanitize(bankName) + "</strong> has been permanently blocked on <strong>ReconXpert.Ai</strong>.",
+                    "All associated users have been blocked. Please contact KalInfotech Admin for resolution."), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            logger.warn("[SCHEDULER] sendBankBlockedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    private String simpleNotice(String contactName, String headline, String body, String note) {
+        return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
+            + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
+            + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>" + sanitize(headline) + "</p></td></tr>"
+            + "<tr><td style='padding:32px 40px 24px;'>"
+            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
+            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>" + body + "</p>"
+            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>" + note + "</p>"
+            + "</td></tr>"
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+            + "</td></tr></table></td></tr></table></body></html>";
+    }
 }

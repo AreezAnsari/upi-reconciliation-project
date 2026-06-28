@@ -40,4 +40,14 @@ public interface ReconUserRepository extends JpaRepository<ReconUser, Long> {
     List<ReconUser> findByReactivateScheduledAtBefore(LocalDateTime time);
 
     List<ReconUser> findByBlockScheduledAtBefore(LocalDateTime time);
+
+    List<ReconUser> findByBankIdAndUserType(Long bankId, String userType);
+
+    Optional<ReconUser> findByBankIdAndUserTypeAndContactRank(Long bankId, String userType, String contactRank);
+
+    Optional<ReconUser> findByUsernameAndBankId(String username, Long bankId);
+
+    List<ReconUser> findByParentUserId(Long parentUserId);
+
+    Optional<ReconUser> findByEmailAndUserType(String email, String userType);
 }
