@@ -54,5 +54,10 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
     
     Optional<RecRole> findByRoleNameIgnoreCaseAndRoleType(String roleName, String roleType);
     
+ // Add this alongside it (keep the old one if other code still uses it expecting single):
+    List<RecRole> findAllByRoleNameIgnoreCaseAndRoleTypeOrderByCreatedAtDesc(String roleName, String roleType);
+    
+    boolean existsByRoleCode(String roleCode);
+    
 
 }

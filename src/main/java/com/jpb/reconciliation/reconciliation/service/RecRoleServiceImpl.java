@@ -118,15 +118,6 @@ public class RecRoleServiceImpl implements RecRoleService {
                     ? req.getRoleNames().get(0).trim().toUpperCase()
                     : combinedName;
 
-//            // ✅ FIX 3: Check duplicate BEFORE hitting DB constraint
-//            if (roleRepo.existsByRoleName(combinedName)) {
-//                return RestWithStatusList.builder()
-//                        .status("FAILURE")
-//                        .statusMsg("Role '" + combinedName + "' already exists")
-//                        .data(Collections.emptyList())
-//                        .build();
-//            }
-            
          // 7. Duplicate check: same name + same roleType is a duplicate.
             //    We do NOT block same name with different roleType
             //    (e.g. "MAKER" can exist as RECON_USER and BANK_USER).
@@ -162,7 +153,28 @@ public class RecRoleServiceImpl implements RecRoleService {
 //                        .collect(Collectors.joining("-"));
 //            }
             
-            String generatedRoleCode = codeGenerator.generateNextCode(combinedName);
+         // Reuse the code already reserved during preview (GET /preview-code) so the
+         // number shown to the user always matches what gets saved. Only generate a
+         // fresh code if no reservation was sent (e.g. edit mode, or API called directly).
+            String generatedRoleCode;
+            boolean hasReservedCode = req.getReservedRoleCode() != null && !req.getReservedRoleCode().trim().isEmpty();
+
+            if (hasReservedCode && !roleRepo.existsByRoleCode(req.getReservedRoleCode())) {
+                // Reserved code is present AND still unclaimed — safe to reuse.
+                generatedRoleCode = req.getReservedRoleCode();
+                log.info("Using RESERVED role code: {}", generatedRoleCode);
+            } else {
+                // No reservation, or it went stale (role name changed after preview,
+                // someone else claimed it, etc.) — generate a fresh one now.
+                generatedRoleCode = codeGenerator.generateNextCode(roleMasterName);
+                if (hasReservedCode) {
+                    log.warn("Reserved code {} was stale/already taken — generated FRESH code: {}",
+                            req.getReservedRoleCode(), generatedRoleCode);
+                } else {
+                    log.info("Using FRESH role code: {}", generatedRoleCode);
+                }
+            }
+
             
             log.info("Creating role: combinedName=[{}] generatedCode=[{}] masters=[{}]",
                     combinedName,
@@ -209,31 +221,47 @@ public class RecRoleServiceImpl implements RecRoleService {
                 // Caller supplied explicit permissions (e.g. from privileges modal) — use those.
                 req.getPermissions().forEach(p -> role.addPermission(buildPermission(p)));
             } else if (req.isForceCreate()) {
-                // forceCreate with no explicit permissions supplied → clone from the existing
-                // duplicate role so admin starts from its current privilege set.
-                roleRepo.findByRoleNameIgnoreCaseAndRoleType(combinedName, roleType.name())
-                        .ifPresent(existing -> {
-                            RecRole existingWithPerms = roleRepo.findByIdWithPermissions(existing.getId())
-                                    .orElse(existing);
-                            existingWithPerms.getPermissions().forEach(existingPerm -> {
-                                RecRoleModulePermission clonedPerm = RecRoleModulePermission.builder()
-                                        .module(existingPerm.getModule())
-                                        .hasAccess(existingPerm.isHasAccess())
-                                        .canView(existingPerm.isCanView())
-                                        .canCreate(existingPerm.isCanCreate())
-                                        .canEdit(existingPerm.isCanEdit())
-                                        .canApprove(existingPerm.isCanApprove())
-                                        .canDownload(existingPerm.isCanDownload())
-                                        .build();
-                                role.addPermission(clonedPerm);
-                            });
-                            log.info("Cloned {} permission rows from existing role id={} onto new role",
-                                    existingWithPerms.getPermissions().size(), existing.getId());
-                        });
+                // Multiple duplicates can now legitimately exist (each with its own unique
+                // roleCode). Clone permissions from the MOST RECENTLY CREATED one, since
+                // that's the closest analogue to "the current version" of this role.
+                List<RecRole> existingMatches = roleRepo
+                        .findAllByRoleNameIgnoreCaseAndRoleTypeOrderByCreatedAtDesc(combinedName, roleType.name());
+
+                if (!existingMatches.isEmpty()) {
+                    RecRole mostRecent = existingMatches.get(0);
+                    RecRole existingWithPerms = roleRepo.findByIdWithPermissions(mostRecent.getId())
+                            .orElse(mostRecent);
+                    existingWithPerms.getPermissions().forEach(existingPerm -> {
+                        RecRoleModulePermission clonedPerm = RecRoleModulePermission.builder()
+                                .module(existingPerm.getModule())
+                                .hasAccess(existingPerm.isHasAccess())
+                                .canView(existingPerm.isCanView())
+                                .canCreate(existingPerm.isCanCreate())
+                                .canEdit(existingPerm.isCanEdit())
+                                .canApprove(existingPerm.isCanApprove())
+                                .canDownload(existingPerm.isCanDownload())
+                                .build();
+                        role.addPermission(clonedPerm);
+                    });
+                    log.info("Cloned {} permission rows from most recent matching role id={} (of {} matches) onto new role",
+                            existingWithPerms.getPermissions().size(), mostRecent.getId(), existingMatches.size());
+                }
             }
 
             // 10. Persist
-            RecRole saved = roleRepo.save(role);
+            RecRole savedRole = null;
+            try {
+                savedRole = roleRepo.save(role);
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Role code {} collided at insert time (race condition) — retrying with a fresh code", generatedRoleCode);
+                String retryCode = codeGenerator.generateNextCode(roleMasterName);
+                role.setRoleCode(retryCode);
+                savedRole = roleRepo.save(role);
+                log.info("Retry succeeded with role code: {}", retryCode);
+            }
+            roleRepo.flush();
+
+            final RecRole saved = savedRole; // now safely final for the lambda below
             roleRepo.flush();
 
             RecRole withCode = roleRepo.findByIdWithPermissions(saved.getId())
@@ -640,9 +668,7 @@ public class RecRoleServiceImpl implements RecRoleService {
             String normalized = roleName.trim().toUpperCase().replace(" ", "_");
             return masterRepo.findByRoleName(normalized)
                     .orElseGet(() -> {
-                        int nextCode = masterRepo.findMaxCustomRoleCode()
-                                .map(max -> max + 1)
-                                .orElse(9001);
+                        int nextCode = nextCustomRoleCode(); // pulls ROLE_CODE_CUSTOM_SEQ.NEXTVAL
                         log.info("Custom RecRoleMaster → name={}, code={}", normalized, nextCode);
                         return masterRepo.save(RecRoleMaster.builder()
                                 .roleName(normalized)
@@ -691,6 +717,19 @@ public class RecRoleServiceImpl implements RecRoleService {
                     "Invalid status '" + raw + "'. Allowed: "
                     + Arrays.toString(RoleStatus.values()));
         }
+    }
+    
+    /**
+     * Pulls the next custom role code from ROLE_CODE_CUSTOM_SEQ.
+     * NEXTVAL is atomic at the DB level — two concurrent requests can never
+     * receive the same number, which is what eliminates the preview/actual
+     * mismatch (previously caused by a non-atomic MAX(roleCode)+1 read).
+     */
+    private int nextCustomRoleCode() {
+        Number next = (Number) em.createNativeQuery(
+                "SELECT ROLE_CODE_CUSTOM_SEQ.NEXTVAL FROM dual")
+                .getSingleResult();
+        return next.intValue();
     }
 
 //    private void validateExternalFields(RecCreateRoleRequestDTO req) {
