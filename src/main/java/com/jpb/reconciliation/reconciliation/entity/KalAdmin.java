@@ -27,15 +27,15 @@ import lombok.NoArgsConstructor;
 
 
 @Entity
-@Table(name = "RCN_RECON_USER")
+@Table(name = "RCN_RECON_USER_v1")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class KalAdmin {
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_USER")
-	@SequenceGenerator(name = "SEQ_USER", sequenceName = "SEQ_USER",allocationSize = 1)
+	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_USER_v1")
+	@SequenceGenerator(name = "SEQ_USER_v1", sequenceName = "SEQ_USER_v1",allocationSize = 1)
 	@Column(name = "user_id")
 	private Long userId;
 	
