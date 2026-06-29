@@ -103,7 +103,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 ReconUser primary = buildAdminUser(
                         saved.getBankId(), bank.getPrimaryFullName(), bank.getPrimaryEmail(),
                         bank.getPrimaryMobile(), username, adminUserType, "PRIMARY",
-                        defaultPwd, "ACTIVE_PENDING", createdBy);
+                        defaultPwd, "REQUEST", createdBy);
 
                 Optional<ReconRoleMaster> roleOpt = reconRoleMasterRepository.findByRoleCode(roleCode);
                 roleOpt.ifPresent(r -> primary.setRoleId(r.getRoleId()));
@@ -118,12 +118,15 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
 
                 // Audit: primary admin created
                 saveAuditLog("RCN_RECON_USER", savedPrimary.getUserId(), "CREATE", null,
-                        "userType=" + adminUserType + ",contactRank=PRIMARY,status=ACTIVE_PENDING",
+                        "userType=" + adminUserType + ",contactRank=PRIMARY,status=REQUEST",
                         createdBy, adminUserType, saved.getBankId(),
                         "Primary " + adminUserType + " created: " + username);
 
-                // Welcome email with credentials
-                String verifyLink = frontendUrl + (isBranch ? "/branch-admin-login" : "/bank-admin-login");
+                // Welcome email — link goes to verify-email page (which calls backend then redirects to login with mode=verify)
+                String verifyPage = isBranch ? "/branch-verify-email" : "/verify-email";
+                String verifyLink = frontendUrl + verifyPage
+                        + "?bankCode=" + saved.getBankCode()
+                        + "&username=" + username;
                 emailService.sendBankAdminWelcome(
                         savedPrimary.getEmail(), savedPrimary.getFullName(),
                         saved.getBankName(), saved.getBankCode(),

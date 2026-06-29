@@ -30,6 +30,8 @@ import javax.servlet.http.HttpServletResponse;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -65,14 +67,18 @@ public class BankAuthServiceImpl implements BankAuthService {
         ReconUser user = userOpt.get();
         if ("BLOCKED".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new RestWithStatusList("FAILURE", "Account is BLOCKED. Contact administrator.", null));
+                    .body(new RestWithStatusList("BLOCKED", "Account is BLOCKED. Contact administrator.", null));
         }
         if ("INACTIVE".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new RestWithStatusList("FAILURE", "Account is INACTIVE. Contact administrator.", null));
+                    .body(new RestWithStatusList("INACTIVE", "Account is INACTIVE. Contact administrator.", null));
         }
         String userType = user.getPasswordSet() != null && user.getPasswordSet() == 1 ? "OLD_USER" : "NEW_USER";
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", userType, Collections.singletonList(user.getUsername())));
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userStatus", userType);
+        payload.put("bankCode", bankCode);
+        payload.put("username", user.getUsername());
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", userType, Collections.singletonList(payload)));
     }
 
     // ── Step 1: verify-credentials ──────────────────────────────────────────────
@@ -86,9 +92,12 @@ public class BankAuthServiceImpl implements BankAuthService {
         }
         ReconUser user = userOpt.get();
 
+        ResponseEntity<RestWithStatusList> statusGuard = guardStatus(user);
+        if (statusGuard != null) return statusGuard;
+
         if (user.getPasswordSet() != null && user.getPasswordSet() == 1) {
-            return ResponseEntity.badRequest()
-                    .body(new RestWithStatusList("FAILURE", "Password already set. Please login directly.", null));
+            return ResponseEntity.ok(
+                    new RestWithStatusList("ALREADY_VERIFIED", "Password already set. Proceeding to login.", null));
         }
 
         if (!passwordEncoder.matches(defaultPassword, user.getPasswordHash())) {
@@ -221,7 +230,8 @@ public class BankAuthServiceImpl implements BankAuthService {
         auditLog("RCN_RECON_USER", user.getUserId(), "LOGIN",
                 null, "OTP sent", username, user.getUserType(), user.getBankId(), "Login step: OTP dispatched");
 
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "OTP sent to registered email.", null));
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "OTP sent to registered email.",
+                Collections.singletonList(maskEmail(user.getEmail()))));
     }
 
     // ── Step 3b: verify OTP → status=ACTIVE → JWT ──────────────────────────────
@@ -259,7 +269,7 @@ public class BankAuthServiceImpl implements BankAuthService {
         otpManagerRepository.save(otp);
 
         // First-time OTP login: VERIFIED → ACTIVE; subsequent logins already ACTIVE
-        if ("VERIFIED".equals(user.getStatus()) || "ACTIVE_PENDING".equals(user.getStatus())) {
+        if ("VERIFIED".equals(user.getStatus())) {
             user.setStatus("ACTIVE");
             user.setApprovedYn("Y");
             user.setApprovedBy("SYSTEM");
@@ -299,7 +309,7 @@ public class BankAuthServiceImpl implements BankAuthService {
                     .body(new RestWithStatusList("FAILURE", "Invalid credentials.", null));
         }
 
-        if ("VERIFIED".equals(user.getStatus()) || "ACTIVE_PENDING".equals(user.getStatus())) {
+        if ("VERIFIED".equals(user.getStatus())) {
             user.setStatus("ACTIVE");
             user.setApprovedYn("Y");
             user.setApprovedBy("SYSTEM");
@@ -445,14 +455,15 @@ public class BankAuthServiceImpl implements BankAuthService {
     private ResponseEntity<RestWithStatusList> guardStatus(ReconUser user) {
         if ("BLOCKED".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new RestWithStatusList("FAILURE",
+                    .body(new RestWithStatusList("BLOCKED",
                             "Account is BLOCKED. Reason: " + (user.getBlockReason() != null ? user.getBlockReason() : "Contact administrator."), null));
         }
         if ("INACTIVE".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new RestWithStatusList("FAILURE", "Account is INACTIVE. Contact administrator.", null));
+                    .body(new RestWithStatusList("INACTIVE", "Account is INACTIVE. Contact administrator.", null));
         }
-        if ("ACTIVE_PENDING".equals(user.getStatus()) && (user.getPasswordSet() == null || user.getPasswordSet() == 0)) {
+        if (("REQUEST".equals(user.getStatus()) || "VERIFIED".equals(user.getStatus()))
+                && (user.getPasswordSet() == null || user.getPasswordSet() == 0)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new RestWithStatusList("FAILURE", "Please complete first-time setup (set password).", null));
         }
@@ -475,6 +486,15 @@ public class BankAuthServiceImpl implements BankAuthService {
                 user.getUserId(), user.getRoleId(), user.getUserType(),
                 user.getFullName(), user.getUsername());
         return new RestWithStatusList("SUCCESS", "Login successful.", Collections.singletonList(auth));
+    }
+
+    private String maskEmail(String email) {
+        if (email == null) return "";
+        int at = email.indexOf('@');
+        if (at <= 1) return email;
+        String name = email.substring(0, at);
+        String domain = email.substring(at);
+        return name.charAt(0) + "***" + name.charAt(name.length() - 1) + domain;
     }
 
     private String generateOtp(int digits) {

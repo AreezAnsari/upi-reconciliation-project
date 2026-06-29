@@ -74,7 +74,7 @@ spring:
       max-history: 30
   servlet:
     multipart:
-      max-file-size: -1 #Max file upload limit set 
+      max-file-size: -1 #Max file upload limit set
       max-request-size: -1 #Max file upload limit request
   security:
     oauth2:
@@ -91,20 +91,43 @@ spring:
 #            user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
 #            jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
 #            user-name-attribute: name
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: areezansari9322@gmail.com
+    password: gjcu wnpy pkqo meny
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 oracle:
   jdbc:
     query-timeout-seconds: 900
 
 app:
-  uDrive: 'C:\ReconFiles\Utility\'
-  ttumFile: 'C:\ReconFiles\TTUMReport\'
-  transactionFile: 'C:\ReconFiles\TransactionReport/'
-  targetFilePath: 'C:\ReconFiles\DCRFILES_COMPLETED/'
-  aepsDataFile: 'C:\ReconFiles\AEPSDataReport/'
-  reconReport: 'C:\ReconFiles\ReconReport\'
-  uploadFileDir: 'C:\ReconFiles\UploadFiles\'
-  accountSplitPath: 'C:\ReconFiles\Account_split_files'
+  uDrive: 'C:/ReconFiles/Utility/'
+  ttumFile: 'C:/ReconFiles/TTUMReport/'
+  transactionFile: 'C:/ReconFiles/TransactionReport/'
+  targetFilePath: 'C:/ReconFiles/DCRFILES_COMPLETED/'
+  aepsDataFile: 'C:/ReconFiles/AEPSDataReport/'
+  reconReport: 'C:/ReconFiles/ReconReport/'
+  uploadFileDir: 'C:/ReconFiles/UploadFiles/'
+  accountSplitPath: 'C:/ReconFiles/Account_split_files/'
+  mail:
+    from: areezansari9322@gmail.com
+    from-name: ReconXpert.Ai
+    otp-expiry-minutes: 5
+    support-email: support@kalinfotech.com
+    bank-verification-url: http://localhost:5173/verify-email
+  frontend:
+    url: http://localhost:5173
 server:
   port: 8081
 
