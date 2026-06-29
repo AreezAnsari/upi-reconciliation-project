@@ -217,6 +217,7 @@ public class BankAuthServiceImpl implements BankAuthService {
         // Generate & send OTP
         String otp = generateOtp(6);
         otpManagerRepository.invalidatePreviousOtps(user.getEmail());
+        otpManagerRepository.flush();
         OtpManager otpEntity = new OtpManager();
         otpEntity.setEmailId(user.getEmail());
         otpEntity.setOtpCode(otp);
@@ -461,11 +462,6 @@ public class BankAuthServiceImpl implements BankAuthService {
         if ("INACTIVE".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new RestWithStatusList("INACTIVE", "Account is INACTIVE. Contact administrator.", null));
-        }
-        if (("REQUEST".equals(user.getStatus()) || "VERIFIED".equals(user.getStatus()))
-                && (user.getPasswordSet() == null || user.getPasswordSet() == 0)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new RestWithStatusList("FAILURE", "Please complete first-time setup (set password).", null));
         }
         return null;
     }

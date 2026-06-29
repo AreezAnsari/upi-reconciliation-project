@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.entity.OtpManager;
 
@@ -18,8 +17,7 @@ public interface OtpManagerRepository extends JpaRepository<OtpManager, Long> {
     Optional<OtpManager> findTopByEmailIdAndIsUsedOrderByCreatedAtDesc(String emailId, String isUsed);
 
     // Mark all old OTPs for this email as used before generating new one
-    @Modifying
-    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OtpManager o SET o.isUsed = 'Y' WHERE o.emailId = :emailId AND o.isUsed = 'N'")
     void invalidatePreviousOtps(@Param("emailId") String emailId);
 }
