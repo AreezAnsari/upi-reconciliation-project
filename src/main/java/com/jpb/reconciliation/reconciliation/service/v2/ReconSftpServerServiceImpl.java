@@ -1,38 +1,70 @@
-//package com.jpb.reconciliation.reconciliation.service.v2;
-//
-//import java.util.ArrayList;
-//import java.util.Collections;
-//import java.util.LinkedHashMap;
-//import java.util.List;
-//import java.util.Map;
-//import java.util.Properties;
-//import java.util.stream.Collectors;
-//
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
-//import org.springframework.http.HttpStatus;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.stereotype.Service;
-//import org.springframework.transaction.annotation.Transactional;
-//
-//import com.jcraft.jsch.ChannelSftp;
-//import com.jcraft.jsch.JSch;
-//import com.jcraft.jsch.Session;
-//import com.jpb.reconciliation.reconciliation.constants.v2.SftpConstants;
-//import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
-//import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-//import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
-//import com.jpb.reconciliation.reconciliation.dto.v2.SftpServerRequestDTO;
-//import com.jpb.reconciliation.reconciliation.entity.v2.ReconSftpServerMast;
-//import com.jpb.reconciliation.reconciliation.repository.v2.ReconSftpServerMastRepository;
-//import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
-//
-//import lombok.RequiredArgsConstructor;
-//
-//@Service
-//@RequiredArgsConstructor
-//public class ReconSftpServerServiceImpl implements ReconSftpServerService {
-//
+package com.jpb.reconciliation.reconciliation.service.v2;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.jpb.reconciliation.reconciliation.constants.v2.SftpConstants;
+import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
+import com.jpb.reconciliation.reconciliation.dto.v2.SftpServerRequestDTO;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconSftpServerMast;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconSftpServerMastRepository;
+import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class ReconSftpServerServiceImpl implements ReconSftpServerService {@Override
+	public ResponseEntity<RestWithMapStatusList> createServer(SftpServerRequestDTO request, String createdBy) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithMapStatusList> updateServer(Long serverId, SftpServerRequestDTO request,
+			String updatedBy) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithMapStatusList> getServerById(Long serverId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> getAllServers(boolean activeOnly) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithMapStatusList> deleteServer(Long serverId, String updatedBy) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> testConnection(SftpTestConnectionRequestDTO request) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 //    private static final Logger logger = LoggerFactory.getLogger(ReconSftpServerServiceImpl.class);
 //
 //    private final ReconSftpServerMastRepository sftpServerRepo;
@@ -398,4 +430,4 @@
 //        // password + passphrase intentionally excluded from response
 //        return row;
 //    }
-//}
+}

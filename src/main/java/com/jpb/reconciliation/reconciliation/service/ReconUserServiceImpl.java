@@ -1,54 +1,115 @@
-//package com.jpb.reconciliation.reconciliation.service;
-//
-//import java.time.LocalDateTime;
-//import java.util.ArrayList;
-//import java.util.List;
-//import java.util.Optional;
-//
-//import javax.servlet.http.Cookie;
-//import javax.servlet.http.HttpServletResponse;
-//
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.http.HttpStatus;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.security.authentication.AuthenticationManager;
-//import org.springframework.security.authentication.BadCredentialsException;
-//import org.springframework.security.authentication.DisabledException;
-//import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-//import org.springframework.security.core.Authentication;
-//import org.springframework.security.core.userdetails.UserDetails;
-//import org.springframework.security.crypto.password.PasswordEncoder;
-//import org.springframework.stereotype.Service;
-//
-//import com.jpb.reconciliation.reconciliation.config.SchedulerConfig;
-//import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
-//import com.jpb.reconciliation.reconciliation.constants.UserConstants;
-//import com.jpb.reconciliation.reconciliation.dto.AuthResponse;
-//import com.jpb.reconciliation.reconciliation.dto.LoginRequestDto;
-//import com.jpb.reconciliation.reconciliation.dto.ReconUserDto;
-//import com.jpb.reconciliation.reconciliation.dto.ReconUserResponseDto;
-//import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
-//import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-//import com.jpb.reconciliation.reconciliation.dto.UserPasswordChangeRequest;
-//import com.jpb.reconciliation.reconciliation.entity.PasswordManager;
-//import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-//import com.jpb.reconciliation.reconciliation.entity.Role;
-//import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
-//import com.jpb.reconciliation.reconciliation.mapper.ReconUserMapper;
-//import com.jpb.reconciliation.reconciliation.repository.PasswordManagerRepository;
-//import com.jpb.reconciliation.reconciliation.repository.ProcessMasterRepository;
-//import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
-//import com.jpb.reconciliation.reconciliation.repository.RoleManageRepository;
-//import com.jpb.reconciliation.reconciliation.repository.RoleRepository;
-//import com.jpb.reconciliation.reconciliation.security.JwtHelper;
-//
-//import io.jsonwebtoken.JwtException;
-//
-//@Service
-//public class ReconUserServiceImpl implements ReconUserService {
-//
+package com.jpb.reconciliation.reconciliation.service;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.jpb.reconciliation.reconciliation.config.SchedulerConfig;
+import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
+import com.jpb.reconciliation.reconciliation.constants.UserConstants;
+import com.jpb.reconciliation.reconciliation.dto.AuthResponse;
+import com.jpb.reconciliation.reconciliation.dto.LoginRequestDto;
+import com.jpb.reconciliation.reconciliation.dto.ReconUserDto;
+import com.jpb.reconciliation.reconciliation.dto.ReconUserResponseDto;
+import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.dto.UserPasswordChangeRequest;
+import com.jpb.reconciliation.reconciliation.entity.PasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.Role;
+import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
+import com.jpb.reconciliation.reconciliation.mapper.ReconMenuMasterMapper;
+import com.jpb.reconciliation.reconciliation.repository.PasswordManagerRepository;
+import com.jpb.reconciliation.reconciliation.repository.ProcessMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.RoleManageRepository;
+import com.jpb.reconciliation.reconciliation.repository.RoleRepository;
+import com.jpb.reconciliation.reconciliation.security.JwtHelper;
+
+import io.jsonwebtoken.JwtException;
+
+@Service
+public class ReconUserServiceImpl implements ReconUserService {
+
+	@Override
+	public ResponseEntity<RestWithStatusList> createUser(ReconUserDto reconUserDto) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> getUserByUserId(Long userId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<?> login(LoginRequestDto loginRequestDto, HttpServletResponse response) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<?> getUserData(String username) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<ResponseDto> removeUser(Long userId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<ResponseDto> changePassword(UserPasswordChangeRequest changePasswordRequest) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> updateUser(ReconUserDto userUpdateRequest) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> getApprovedUSers(String approvedYN) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> approveOrRejectUser(ReconUserDto approveUserRequest,
+			UserDetails userDetails) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public ResponseEntity<RestWithStatusList> getAllUsers() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 //	private final ProcessMasterRepository processMasterRepository;
 //
 //	private final SchedulerConfig schedulerConfig;
@@ -91,27 +152,26 @@
 //	public ResponseEntity<RestWithStatusList> createUser(ReconUserDto reconUserDto) {
 //		RestWithStatusList restWithStatusList = null;
 //
-//		Boolean existsUser = reconUserRepository.existsByUserNameAndEmailId(reconUserDto.getUserName(),
-//				reconUserDto.getEmailId());
+//		Boolean existsUser = reconUserRepository.existsByUsername(reconUserDto.getUserName());
 //		logger.info("Check user present into records :::::::::" + existsUser);
 //		if (existsUser) {
 //			restWithStatusList = new RestWithStatusList("FAILURE", "User Already Exists", null);
 //			return new ResponseEntity<>(restWithStatusList, HttpStatus.BAD_REQUEST);
 //		} else {
 //			Role userRole = roleManageRepository.findByRoleId(reconUserDto.getRoleId());
-//			ReconUser reconUser = ReconUserMapper.mapToReconUser(reconUserDto, new ReconUser());
+////			ReconUser reconUser = ReconUser.mapToReconUser(reconUserDto, new ReconUser());
 ////			Role role = saveUserRole(reconUserDto.getRoleName());
 ////			roleRepository.save(role);
-//			reconUser.setRole(userRole);
+////			reconUser.setRole(userRole);
 //			PasswordManager passwordManager = saveUserPasswordData(reconUserDto.getUserPassword());
-//			passwordManager.setReconUser(reconUser);
-//			reconUser.setPasswordManager(passwordManager);
-//			logger.info("User data :::::::::" + reconUser.toString());
-//			if (reconUser != null) {
-//				reconUserRepository.save(reconUser);
-//				reconUserRepository.flush();
-//				restWithStatusList = new RestWithStatusList("SUCCESS", "User Created Succussfully", null);
-//			}
+////			passwordManager.setReconUser(reconUser);
+////			reconUser.setPasswordManager(passwordManager);
+////			logger.info("User data :::::::::" + reconUser.toString());
+////			if (reconUser != null) {
+////				reconUserRepository.save(reconUser);
+////				reconUserRepository.flush();
+////				restWithStatusList = new RestWithStatusList("SUCCESS", "User Created Succussfully", null);
+////			}
 //		}
 //		return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
 //	}
@@ -147,11 +207,11 @@
 //		RestWithStatusList restWithStatusList;
 //		List<Object> addReconUser = new ArrayList<>();
 //
-//		ReconUser reconUser = reconUserRepository.findByUserId(userId)
+//		ReconUser reconUser = reconUserRepository.findById(userId)
 //				.orElseThrow(() -> new ResourceNotFoundException("USER NOT FOUND"));
 //
-//		ReconUserResponseDto reconUserResponseDto = ReconUserMapper.mapToReconUserResponseDto(reconUser,
-//				new ReconUserResponseDto());
+////		ReconUserResponseDto reconUserResponseDto = ReconUserMapper.mapToReconUserResponseDto(reconUser,
+////				new ReconUserResponseDto());
 //		logger.info("User found in given user id :::" + userId + reconUser);
 //		if (reconUser != null) {
 //			addReconUser.add(reconUserResponseDto);
@@ -234,7 +294,7 @@
 //
 //	@Override
 //	public ResponseEntity<ResponseDto> removeUser(Long userId) {
-//		ReconUser reconUser = reconUserRepository.findByUserId(userId)
+//		ReconUser reconUser = reconUserRepository.findById(userId)
 //				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 //		reconUserRepository.deleteById(reconUser.getUserId());
 //		roleRepository.deleteById(userId);
@@ -245,7 +305,7 @@
 //	@Override
 //	public ResponseEntity<ResponseDto> changePassword(UserPasswordChangeRequest changePasswordRequest) {
 //
-//		Optional<ReconUser> findUser = reconUserRepository.findByUserId(changePasswordRequest.getUserId());
+//		Optional<ReconUser> findUser = reconUserRepository.findById(changePasswordRequest.getUserId());
 //		logger.info("USER BY USER ID :::::::::::::::::::::::::::::::" + findUser.get());
 //		ReconUser UserData = findUser.get();
 //
@@ -278,7 +338,7 @@
 //	@Override
 //	public ResponseEntity<RestWithStatusList> updateUser(ReconUserDto userUpdateRequest) {
 //		RestWithStatusList restWithStatusList = null;
-//		Optional<ReconUser> userDetails = reconUserRepository.findByUserId(userUpdateRequest.getUserId());
+//		Optional<ReconUser> userDetails = reconUserRepository.findById(userUpdateRequest.getUserId());
 //
 //		ReconUser user = userDetails.get();
 //		if (user != null) {
@@ -320,7 +380,7 @@
 //			restWithStatusList = new RestWithStatusList("FAILURE", "Please select user to approve", null);
 //			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.BAD_REQUEST);
 //		} else {
-//			Optional<ReconUser> user = reconUserRepository.findByUserId(approveUserRequest.getUserId());
+//			Optional<ReconUser> user = reconUserRepository.findById(approveUserRequest.getUserId());
 //			ReconUser getUser = user.get();
 //			approveUserRequest.setApprovedBy(userDetails.getUsername());
 //			ReconUser approvedOrRejectUser = ReconUserMapper.mapToApproveRejectReconUser(approveUserRequest, getUser);
@@ -347,5 +407,5 @@
 //		}
 //		return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.OK);
 //	}
-//
-//}
+
+}
