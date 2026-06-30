@@ -1,0 +1,29 @@
+package com.jpb.reconciliation.reconciliation.controller;
+
+import javax.validation.Valid;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.jpb.reconciliation.reconciliation.dto.KalLoginDto;
+import com.jpb.reconciliation.reconciliation.dto.KalUserDto;
+import com.jpb.reconciliation.reconciliation.service.KalUserService;
+
+@RestController
+@RequestMapping("/api/kalinfotech/auth")
+public class KalUserController {
+
+    @Autowired
+    private KalUserService service;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody KalUserDto dto) {
+        return ResponseEntity.ok(service.register(dto));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody KalLoginDto dto) {
+        return ResponseEntity.ok(service.login(dto.getUsername(), dto.getPassword()));
+    }
+}
