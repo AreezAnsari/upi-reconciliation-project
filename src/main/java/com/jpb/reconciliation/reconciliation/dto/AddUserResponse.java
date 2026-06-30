@@ -25,6 +25,7 @@ public class AddUserResponse {
     private String mobileNumber;
     private String userType;
     private String role;
+//    private String roleType;
     private String status;
 
     private String externalDepartmentName;

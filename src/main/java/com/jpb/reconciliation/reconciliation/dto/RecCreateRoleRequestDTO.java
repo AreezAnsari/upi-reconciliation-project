@@ -27,7 +27,7 @@ public class RecCreateRoleRequestDTO {
         @NotBlank(message = "Role name must not be blank")
         @Size(max = 25, message = "Role name must be ≤ 25 characters")
         String> roleNames;
-//    private String    status;         // DRAFT / PENDING
+    private String    status;         // ACTIVE , DELETE
     private String    roleType;        // RECON_USER / BANK_USER / BRANCH_USER
 //    private String    externalDepartmentName;
 //    private String    externalSupervisorName;
@@ -48,6 +48,8 @@ public class RecCreateRoleRequestDTO {
     private String    bankCode;       // set from JWT context in backend
     private String    branchCode;     // set from JWT context in backend (null for bank admin)
     private boolean forceCreate; // default false; frontend sets true after user confirms "create anyway"
+    private String reservedRoleCode; // pre-generated via GET /preview-code; createRole()
+    // reuses this instead of calling generateNextCode() again
 
     private List<RecPermissionRowDTO> permissions; // the checkbox matrix
 }

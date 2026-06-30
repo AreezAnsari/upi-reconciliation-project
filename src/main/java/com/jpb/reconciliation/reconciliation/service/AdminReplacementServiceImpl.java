@@ -413,6 +413,7 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
             replacement.setEmail(newEmail);
             replacement.setRole(role);
             replacement.setUserType(userType);
+//            replacement.setRoleType(original.getRoleType() != null ? original.getRoleType() : userType.name());
             replacement.setDepartment(original.getDepartment());
             replacement.setDesignation(original.getDesignation());
             replacement.setMobileNumber(pending.getPendingMobile());
@@ -619,6 +620,8 @@ public class AdminReplacementServiceImpl implements AdminReplacementService {
         replacement.setEmail(req.getNewEmail().trim());
         replacement.setRole(role);
         replacement.setUserType(userType);
+
+//        replacement.setRoleType(original.getRoleType() != null ? original.getRoleType() : userType.name());
         replacement.setDepartment(req.getDepartment());
         replacement.setDesignation(req.getDesignation());
         replacement.setMobileNumber(req.getMobileNumber());

@@ -62,9 +62,9 @@ public class RecRole {
     @Column(name = "ROLE_TYPE", nullable = false, length = 20)
     private String roleType;  // INTERNAL / EXTERNAL
 
-//    @Column(name = "STATUS", nullable = false, length = 20)
-//    @Builder.Default
-//    private String status = "DRAFT";
+    @Column(name = "STATUS", nullable = false, length = 20)
+    @Builder.Default
+    private String status = "ACTIVE"; // ACTIVE | DELETED
     
     @Column(name = "SESSION_TIMEOUT", nullable = false)
     @Builder.Default

@@ -22,5 +22,7 @@ public interface RecRoleService {
     
     RestWithStatusList getPrivileges(Long roleId);
     
+    RestWithStatusList deleteRole(Long id);
+    
 //    RecPermissionRowDTO resolveOrCreateModuleRow(RecPermissionLabelDTO labelDto);
 }

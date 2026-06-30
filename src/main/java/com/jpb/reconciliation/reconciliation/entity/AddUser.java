@@ -75,6 +75,9 @@ public class AddUser {
     @Column(name = "EXTERNAL_SUPERVISOR_PHONE", length = 20)
     private String externalSupervisorPhone;
 
+//    @Column(name = "ROLE_TYPE", nullable = false, length = 20)
+//    private String roleType;
+
     @Column(name = "PASSWORD_SET", nullable = false)
     @Builder.Default
     private Integer passwordSet = 0;

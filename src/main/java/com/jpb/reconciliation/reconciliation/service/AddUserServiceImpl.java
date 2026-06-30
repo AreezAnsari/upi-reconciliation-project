@@ -264,10 +264,17 @@ public class AddUserServiceImpl implements AddUserService {
             enrichDelegation(resp, u.getId());
             users.add(resp);
         }
+        // Bank Admin sees ALL users under this bank — both bank-level (branchCode null)
+        // and every branch-scoped user beneath it. Previously this incorrectly used
+        // findByBankCodeAndBranchCodeIsNull, which hid all branch users.
+        List<AddUserResponse> users1 = userRepository.findByBankCode(bankCode)
+                .stream()
+                .map(AddUserMapper::toResponse)
+                .collect(Collectors.toList());
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Users fetched successfully")
-                .data(new java.util.ArrayList<>(users))
+                .data(new java.util.ArrayList<>(users1))
                 .build();
     }
 

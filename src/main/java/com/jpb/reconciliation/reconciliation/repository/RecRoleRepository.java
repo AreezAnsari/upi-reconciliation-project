@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.jpb.reconciliation.reconciliation.entity.RecModule;
 import com.jpb.reconciliation.reconciliation.entity.RecRole;
 
 @Repository
@@ -53,5 +54,34 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
 
     // Bank Admin: roles they created (no branch scope — bank-level only)
     List<RecRole> findByBankCodeAndBranchCodeIsNull(String bankCode);
+        
+ // Add this alongside it (keep the old one if other code still uses it expecting single):
+    List<RecRole> findAllByRoleNameIgnoreCaseAndRoleTypeOrderByCreatedAtDesc(String roleName, String roleType);
+    
+    boolean existsByRoleCode(String roleCode);
+    
+ // Bank + Branch scoped checking 
+
+    boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBranchCode(
+        String roleName, String roleType, String branchCode);
+
+    boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBankCodeAndBranchCodeIsNull(
+        String roleName, String roleType, String bankCode);
+    
+    
+    
+    boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBranchCodeAndStatusNot(
+    	    String roleName, String roleType, String branchCode, String status);
+
+    	boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBankCodeAndBranchCodeIsNullAndStatusNot(
+    	    String roleName, String roleType, String bankCode, String status);
+
+    	boolean existsByRoleNameIgnoreCaseAndRoleTypeAndStatusNot(
+    	    String roleName, String roleType, String status);
+
+    	List<RecRole> findByBranchCodeAndStatusNot(String branchCode, String status);
+    	List<RecRole> findByBankCodeAndBranchCodeIsNullAndStatusNot(String bankCode, String status);
+    	List<RecRole> findByStatusNot(String status);
+    
 
 }

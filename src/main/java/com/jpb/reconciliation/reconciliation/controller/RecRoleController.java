@@ -77,6 +77,11 @@ public class RecRoleController {
 //
 //     return ResponseEntity.ok(roleService.updatePermissions(id, resolved));
 // }
+    // SOFT DELETE
+    @DeleteMapping("/{id}")
+    public ResponseEntity<RestWithStatusList> deleteRole(@PathVariable Long id) {
+        return ResponseEntity.ok(roleService.deleteRole(id));
+    }
     
     // ── GET Branch Purchased Products ──────────────────────────────────────────
     /**

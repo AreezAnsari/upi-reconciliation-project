@@ -42,6 +42,8 @@ public class AddUserRequest {
     @Pattern(regexp = "MAKER|CHECKER|WORKER|AUDITOR|IT_OPS|SUPERVISOR|RCC_CXO|DEFAULT", message = "Invalid role value")
     private String role;
 
+//    private String roleType;
+
     @Pattern(regexp = "INTERNAL|EXTERNAL", message = "User type must be INTERNAL or EXTERNAL")
     @Builder.Default
     private String userType = "INTERNAL";

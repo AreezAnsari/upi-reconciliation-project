@@ -23,7 +23,7 @@ public class RecRoleMapper {
                 .roleCode(role.getRoleCode())
                 .assignedRoles(toMasterDTOList(role))   // all masters from join table
                 .roleType(role.getRoleType())
-//                .status(role.getStatus())
+                .status(role.getStatus())
 //                .externalDepartmentName(role.getExternalDepartmentName())
 //                .externalSupervisorName(role.getExternalSupervisorName())
 //                .externalSupervisorEmail(role.getExternalSupervisorEmail())
@@ -64,7 +64,7 @@ public class RecRoleMapper {
                 .roleName(role.getRoleName())
                 .roleCode(role.getRoleCode())
                 .roleType(role.getRoleType())
-//                .status(role.getStatus())
+                .status(role.getStatus())
 //                .externalDepartmentName(role.getExternalDepartmentName())
 //                .externalSupervisorName(role.getExternalSupervisorName())
 //                .externalSupervisorEmail(role.getExternalSupervisorEmail())
