@@ -62,21 +62,11 @@ public class RecRoleController {
                 roleService.updateRole(id, request));
     }
     
-// // ── UPDATE Permissions BY LABEL (auto-resolves/creates RecModule by name) ──
-// // TODO: remove this once RecModule is fully seeded and the frontend tree
-// // carries real moduleIds end-to-end. At that point, switch the frontend
-// // back to calling PUT /{id}/permissions directly with moduleId rows.
-// @PutMapping("/{id}/permissions-by-label")
-// public ResponseEntity<RestWithStatusList> updatePermissionsByLabel(
-//         @PathVariable Long id,
-//         @RequestBody List<RecPermissionLabelDTO> labelDtos) {
-//
-//     List<RecPermissionRowDTO> resolved = labelDtos.stream()
-//             .map(roleService::resolveOrCreateModuleRow)
-//             .collect(Collectors.toList());
-//
-//     return ResponseEntity.ok(roleService.updatePermissions(id, resolved));
-// }
+    // SOFT DELETE
+    @DeleteMapping("/{id}")
+    public ResponseEntity<RestWithStatusList> deleteRole(@PathVariable Long id) {
+        return ResponseEntity.ok(roleService.deleteRole(id));
+    }
     
     // ── GET Branch Purchased Products ──────────────────────────────────────────
     /**

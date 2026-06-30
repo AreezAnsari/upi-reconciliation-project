@@ -27,7 +27,7 @@ public class RecCreateRoleRequestDTO {
         @NotBlank(message = "Role name must not be blank")
         @Size(max = 25, message = "Role name must be ≤ 25 characters")
         String> roleNames;
-//    private String    status;         // DRAFT / PENDING
+    private String    status;         // ACTIVE , DELETE
     private String    roleType;        // RECON_USER / BANK_USER / BRANCH_USER
 //    private String    externalDepartmentName;
 //    private String    externalSupervisorName;

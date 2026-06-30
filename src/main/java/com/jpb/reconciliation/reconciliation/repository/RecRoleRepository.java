@@ -59,5 +59,28 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
     
     boolean existsByRoleCode(String roleCode);
     
+ // Bank + Branch scoped checking 
+
+    boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBranchCode(
+        String roleName, String roleType, String branchCode);
+
+    boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBankCodeAndBranchCodeIsNull(
+        String roleName, String roleType, String bankCode);
+    
+    
+    
+    boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBranchCodeAndStatusNot(
+    	    String roleName, String roleType, String branchCode, String status);
+
+    	boolean existsByRoleNameIgnoreCaseAndRoleTypeAndBankCodeAndBranchCodeIsNullAndStatusNot(
+    	    String roleName, String roleType, String bankCode, String status);
+
+    	boolean existsByRoleNameIgnoreCaseAndRoleTypeAndStatusNot(
+    	    String roleName, String roleType, String status);
+
+    	List<RecRole> findByBranchCodeAndStatusNot(String branchCode, String status);
+    	List<RecRole> findByBankCodeAndBranchCodeIsNullAndStatusNot(String bankCode, String status);
+    	List<RecRole> findByStatusNot(String status);
+    
 
 }

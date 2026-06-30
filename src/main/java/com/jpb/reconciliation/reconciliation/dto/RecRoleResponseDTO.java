@@ -20,7 +20,7 @@ public class RecRoleResponseDTO {
 //    private String    externalSupervisorName;
 //    private String    externalSupervisorEmail;
 //    private String    externalSupervisorPhone;
-//    private String    status;
+    private String    status;
     private String department;
     private String    description;
     private Integer sessionTimeout;

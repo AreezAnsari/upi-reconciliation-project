@@ -124,10 +124,22 @@ public class RecRoleServiceImpl implements RecRoleService {
             //    We also do NOT block same name + same type if they are
             //    in different departments — remove the check below if you want
             //    fully unlimited duplicates (sequence alone enforces uniqueness via roleCode).
-            if (roleRepo.existsByRoleNameIgnoreCaseAndRoleType(combinedName, roleType.name())) {
-            	if (!req.isForceCreate()) {
-                    // Don't hard-fail — tell the frontend a duplicate exists so it can show
-                    // the confirmation dialog. Use a distinct status so the UI can branch on it.
+         // REPLACE the duplicate check with this bank+branch scoped version:
+
+            boolean duplicateExists;
+            if (ctx.getBranchCode() != null) {
+                duplicateExists = roleRepo.existsByRoleNameIgnoreCaseAndRoleTypeAndBranchCodeAndStatusNot(
+                    combinedName, roleType.name(), ctx.getBranchCode(), "DELETED");
+            } else if (ctx.getBankCode() != null) {
+                duplicateExists = roleRepo.existsByRoleNameIgnoreCaseAndRoleTypeAndBankCodeAndBranchCodeIsNullAndStatusNot(
+                    combinedName, roleType.name(), ctx.getBankCode(), "DELETED");
+            } else {
+                duplicateExists = roleRepo.existsByRoleNameIgnoreCaseAndRoleTypeAndStatusNot(
+                    combinedName, roleType.name(), "DELETED");
+            }
+
+            if (duplicateExists) {
+                if (!req.isForceCreate()) {
                     return RestWithStatusList.builder()
                             .status("DUPLICATE_ROLE_EXISTS")
                             .statusMsg("A role named '" + combinedName + "' already exists for role type '"
@@ -135,8 +147,6 @@ public class RecRoleServiceImpl implements RecRoleService {
                             .data(Collections.emptyList())
                             .build();
                 }
-
-                // forceCreate=true → admin confirmed. Log for audit (maker/checker platform).
                 log.info("forceCreate=true: creating duplicate role '{}' (type={}) requested by {}",
                         combinedName, roleType.name(), req.getCreatedBy());
             }
@@ -191,7 +201,7 @@ public class RecRoleServiceImpl implements RecRoleService {
                     .roleCode(generatedRoleCode)
                     .roleMasterName(roleMasterName)        
                     .roleType(roleType.name())
-//                    .status(roleStatus.name())
+                    .status("ACTIVE")
                     .department(req.getDepartment())
                     .description(req.getDescription())
                     .validFrom(req.getValidFrom())
@@ -376,6 +386,38 @@ public class RecRoleServiceImpl implements RecRoleService {
 	    }
 	}
     
+    //    DELETE ROLE
+		    @Override
+		    @Transactional
+		    public RestWithStatusList deleteRole(Long id) {
+		        AdminContext ctx = contextResolver.resolve(
+		                org.springframework.security.core.context.SecurityContextHolder
+		                        .getContext().getAuthentication());
+		
+		        RecRole role = roleRepo.findById(id)
+		                .orElseThrow(() -> new RuntimeException("Role not found: " + id));
+		
+		        if ("DELETED".equals(role.getStatus())) {
+		            return RestWithStatusList.builder()
+		                    .status("FAILURE")
+		                    .statusMsg("Role is already deleted")
+		                    .data(Collections.emptyList())
+		                    .build();
+		        }
+		
+		        role.setStatus("DELETED");
+		        roleRepo.save(role);
+		
+		        log.info("Role soft-deleted: id={}, roleCode={}, roleName={}, deletedBy={}",
+		                  id, role.getRoleCode(), role.getRoleName(), ctx.getUsername());
+		
+		        return RestWithStatusList.builder()
+		                .status("SUCCESS")
+		                .statusMsg("Role deleted successfully")
+		                .data(Collections.emptyList())
+		                .build();
+		    }
+    
     // ─────────────────────────────────────────────────────────────────────────
     // GET PRIVILEGES
     // ─────────────────────────────────────────────────────────────────────────
@@ -441,6 +483,14 @@ public class RecRoleServiceImpl implements RecRoleService {
     public RestWithStatusList getRole(Long id) {
         RecRole role = roleRepo.findByIdWithPermissions(id)
                 .orElseThrow(() -> new RuntimeException("Role not found: " + id));
+        
+        if ("DELETED".equals(role.getStatus())) {
+            return RestWithStatusList.builder()
+                    .status("FAILURE")
+                    .statusMsg("This role has been deleted")
+                    .data(Collections.emptyList())
+                    .build();
+        }
         return RestWithStatusList.builder()
                 .status("SUCCESS")
                 .statusMsg("Role fetched successfully")
@@ -461,14 +511,11 @@ public class RecRoleServiceImpl implements RecRoleService {
 
         List<RecRole> roles;
         if (ctx.getBranchCode() != null) {
-            // Branch Admin → only their branch's roles
-            roles = roleRepo.findByBranchCode(ctx.getBranchCode());
+            roles = roleRepo.findByBranchCodeAndStatusNot(ctx.getBranchCode(), "DELETED");
         } else if (ctx.getBankCode() != null) {
-            // Bank Admin → only their bank's roles (excluding branch-scoped ones)
-            roles = roleRepo.findByBankCodeAndBranchCodeIsNull(ctx.getBankCode());
+            roles = roleRepo.findByBankCodeAndBranchCodeIsNullAndStatusNot(ctx.getBankCode(), "DELETED");
         } else {
-            // KAL Super Admin → all roles
-            roles = roleRepo.findAll();
+            roles = roleRepo.findByStatusNot("DELETED");
         }
         
         if (roles.isEmpty()) {
