@@ -83,5 +83,7 @@ public interface RecRoleRepository extends JpaRepository<RecRole, Long> {
     	List<RecRole> findByBankCodeAndBranchCodeIsNullAndStatusNot(String bankCode, String status);
     	List<RecRole> findByStatusNot(String status);
     
+    	boolean existsByAssignedUserIdAndStatusNot(Long assignedUserId, String status);
+    	boolean existsByAssignedUserIdAndIdNotAndStatusNot(Long assignedUserId, Long id, String status);
 
 }

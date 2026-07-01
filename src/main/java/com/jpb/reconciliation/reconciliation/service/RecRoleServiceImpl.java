@@ -181,6 +181,16 @@ public class RecRoleServiceImpl implements RecRoleService {
                            .sorted(Comparator.comparing(RecRoleMaster::getRoleCode))
                            .map(m -> m.getRoleName() + "(" + m.getRoleCode() + ")")
                            .collect(Collectors.joining(", ")));
+            
+         // in createRole, before building the entity
+            if (req.getAssignedUserId() != null
+                    && roleRepo.existsByAssignedUserIdAndStatusNot(req.getAssignedUserId(), "DELETED")) {
+                return RestWithStatusList.builder()
+                        .status("FAILURE")
+                        .statusMsg("This user already has a role assigned. A user can hold only one role.")
+                        .data(Collections.emptyList())
+                        .build();
+            }
 
             // 8. Build RecRole entity
             RecRole role = RecRole.builder()
@@ -321,6 +331,15 @@ public class RecRoleServiceImpl implements RecRoleService {
                 role.setRoleType(roleType.name());
             }
 
+         // in updateRole, before role.setAssignedUserId(...)
+            if (req.getAssignedUserId() != null
+                    && roleRepo.existsByAssignedUserIdAndIdNotAndStatusNot(req.getAssignedUserId(), id, "DELETED")) {
+                return RestWithStatusList.builder()
+                        .status("FAILURE")
+                        .statusMsg("This user already has a role assigned. A user can hold only one role.")
+                        .data(Collections.emptyList())
+                        .build();
+            }
             // Basic Fields
             role.setDepartment(req.getDepartment());
             role.setDescription(req.getDescription());
