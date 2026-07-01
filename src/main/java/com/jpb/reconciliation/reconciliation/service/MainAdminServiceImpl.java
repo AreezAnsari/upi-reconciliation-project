@@ -1540,9 +1540,13 @@ public class MainAdminServiceImpl implements MainAdminService {
     // =========================================================================
     @Override
     public ResponseEntity<RestWithStatusList> getAllBankAdmins(String callerUsername) {
-        List<MainAdmin> admins = (callerUsername != null && !callerUsername.isEmpty())
-            ? mainAdminRepository.findAllByCreatedBy(callerUsername)
-            : mainAdminRepository.findAll();
+        boolean isKalAdmin = callerUsername != null && !callerUsername.isEmpty()
+            && kalAdminRepository.existsByUserName(callerUsername);
+        List<MainAdmin> admins = isKalAdmin
+            ? mainAdminRepository.findAll()
+            : (callerUsername != null && !callerUsername.isEmpty())
+                ? mainAdminRepository.findAllByCreatedBy(callerUsername)
+                : mainAdminRepository.findAll();
         List<Object> result = new ArrayList<>();
 
         for (MainAdmin admin : admins) {

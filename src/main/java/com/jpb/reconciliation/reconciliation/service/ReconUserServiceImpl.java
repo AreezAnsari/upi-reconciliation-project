@@ -167,12 +167,16 @@ public class ReconUserServiceImpl implements ReconUserService {
 		RestWithStatusList restWithStatusList;
 		this.doAuthenticate(request.getUserName(), request.getUserPassword());
 		UserDetails userDetails = customUserDetailService.loadUserByUsername(request.getUserName());
-		System.out.println("Login User Details ::::::::::" + userDetails);
 
 		String token = this.helper.generateToken(userDetails);
-		Optional<KalAdmin> KalAdmin = KalAdminRepository.findByUserName(userDetails.getUsername());
-		System.out.println("User Details ::::::::::" + KalAdmin);
-		KalAdmin user = KalAdmin.get();
+		Optional<KalAdmin> kalAdminOpt = KalAdminRepository.findByUserName(userDetails.getUsername());
+		if (!kalAdminOpt.isPresent()) {
+			kalAdminOpt = KalAdminRepository.findByEmailId(userDetails.getUsername());
+		}
+		if (!kalAdminOpt.isPresent()) {
+			return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Access denied. This login is for Kal Admin only.", null), HttpStatus.UNAUTHORIZED);
+		}
+		KalAdmin user = kalAdminOpt.get();
 
 		if ("Y".equals(user.getApprovedYn()) && user.getUserStatus().equalsIgnoreCase("active")) {
 			KalAdminPasswordManager KalAdminPasswordManager = user.getPasswordManager();
@@ -246,7 +250,9 @@ public class ReconUserServiceImpl implements ReconUserService {
 	public ResponseEntity<ResponseDto> changePassword(UserPasswordChangeRequest changePasswordRequest) {
 
 		Optional<KalAdmin> findUser = KalAdminRepository.findByUserId(changePasswordRequest.getUserId());
-		logger.info("USER BY USER ID :::::::::::::::::::::::::::::::" + findUser.get());
+		if (!findUser.isPresent()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ResponseDto("404", "User not found"));
+		}
 		KalAdmin UserData = findUser.get();
 
 		KalAdminPasswordManager password = UserData.getPasswordManager();
@@ -279,11 +285,18 @@ public class ReconUserServiceImpl implements ReconUserService {
 	public ResponseEntity<RestWithStatusList> updateUser(ReconUserDto userUpdateRequest) {
 		RestWithStatusList restWithStatusList = null;
 		Optional<KalAdmin> userDetails = KalAdminRepository.findByUserId(userUpdateRequest.getUserId());
-
+		if (!userDetails.isPresent()) {
+			restWithStatusList = new RestWithStatusList("FAILURE", "User not found", null);
+			return new ResponseEntity<>(restWithStatusList, HttpStatus.NOT_FOUND);
+		}
 		KalAdmin user = userDetails.get();
 		if (user != null) {
 			KalAdmin updatedUserDetails = ReconUserMapper.mapToReconUserUpdate(userUpdateRequest, user);
 			Optional<Role> getRole = roleRepository.findById(userUpdateRequest.getRoleId());
+			if (!getRole.isPresent()) {
+				restWithStatusList = new RestWithStatusList("FAILURE", "Role not found", null);
+				return new ResponseEntity<>(restWithStatusList, HttpStatus.NOT_FOUND);
+			}
 			Role getRoleData = getRole.get();
 			updatedUserDetails.setRole(getRoleData);
 			KalAdminRepository.save(updatedUserDetails);
@@ -321,6 +334,10 @@ public class ReconUserServiceImpl implements ReconUserService {
 			return new ResponseEntity<RestWithStatusList>(restWithStatusList, HttpStatus.BAD_REQUEST);
 		} else {
 			Optional<KalAdmin> user = KalAdminRepository.findByUserId(approveUserRequest.getUserId());
+			if (!user.isPresent()) {
+				restWithStatusList = new RestWithStatusList("FAILURE", "User not found", null);
+				return new ResponseEntity<>(restWithStatusList, HttpStatus.NOT_FOUND);
+			}
 			KalAdmin getUser = user.get();
 			approveUserRequest.setApprovedBy(userDetails.getUsername());
 			KalAdmin approvedOrRejectUser = ReconUserMapper.mapToApproveRejectReconUser(approveUserRequest, getUser);

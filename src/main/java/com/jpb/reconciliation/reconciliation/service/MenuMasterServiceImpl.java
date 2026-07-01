@@ -229,8 +229,8 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 		logger.info("Menu data by role :::::::::::::" + menuByRole);
 
 		if (menuByRole.isEmpty()) {
-			restWithStatusList = new RestWithStatusList("FAILURE", "Menu not found for this role", menuList);
-			return new ResponseEntity<>(restWithStatusList, HttpStatus.NOT_FOUND);
+			restWithStatusList = new RestWithStatusList("SUCCESS", "No menu configured for this role", menuList);
+			return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
 		} else {
 			for (ReconMenuMaster menu : menuByRole) {
 				ReconFileDetailsMaster fileData = fileDetailsMasterRepository

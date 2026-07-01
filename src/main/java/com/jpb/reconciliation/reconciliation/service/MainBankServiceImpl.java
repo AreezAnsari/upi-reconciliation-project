@@ -41,6 +41,7 @@ import com.jpb.reconciliation.reconciliation.dto.BranchBankDTO;
 import com.jpb.reconciliation.reconciliation.entity.AdminReplacement;
 import com.jpb.reconciliation.reconciliation.entity.BranchAdmin;
 import com.jpb.reconciliation.reconciliation.entity.BranchBank;
+import com.jpb.reconciliation.reconciliation.entity.MainAdmin;
 import com.jpb.reconciliation.reconciliation.entity.MainBank;
 import com.jpb.reconciliation.reconciliation.entity.MainBankProduct;
 import com.jpb.reconciliation.reconciliation.mapper.BranchBankMapper;
@@ -51,6 +52,8 @@ import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankProductRepository;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 
@@ -89,6 +92,9 @@ public class MainBankServiceImpl implements MainBankService {
 
     @Autowired
     private AdminReplacementRepository replacementRepository;
+
+    @Autowired
+    private KalAdminRepository kalAdminRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -569,6 +575,8 @@ public class MainBankServiceImpl implements MainBankService {
                         bank.getBankCode(), e.getMessage());
         }
 
+        notifyActor(updatedByUser, "Status Changed to " + upperStatus, bank.getBankNameFull(), bank.getBankCode());
+
         // Individual block only — no cascade to branch-banks
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Bank status updated to '" + upperStatus + "'.", new ArrayList<>()));
@@ -608,6 +616,8 @@ public class MainBankServiceImpl implements MainBankService {
         }
 
         logger.info("Bank {} soft-deleted (status → BLOCKED)", bankId);
+
+        notifyActor(deletedByUser, "Bank Permanently Blocked", bank.getBankNameFull(), bank.getBankCode());
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Bank deactivated successfully.", new ArrayList<>()));
@@ -977,6 +987,30 @@ public class MainBankServiceImpl implements MainBankService {
         }
         return new String[]{branch.getPrimaryEmail(),
                 branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Branch Admin"};
+    }
+
+    private void notifyActor(String actorBy, String action, String entityName, String entityCode) {
+        if (actorBy == null || actorBy.isEmpty() || "SYSTEM".equals(actorBy)) return;
+        String when = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+        try {
+            Optional<MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorBy);
+            if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ma.get().getEmail(), ma.get().getUsername(), action, entityName, entityCode, when);
+                return;
+            }
+            Optional<BranchAdmin> ba = branchAdminRepository.findFirstByUsername(actorBy);
+            if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ba.get().getEmail(), ba.get().getUsername(), action, entityName, entityCode, when);
+                return;
+            }
+            kalAdminRepository.findByUserName(actorBy).ifPresent(ka -> {
+                if (ka.getEmailId() != null && !ka.getEmailId().isEmpty()) {
+                    emailService.sendActorActionConfirmation(ka.getEmailId(), ka.getUserName(), action, entityName, entityCode, when);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("[ACTOR-CONFIRM] Email failed for {}: {}", actorBy, e.getMessage());
+        }
     }
 
     private String getCurrentUsername() {

@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,6 +66,11 @@ public class AuthController {
 	@PostMapping(value = "/login", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<?> login(@RequestBody LoginRequestDto request, HttpServletResponse response) {
 		return reconUserService.login(request, response);
+	}
+
+	@GetMapping(value = "/user", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+		return reconUserService.getUserData(userDetails.getUsername());
 	}
 
 	@PostMapping(value = "/refresh-token", produces = CommonConstants.APPLICATION_JSON)

@@ -57,6 +57,8 @@ import com.jpb.reconciliation.reconciliation.repository.MainAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankProductRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchBankRepository;
 import com.jpb.reconciliation.reconciliation.repository.BranchAdminRepository;
+import com.jpb.reconciliation.reconciliation.entity.KalAdmin;
+import com.jpb.reconciliation.reconciliation.repository.KalAdminRepository;
 import com.jpb.reconciliation.reconciliation.repository.AddUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.MainBankRepository;
 import com.jpb.reconciliation.reconciliation.entity.AddUser;
@@ -94,6 +96,9 @@ public class BranchBankServiceImpl implements BranchBankService {
 
     @Autowired
     private AdminReplacementRepository replacementRepository;
+
+    @Autowired
+    private KalAdminRepository kalAdminRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -652,6 +657,8 @@ public class BranchBankServiceImpl implements BranchBankService {
                     bank .getBranchCode(), e.getMessage());
         }
 
+        notifyActor(updatedByUser, "Status Changed to " + newStatus, bank.getBranchNameFull(), bank.getBranchCode());
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Branch bank status updated to '" + newStatus + "'.", new ArrayList<>()));
     }
@@ -689,6 +696,8 @@ public class BranchBankServiceImpl implements BranchBankService {
         }
 
         logger.info("Bank {} soft-deleted (status → BLOCKED)", bankId);
+
+        notifyActor(deletedByUser, "Branch Permanently Blocked", bank.getBranchNameFull(), bank.getBranchCode());
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Bank deactivated successfully.", new ArrayList<>()));
@@ -1016,6 +1025,30 @@ public class BranchBankServiceImpl implements BranchBankService {
         }
         return new String[]{branch.getPrimaryEmail(),
                 branch.getPrimaryFullName() != null ? branch.getPrimaryFullName() : "Branch Admin"};
+    }
+
+    private void notifyActor(String actorBy, String action, String entityName, String entityCode) {
+        if (actorBy == null || actorBy.isEmpty() || "SYSTEM".equals(actorBy)) return;
+        String when = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+        try {
+            Optional<MainAdmin> ma = mainAdminRepository.findFirstByUsername(actorBy);
+            if (ma.isPresent() && ma.get().getEmail() != null && !ma.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ma.get().getEmail(), ma.get().getUsername(), action, entityName, entityCode, when);
+                return;
+            }
+            Optional<BranchAdmin> ba = branchAdminRepository.findFirstByUsername(actorBy);
+            if (ba.isPresent() && ba.get().getEmail() != null && !ba.get().getEmail().isEmpty()) {
+                emailService.sendActorActionConfirmation(ba.get().getEmail(), ba.get().getUsername(), action, entityName, entityCode, when);
+                return;
+            }
+            kalAdminRepository.findByUserName(actorBy).ifPresent(ka -> {
+                if (ka.getEmailId() != null && !ka.getEmailId().isEmpty()) {
+                    emailService.sendActorActionConfirmation(ka.getEmailId(), ka.getUserName(), action, entityName, entityCode, when);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("[ACTOR-CONFIRM] Email failed for {}: {}", actorBy, e.getMessage());
+        }
     }
 
     private String getCurrentUsername() {
