@@ -71,6 +71,7 @@ jasypt:
       org.hibernate.SQL: DEBUG
       org.hibernate.type.descriptor.sql: TRACE
       org.hibernate: INFO
+      org.hibernate.tool.schema.internal.ExceptionHandlerLoggedImpl: ERROR
       com.zaxxer.hikari: DEBUG
       org.springframework.orm.jpa: INFO
       org.springframework.jdbc: INFO
