@@ -67,6 +67,9 @@ public class SecurityConfig {
                 // Kalinfotech APIs
                 .requestMatchers(new AntPathRequestMatcher("/api/kalinfotech/**")).permitAll()
 
+                // KalAdmin V2 Auth — create is public (no token needed for self-registration)
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/admin/auth/create")).permitAll()
+
                 // H2
                 .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
 
