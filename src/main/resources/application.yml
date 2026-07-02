@@ -8,8 +8,8 @@ spring:
   datasource:
     url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Reconciliation/Wallet_RECONDB1
     driver-class-name: oracle.jdbc.OracleDriver
-    username: kal_recon
-    password: Finrecon1234567
+    username: jpb_recon
+    password: Jpbrecon2026
     hikari:
       maximum-pool-size: 100
       max-lifetime: 1800000
@@ -24,13 +24,11 @@ spring:
         oracle:
           jdbc:
             ReadTimeout: 900000
-
   jpa:
     database-platform: org.hibernate.dialect.Oracle12cDialect
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     show-sql: true
-
   logging:
     console:
       enabled: false
@@ -52,12 +50,10 @@ spring:
       name: logs/springboot-app.log
       max-size: 10MB
       max-history: 30
-
   servlet:
     multipart:
       max-file-size: -1
       max-request-size: -1
-
   security:
     oauth2:
       client:
@@ -79,14 +75,14 @@ oracle:
     query-timeout-seconds: 900
 
 app:
-  uDrive: 'C:\ReconFiles\Utility\'
-  ttumFile: 'C:\ReconFiles\TTUMReport\'
-  transactionFile: 'C:\ReconFiles\TransactionReport\'
-  targetFilePath: 'C:\ReconFiles\DCRFILES_COMPLETED\'
-  aepsDataFile: 'C:\ReconFiles\AEPSDataReport\'
-  reconReport: 'C:\ReconFiles\ReconReport\'
-  uploadFileDir: 'C:\Akshay_Ramani\Jio_Bank_Projects\UploadFiles\'
-  accountSplitPath: 'C:\ReconFiles\Account_split_files'
+  uDrive: 'C:\\ReconFiles\\Utility'
+  ttumFile: 'C:\\ReconFiles\\ReconReport'
+  transactionFile: 'C:\\ReconFiles\\ReconReport'
+  targetFilePath: 'C:\\ReconFiles\\DCRFILES_COMPLETED'
+  aepsDataFile: 'C:\\ReconFiles\\ReconReport'
+  reconReport: 'C:\\ReconFiles\\ReconReport'
+  uploadFileDir: 'C:\\ReconFiles\\upload_files'
+  accountSplitPath: 'C:\\ReconFiles\\upload_files'
 
 server:
   port: 8081
@@ -95,8 +91,8 @@ AUTH:
   CLIENT_ID: "117a286526a56107636793104f1eccdc"
   SECRET_CODE: "7f90b261964fa26698c86bd881bd22f4c0c004e1b89c74dc0cdf9ea1383b3cfc"
   TOKEN_API_URL: "http://10.147.77.13:9001/jpb/v1/app/authenticate"
-  PUBLIC_KEY: 'C:\Akshay_Ramani\Jio_Bank_Projects\JIOBANK_RECON_APPLICATION\jpb-recon-system-application\src\main\resources\publickey\publicKey.key'
+  PUBLIC_KEY: 'C:\\Akshay_Ramani\\Jio_Bank_Projects\\JIOBANK_RECON_APPLICATION\\jpb-recon-system-application\\src\\main\\resources\\publickey\\publicKey.key'
 
 sqlldr:
-  url: '@recondb1_high?TNS_ADMIN=C:/Reconciliation/Wallet_RECONDB1'
-  secondUrl: '@//localhost:1521/orcl.lan'
+  url: 'recondb1_high'
+  secondUrl: 'recondb1_high'

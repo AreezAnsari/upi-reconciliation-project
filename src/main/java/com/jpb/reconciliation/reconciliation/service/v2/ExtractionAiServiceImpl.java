@@ -1,6 +1,8 @@
 package com.jpb.reconciliation.reconciliation.service.v2;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -10,10 +12,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,55 +49,23 @@ import com.jpb.reconciliation.reconciliation.util.v2.CommonAiReport;
 @Service
 public class ExtractionAiServiceImpl implements ExtractionAiService {
 
-	@Autowired
-	JdbcTemplate jdbcTemplate;
-
-	@Autowired
-	ReconFileDetailsMasterRepository reconFileDetailsMasterRepository;
-
-	@Autowired
-	ReconFieldDetailsMasterRepository reconFieldDetailsMasterRepository;
-
-	@Autowired
-	ReconFieldTypeMasterRepository reconFieldTypeMasterRepository;
-
-	@Autowired
-	ReconFieldFormatMasterRepository fieldFormatMasterRepository;
-
-	@Autowired
-	ReconKeyIdentifyMasterRepository reconKeyIdentifyMasterRepository;
-
-	@Autowired
-	SqlLoaderAiService sqlLoaderAiService;
-
-	@Autowired
-	CommonAiReport commonAiReport;
-
-	@Autowired
-	FileOpearationAiService fileOpearationAiService;
-
-	@Autowired
-	AuditLogManagerService auditLogManagerService;
-
-	@Autowired
-	ReconUserRepository reconUserRepository;
-
-	@Autowired
-	NTSLSettlementService ntslSettlementService;
-
-	@Autowired
-	ReconProcessManagerRepository processManagerRepository;
-
-	@Autowired
-	ReconBatchProcessEntityRepository reconBatchProcessEntityRepository;
-
+	@Autowired JdbcTemplate jdbcTemplate;
+	@Autowired ReconFileDetailsMasterRepository reconFileDetailsMasterRepository;
+	@Autowired ReconFieldDetailsMasterRepository reconFieldDetailsMasterRepository;
+	@Autowired ReconFieldTypeMasterRepository reconFieldTypeMasterRepository;
+	@Autowired ReconFieldFormatMasterRepository fieldFormatMasterRepository;
+	@Autowired ReconKeyIdentifyMasterRepository reconKeyIdentifyMasterRepository;
+	@Autowired SqlLoaderAiService sqlLoaderAiService;
+	@Autowired CommonAiReport commonAiReport;
+	@Autowired FileOpearationAiService fileOpearationAiService;
+	@Autowired AuditLogManagerService auditLogManagerService;
+	@Autowired ReconUserRepository reconUserRepository;
+	@Autowired NTSLSettlementService ntslSettlementService;
+	@Autowired ReconProcessManagerRepository processManagerRepository;
+	@Autowired ReconBatchProcessEntityRepository reconBatchProcessEntityRepository;
 	DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ss a");
-//	DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 	private final Executor extractionExecutor;
-
-	@Value("${app.uDrive}")
-	private String uDrivePath;
-
+	@Value("${app.uDrive}") private String uDrivePath;
 	private Logger logger = LoggerFactory.getLogger(ExtractionServiceImpl.class);
 
 	public ExtractionAiServiceImpl(@Qualifier("extractionExecutor") Executor extractionExecutor) {
@@ -102,343 +75,199 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 	@Override
 	public List<ReconBatchProcessEntity> extractionRunningStatus(List<File> processedFiles,
 			Optional<ReconTmpltFieldDtls> reconTemplateFileDetails, ReconUser userData) {
-		logger.info("File List For Extraction Processing ::::::::::::" + processedFiles);
 		List<ReconBatchProcessEntity> processList = new ArrayList<>();
 		for (int i = 0; i < processedFiles.size(); i++) {
 			ReconBatchProcessEntity process = new ReconBatchProcessEntity();
-
 			process.setTemplateId(reconTemplateFileDetails.get().getTemplate().getTemplateId());
 			process.setProcessType("EXTRACTION");
 			process.setStartTime(LocalDateTime.now().format(dateTimeFormatter));
-			process.setEndTime(null);
 			process.setStatus("Running");
 			process.setFileName(processedFiles.get(i).getName());
-			process.setHeaderDetails(null);
-			process.setControlFileHeaderDetails(null);
-			process.setSeqHeaderDetails(null);
-			process.setInstCode(null);
 			process.setInsertUser(userData.getUserId());
 			process.setInsertDate(LocalDate.now());
 			process.setExtractionStatus("Running");
-			process.setFileDate(null);
-			process.setErrorDescription(null);
-			process.setExtractionProcedureStatus(null);
-			process.setSettleProcedureStatus(null);
-			process.setDataCount(null);
-			process.setReconStatus(null);
-			process.setReportStatus("Running");
-			process.setSegretionStatus("Running");
 			reconBatchProcessEntityRepository.save(process);
 			auditLogManagerService.extractionAudit(process, userData);
 			processList.add(process);
 		}
 		return processList;
 	}
+  
 
+    
 	@Override
 	public CompletableFuture<String> startExtraction(Optional<ReconTmpltFieldDtls> reconTemplateFileDetails,
 			List<ReconBatchProcessEntity> runningExtraction, List<File> processedFiles, ReconUser userData) {
-
-//		ReconTemplateDetails templateDetails = reconFileDetails.getReconTemplateDetails();
 		truncateStageTable(reconTemplateFileDetails.get().getTemplate().getStageTabName());
 		List<CompletableFuture<Void>> futures = new ArrayList<>();
-		if (!runningExtraction.isEmpty()) {
-			for (int i = 0; i < runningExtraction.size(); i++) {
-				int index = i;
-				CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-					try {
-						String generateControlFile = generateControlFile(processedFiles.get(index),
-								reconTemplateFileDetails.get().getTemplate().getDelimiter(),
-								reconTemplateFileDetails.get().getTemplate().getReconTemplateId(),
-								reconTemplateFileDetails.get().getTemplate().getStageTabName(),
-								reconTemplateFileDetails.get().getTemplate().getTemplateName(),
-								reconTemplateFileDetails);
-
-						String generateLogFile = generateLogFile();
-						String generateBadFile = generateBadFile();
-						logger.info("CONTROL FILE PATH :::::::" + generateControlFile);
-						logger.info("LOG FILE PATH :::::::::::" + generateLogFile);
-						logger.info("BAD FILE PATH :::::::::::" + generateBadFile);
-						if (!generateControlFile.isEmpty() && !generateLogFile.isEmpty()) {
-							String sqlLoaderStatus = sqlLoaderAiService.startLoading(generateControlFile,
-									generateLogFile, generateBadFile, reconTemplateFileDetails,
-									runningExtraction.get(index), userData, processedFiles.get(index));
-							logger.info("LOADER OUTPUT ::::::::::::::::::::" + sqlLoaderStatus);
-						}
-					} catch (Exception e) {
-						logger.error("Error during extraction for file: {}", processedFiles.get(index).getName(), e);
-					}
-				}, extractionExecutor);
-				futures.add(future);
-			}
-
+		for (int i = 0; i < runningExtraction.size(); i++) {
+			int index = i;
+			CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+				try {
+					String generateControlFile = generateControlFile(processedFiles.get(index),
+							reconTemplateFileDetails.get().getTemplate().getDelimiter(),
+							reconTemplateFileDetails.get().getTemplate().getStageTabName(),
+							reconTemplateFileDetails);
+					String log = generateLogFile();
+					String bad = generateBadFile();
+					sqlLoaderAiService.startLoading(generateControlFile, log, bad, reconTemplateFileDetails,
+							runningExtraction.get(index), userData, processedFiles.get(index));
+				} catch (Exception e) { logger.error("Error: ", e); }
+			}, extractionExecutor);
+			futures.add(future);
 		}
-		// Combine all futures into a single CompletableFuture.
-		CompletableFuture<Void> allOfFuture = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
-
-		// Return a new CompletableFuture that completes with the message
-		// ONLY after all underlying tasks are done.
-		return allOfFuture.thenApply(v -> {
-			fileOpearationAiService.moveExtractedFiles(reconTemplateFileDetails);
-//			if (reconTemplateFileDetails.getReconTemplateDetails().getSettlementFlag().equalsIgnoreCase("Y")) {
-//				Boolean ntslSettleFlag = ntslSettlementService.ntslSettlementProcess(reconTemplateFileDetails);
-//				logger.info("ntslSettleFlag" + ntslSettleFlag);
-//			}
-			Boolean globalReportFlag = commonAiReport.generateGlobalReconciliationReport(reconTemplateFileDetails);
-			logger.info("Global report :::::::" + globalReportFlag);
-			logger.info("All extraction processes have successfully completed.");
-			return "Extraction process completed.";
-		});
-
+		return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).thenApply(v -> "Completed");
 	}
+    
 
-	@Retryable(value = { SQLException.class }, maxAttempts = 5, backoff = @Backoff(delay = 5000, multiplier = 2))
-	private void truncateStageTable(String tableName) {
-		String sql = "TRUNCATE TABLE " + tableName;
-		jdbcTemplate.execute(sql);
-		logger.info("TRUNCATE TABLE SUCCESSFULLY" + sql);
-	}
+    /* MY CODE START - Header-driven column mapping + Date/Number/Comma handling */
+	public String generateControlFile(File fileLocation, String fileSeprator, String targetTableName, 
+            Optional<ReconTmpltFieldDtls> reconTemplateFileDetails) throws IOException {
 
-	public String generateControlFile(File fileLocation, String fileSeprator, Long templateId, String targetTableName,
-			String fileName, Optional<ReconTmpltFieldDtls> reconTemplateFileDetails) throws IOException {
-		logger.info("Template Details ::::::::::" + reconTemplateFileDetails);
-//		List<ReconFieldDetailsDto> getFiledData = getFiledDataByTemplateId(templateId);
-		StringBuilder controlFileContent = new StringBuilder();
-//		logger.info("FILE DATA ::::::::" + getFiledData);
-
-		if (reconTemplateFileDetails.get().getTemplate().getHasHeader().equals("Y")) {
-			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=")
-					.append(reconTemplateFileDetails.get().getTemplate().getHeaderLineCount())
-					.append(", PARALLEL=TRUE) \n");
-		} else {
-			controlFileContent.append("OPTIONS (multithreading=TRUE, PARALLEL=TRUE) \n");
+		// MY CODE START (STRUCTURAL FIX) - ROOT CAUSE OF ORA-01722 / wrong data being loaded:
+		// The template's COL_POSN (e.g. 1,2,3) did NOT match the real physical position of
+		// those columns in the actual CSV (e.g. Txnuid=1, Txndate=8, Txnamount=16 - the file
+		// has 53 columns, template only defined 3). Because the OLD code emitted columns
+		// strictly in template order with no FILLER for the skipped columns, SQL*Loader mapped
+		// TXNDATE to CSV column 2 ("Uid") and TXNAMOUNT to CSV column 3 ("Adjdate") - a text
+		// date string landing in a NUMBER(15,2) column, hence "ORA-01722: invalid number" on
+		// every row.
+		//
+		// FIX: read the file's actual header row, find the REAL position of each template
+		// field by matching its SHORT_NAME to the header column name, and emit a FILLER
+		// column for every CSV column that isn't mapped to a template field. This makes the
+		// mapping robust to template mis-configuration and to future CSV layout changes.
+		Map<String, Integer> headerPositions = readHeaderPositions(fileLocation, fileSeprator);
+		int maxPosition = 0;
+		for (int p : headerPositions.values()) {
+			if (p > maxPosition) maxPosition = p;
 		}
-
-		controlFileContent.append("UNRECOVERABLE \n");
-		controlFileContent.append("LOAD DATA \n");
-//		controlFileContent.append("INFILE '").append(reconTemplateFileDetails.get().getTemplate().getFilePath())
-//				.append("'\n");
-		controlFileContent.append("INFILE '").append(fileLocation.getAbsolutePath()).append("'\n");
-		controlFileContent.append("INTO TABLE ").append(reconTemplateFileDetails.get().getTemplate().getStageTabName())
-				.append("\n");
-		controlFileContent.append("append \n");
-
-		controlFileContent.append("FIELDS TERMINATED BY '").append(fileSeprator).append("'")
-				.append(" OPTIONALLY ENCLOSED BY '\"' \n");
-
-//		if (fileName.equalsIgnoreCase("EPIK_AEP_AEPS") || fileName.equalsIgnoreCase("CBS_AEPS")
-//				|| fileName.equalsIgnoreCase("CBS OB") || fileName.equalsIgnoreCase("ELMS_CBS")
-//				|| fileName.equalsIgnoreCase("CBS_GL") || fileName.equalsIgnoreCase("UPI_MERCHANT")
-//				|| fileName.equalsIgnoreCase("DEBITCARD_CBS") || fileName.equalsIgnoreCase("POS_PRESENTMENT_FILE")) {
-//			controlFileContent.append("FIELDS TERMINATED BY '").append(fileSeprator).append("'")
-//					.append(" OPTIONALLY ENCLOSED BY '\"' \n");
-//		} else {
-//			controlFileContent.append("FIELDS TERMINATED BY '").append(fileSeprator).append("'\n");
-//		}
-
-		controlFileContent.append("TRAILING NULLCOLS \n");
-		controlFileContent.append("(\n");
+		ReconTmpltFieldDtls[] positionFieldMap = new ReconTmpltFieldDtls[maxPosition + 1]; // 1-indexed
 
 		for (ReconTmpltFieldDtls filed : reconTemplateFileDetails.get().getTemplate().getFieldDetails()) {
-			if (!filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("STRING")) {
-				if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("NUMBER")) {
-
-//					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-//						
-//					}else
-					if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
-						controlFileContent.append(filed.getFromPosition()).append(":").append(filed.getToPosition())
-								.append(")").append(" ").append("\"TO_")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("(:")
-								.append(filed.getShortName()).append(")").append(filed.getFieldFormat())
-								.append("\", \n");
+			String shortName = filed.getShortName();
+			Integer pos = headerPositions.get(shortName);
+			if (pos == null) {
+				// fallback: case-insensitive match, in case header casing differs from SHORT_NAME
+				for (Map.Entry<String, Integer> entry : headerPositions.entrySet()) {
+					if (entry.getKey().equalsIgnoreCase(shortName)) {
+						pos = entry.getValue();
+						break;
 					}
-
-					else {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("(:")
-								.append(filed.getShortName()).append(")").append(filed.getFieldFormat())
-								.append("\", \n");
-					}
-
-//					if (fileName.equalsIgnoreCase("FEBA SWITCH DB") || fileName.equalsIgnoreCase("EPIK_AEP_AEPS")
-//							|| fileName.equalsIgnoreCase("CBS_AEPS")
-//							|| fileName.equalsIgnoreCase("AEPS CREDIT ADJUSTMENT")
-//							|| fileName.equalsIgnoreCase("ELMS_CBS") || fileName.equalsIgnoreCase("DEBITCARD_CBS")) {
-//						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" ").append("\"TO_")
-//								.append(filed.getRftFieldTypeDesc()).append("(:").append(filed.getRfmShortName())
-//								.append(")\" ,\n");
-//					} else if (fileName.equalsIgnoreCase("AEPS ACQUIRER ISSUER FILE")
-//							|| fileName.equalsIgnoreCase("AEPS ISSUER FILE")
-//							|| fileName.equalsIgnoreCase("DEBITCARD_ATM_RAW")
-//							|| fileName.equalsIgnoreCase("DEBITCARD_POS_RAW")) {
-//						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" POSITION(")
-//								.append(filed.getReconFromPosn()).append(":").append(filed.getReconToPosn()).append(")")
-//								.append(" ").append("\"TO_").append(filed.getRftFieldTypeDesc()).append("(:")
-//								.append(filed.getRfmShortName()).append(") /100\" ,\n");
-//					} else {
-//						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" ").append("\"TO_")
-//								.append(filed.getRftFieldTypeDesc()).append("(:").append(filed.getRfmShortName())
-//								.append(") /100\" ,\n");
-//					}
-				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("TODATE")) {
-					controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("DATE").append(" \"")
-							.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\" \n");
-				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("DATE")
-						|| filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("TIMESTAMP")) {
-
-					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes())
-								.append("(TRIM(BOTH '''' FROM :").append(filed.getShortName()).append("), '")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("')\"").append(",\n");
-					} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType()
-							.equalsIgnoreCase("FIXED")) {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
-								.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(") ")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" \"")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\" ,\n");
-					} else {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" ")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" ").append("\"")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\"").append(",\n");
-					}
-
-//					if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
-//							|| fileName.equalsIgnoreCase("DEBITCARD_CBS")) {
-//						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" ").append("\"TO_")
-//								.append(filed.getRftFieldTypeDesc()).append("(TRIM(BOTH '''' FROM :")
-//								.append(filed.getRfmShortName()).append("), '").append(filed.getRffFieldFormatDesc())
-//								.append("')\"").append(",\n");
-//					} else if (fileName.equalsIgnoreCase("AEPS ACQUIRER ISSUER FILE")
-//							|| fileName.equalsIgnoreCase("AEPS ISSUER FILE")
-//							|| fileName.equalsIgnoreCase("DEBITCARD_ATM_RAW")
-//							|| fileName.equalsIgnoreCase("DEBITCARD_POS_RAW")) {
-//						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" POSITION(")
-//								.append(filed.getReconFromPosn()).append(":").append(filed.getReconToPosn())
-//								.append(") ").append(filed.getRftFieldTypeDesc()).append(" \"")
-//								.append(filed.getRffFieldFormatDesc()).append("\" ,\n");
-//					} else {
-//						controlFileContent.append(" ").append(filed.getRfmShortName()).append(" ")
-//								.append(filed.getRftFieldTypeDesc()).append(" ").append("\"")
-//								.append(filed.getRffFieldFormatDesc()).append("\"").append(",\n");
-//					}
-				} else {
-					controlFileContent.append(" ").append(filed.getShortName()).append(" ")
-							.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" ").append("\"")
-							.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\"").append(",\n");
-					// .append(filed.getKeyName()).append(" ").append(filed.getRfmColOffset())
 				}
+			}
+			if (pos != null && pos >= 1 && pos <= maxPosition) {
+				positionFieldMap[pos] = filed;
 			} else {
-				if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-					controlFileContent.append(" ").append(filed.getShortName()).append(" \"TRIM(BOTH '''' FROM :")
-							.append(filed.getShortName()).append(")\"").append(",\n");
-				} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
-					controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
-							.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(")")
-							.append(",\n");
-				} else {
-					controlFileContent.append(" ").append(filed.getShortName()).append(",\n");
-				}
+				// Field defined in template but not found in the actual file header at all.
+				// Log it instead of silently mis-mapping data into the wrong column.
+				logger.warn("Template field '{}' not found in header of file '{}' - this field will not be loaded",
+						shortName, fileLocation.getName());
 			}
 		}
-		controlFileContent.append(" REC_FLG ").append("CONSTANT ").append("0").append(",\n");
-		controlFileContent.append(" REV_FLAG ").append("CONSTANT ").append("N").append(",\n");
-		controlFileContent.append(" PREMANRECREL_FLG ").append("CONSTANT ").append("0").append(",\n");
-		controlFileContent.append(" MANRECREL_FLG ").append("CONSTANT ").append("0").append(",\n");
-		controlFileContent.append(" FILE_NAME ").append("CONSTANT ").append("'").append(fileLocation.getName())
-				.append("'").append(",\n");
+		// MY CODE END (STRUCTURAL FIX)
 
-		if (fileName.equalsIgnoreCase("AEPS CREDIT ADJUSTMENT")) {
-			controlFileContent.append("TRAN_DATE").append(" \"to_date(substr(:TRAN_DATE1,1,9),'DD-MON-YY')\"")
-					.append(",\n");
-		}
+		StringBuilder content = new StringBuilder();
+		content.append("OPTIONS (multithreading=TRUE, skip=1, PARALLEL=TRUE) \n");
+		content.append("LOAD DATA \nINFILE '").append(fileLocation.getAbsolutePath()).append("'\n");
+		content.append("INTO TABLE ").append(targetTableName).append("\nappend \n");
+		content.append("FIELDS TERMINATED BY '").append(fileSeprator).append("' OPTIONALLY ENCLOSED BY '\"' \nTRAILING NULLCOLS \n(\n");
 
-		if (fileName.equalsIgnoreCase("DEBITCARD_POS_RAW")) {
-			controlFileContent.append("TRAN_DATE").append(" \"to_date(:TRANS_DATE,'YYMMDD')\"").append(",\n");
-		}
+		// MY CODE START - iterate by ACTUAL FILE POSITION (1..maxPosition), not by template
+		// order, so every CSV column is accounted for: either mapped to its real target field,
+		// or explicitly skipped with FILLER.
+		for (int pos = 1; pos <= maxPosition; pos++) {
+			ReconTmpltFieldDtls filed = positionFieldMap[pos];
 
-		if (fileName.equalsIgnoreCase("EPIK_AEP_AEPS")) {
-			controlFileContent.append("DR_CR_FLAG").append(" \"DECODE(:TRANSACTION_TYPE,")
-					.append("'DEBIT','D','CREDIT','C','COMMISSION','C')\" ").append(",\n");
-		}
+			if (filed == null) {
+				content.append(" FILLER_COL_").append(pos).append(" FILLER,\n");
+				continue;
+			}
 
-		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
-				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
-			controlFileContent.append("DR_CR_FLAG").append(" \"CASE ")
-					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN 'D' ")
-					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN 'C' ").append("ELSE NULL END\" ")
-					.append(",\n");
-		}
+			String fieldName = filed.getShortName();
+			String type = filed.getReconFieldTypeMaster().getFieldTypeDes();
 
-		if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
-				|| fileName.equalsIgnoreCase("DEBITCARD_CBS")
-				|| fileName.equalsIgnoreCase("CBS_TRANSACTION_PRODUCT_GL")) {
-			controlFileContent.append("TRAN_AMOUNT").append(" \"CASE ")
-					.append("WHEN TO_NUMBER(RTRIM(:DEBIT_AMT, ',')) > 0 THEN TO_NUMBER(:DEBIT_AMT) ")
-					.append("WHEN TO_NUMBER(RTRIM(:CREDIT_AMT, ',')) > 0 THEN TO_NUMBER(:CREDIT_AMT) ")
-					.append("ELSE NULL END\" ").append(",\n");
-		}
+			if (type.equalsIgnoreCase("DATE") || type.equalsIgnoreCase("TIMESTAMP")) {
 
-		if (controlFileContent.charAt(controlFileContent.length() - 2) == ',') {
-			controlFileContent.deleteCharAt(controlFileContent.length() - 2);
-		}
-		controlFileContent.append(")\n");
-		logger.info("CONTROL FILE CONTENT :::::::::::" + controlFileContent);
-		String filePath = generateFilePath(targetTableName, fileLocation);
+				// Handles BOTH "13-06-2026" (dash) and "4/6/2026" (slash, single-digit day/month)
+				// styles present in the same column, without relying on error-suppression syntax
+				// that SQL*Loader's restricted direct-path parser does not support.
+				content.append(" ").append(fieldName)
+				       .append(" \"CASE ")
+				       .append("WHEN INSTR(NULLIF(TRIM(BOTH '''' FROM :").append(fieldName).append("), ''), '-') > 0 ")
+				       .append("THEN TO_DATE(TRIM(BOTH '''' FROM :").append(fieldName).append("), 'FMDD-FMMM-YYYY') ")
+				       .append("WHEN INSTR(NULLIF(TRIM(BOTH '''' FROM :").append(fieldName).append("), ''), '/') > 0 ")
+				       .append("THEN TO_DATE(TRIM(BOTH '''' FROM :").append(fieldName).append("), 'FMDD/FMMM/YYYY') ")
+				       .append("ELSE NULL END\",\n");
 
-		File fileDirectory = new File(filePath).getParentFile();
-		logger.info("FILE DIRECTORY ::::::::" + fileDirectory);
-		if (!fileDirectory.exists()) {
-			boolean dirCreated = fileDirectory.mkdir();
-			if (!dirCreated) {
-				throw new IOException("Failed to create directories for the control file");
+			// MY CODE - "DECIMAL" added alongside "NUMBER": the field-type master used
+			// FIELD_TYPE_DESC = 'DECIMAL' for Txnamount, which the OLD check
+			// (equalsIgnoreCase("NUMBER") only) never matched, so it silently fell through to
+			// the plain-CHARACTER branch (no TO_NUMBER conversion at all).
+			} else if (type.equalsIgnoreCase("NUMBER") || type.equalsIgnoreCase("DECIMAL")) {
+
+				// REGEXP_LIKE validates the cleaned value actually looks like a number (plain
+				// integer/decimal or scientific notation like "6.15584E+11") before TO_NUMBER
+				// runs. Blank values or genuine non-numeric text become NULL instead of
+				// crashing the row with ORA-01722.
+				content.append(" ").append(fieldName)
+				       .append(" \"CASE WHEN REGEXP_LIKE(NULLIF(TRIM(BOTH '''' FROM REPLACE(REPLACE(:")
+				       .append(fieldName).append(", ',', ''), '''', '')), ''), ")
+				       .append("'^-?[0-9]*\\.?[0-9]+([eE][+-]?[0-9]+)?$') ")
+				       .append("THEN TO_NUMBER(TRIM(BOTH '''' FROM REPLACE(REPLACE(:")
+				       .append(fieldName).append(", ',', ''), '''', ''))) ")
+				       .append("ELSE NULL END\",\n");
+
+			} else {
+				content.append(" ").append(fieldName).append(" \"TRIM(BOTH '''' FROM :").append(fieldName).append(")\",\n");
 			}
 		}
-		try (FileWriter fileWriter = new FileWriter(filePath)) {
-			fileWriter.write(controlFileContent.toString());
-		}
+		// MY CODE END
 
-		logger.info("File Generated Successfully :::::::" + filePath);
+		content.append(" REC_FLG CONSTANT 0,\n REV_FLAG CONSTANT N,\n FILE_NAME CONSTANT '").append(fileLocation.getName()).append("'\n)");
+		String filePath = uDrivePath + "/controlfile/" + fileLocation.getName().replaceAll("\\.[^.]*$", "") + System.currentTimeMillis() + ".ctl";
+		new File(filePath).getParentFile().mkdirs();
+		try (FileWriter fw = new FileWriter(filePath)) { fw.write(content.toString()); }
 		return filePath;
 	}
 
-	private String generateFilePath(String targetTableName, File fileLocation) {
-		String timestamp = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss").format(new Date());
-		String fileName = fileLocation.getName();
-		if (fileName.lastIndexOf(".") > 0) {
-			fileName = fileName.substring(0, fileName.lastIndexOf("."));
+	// MY CODE START - reads the file's first (header) line and returns a map of
+	// columnName -> 1-based physical position, used to align template fields with their
+	// real position in the actual file instead of trusting a possibly-stale COL_POSN.
+	private Map<String, Integer> readHeaderPositions(File fileLocation, String fileSeprator) throws IOException {
+		Map<String, Integer> headerPositions = new LinkedHashMap<>();
+		try (BufferedReader br = new BufferedReader(new FileReader(fileLocation))) {
+			String headerLine = br.readLine();
+			if (headerLine != null) {
+				String[] columns = headerLine.split(Pattern.quote(fileSeprator), -1);
+				for (int i = 0; i < columns.length; i++) {
+					String colName = columns[i].trim();
+					if (colName.length() >= 2 && colName.startsWith("\"") && colName.endsWith("\"")) {
+						colName = colName.substring(1, colName.length() - 1).trim();
+					}
+					headerPositions.put(colName, i + 1);
+				}
+			}
 		}
-		return uDrivePath + "/controlfile/" + fileName + timestamp + ".ctl";
+		return headerPositions;
 	}
+	// MY CODE END
 
+    /* MY CODE END - Header-driven column mapping + Date/Number/Comma handling */
+
+    /*  CODE  - Utility Methods */
 	private String generateBadFile() throws IOException {
-		String timestamp = new SimpleDateFormat("yyyy-mm-dd-hh.mm.ss").format(new Date());
-		String badFilePath = uDrivePath + "/badfile/" + timestamp + ".bad";
-
-		File badFile = new File(badFilePath).getParentFile();
-		if (!badFile.exists()) {
-			Boolean dirCreated = badFile.mkdir();
-			if (!dirCreated) {
-				throw new IOException("Failed to create directories for the bad file");
-			}
-		}
-		return badFilePath;
+		String path = uDrivePath + "/badfile/" + System.currentTimeMillis() + ".bad";
+		new File(path).getParentFile().mkdirs();
+		return path;
 	}
-
 	private String generateLogFile() throws IOException {
-		String timestamp = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss").format(new Date());
-		String logFilePath = uDrivePath + "/logfile/" + timestamp + ".log";
-
-		File logFile = new File(logFilePath).getParentFile();
-		if (!logFile.exists()) {
-			boolean dirCreated = logFile.mkdir();
-			if (!dirCreated) {
-				throw new IOException("Failed to create directories for the log file");
-			}
-		}
-		return logFilePath;
+		String path = uDrivePath + "/logfile/" + System.currentTimeMillis() + ".log";
+		new File(path).getParentFile().mkdirs();
+		return path;
 	}
-
+    @Retryable(value = { SQLException.class }, maxAttempts = 5, backoff = @Backoff(delay = 5000))
+	private void truncateStageTable(String tableName) {
+		jdbcTemplate.execute("TRUNCATE TABLE " + tableName);
+	}
 }

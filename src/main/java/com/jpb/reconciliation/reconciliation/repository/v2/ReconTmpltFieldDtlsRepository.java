@@ -28,6 +28,9 @@ public interface ReconTmpltFieldDtlsRepository extends JpaRepository<ReconTmpltF
            "WHERE f.template.templateId = :templateId")
     Long findMaxSequenceByTemplateId(@Param("templateId") Long templateId);
 
+    //my
+    Optional<ReconTmpltFieldDtls> findFirstByTemplate_TemplateId(Long templateId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE ReconTmpltFieldDtls f SET f.sequenceOrder = :order WHERE f.fieldId = :fieldId")
     void updateSequenceOrder(@Param("fieldId") Long fieldId, @Param("order") Long order);
@@ -40,5 +43,8 @@ public interface ReconTmpltFieldDtlsRepository extends JpaRepository<ReconTmpltF
     // Legacy alias method name — keeps old service code compiling
     default List<ReconTmpltFieldDtls> findFullFieldDetailsByTemplateId(Long templateId) {
         return findActiveFieldsByTemplateId(templateId);
+        
+        
+
     }
 }

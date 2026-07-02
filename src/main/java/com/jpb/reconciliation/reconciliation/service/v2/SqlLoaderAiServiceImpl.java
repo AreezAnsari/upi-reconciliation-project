@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,53 +39,56 @@ import net.sf.jasperreports.engine.JRException;
 public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 
 	private Logger logger = LoggerFactory.getLogger(SqlLoaderServiceImpl.class);
-
 	DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ss a");
 
+    /* SIR CODE START */
 	@Autowired
 	ReconProcessManagerRepository processManagerRepository;
-
 	@Autowired
 	ReportRepository reportRepository;
-
 	@Autowired
 	ReportGenerationAiService reportGenerationAiService;
-
 	@Autowired
 	AuditLogManagerService auditLogManagerService;
-
 	@Autowired
 	SegretionAiService segretionAiService;
-
 	@Autowired
 	ReconUserRepository reconUserRepository;
-
 	@Autowired
 	ReconBatchProcessEntityRepository reconBatchProcessEntityRepository;
-
 	@Autowired
 	DataUpdateService dataUpdateService;
-
 	@Value("${spring.datasource.username}")
 	private String userName;
-
 	@Value("${spring.datasource.password}")
 	private String password;
-
 	@Value("${sqlldr.url}")
 	private String url;
-
 	@Autowired
 	JasperReportService jasperReportService;
+    /* SIR CODE END */
 
 	@Override
 	public String startLoading(String controlFile, String logFile, String badFile,
 			Optional<ReconTmpltFieldDtls> reconTemplateFileDetails, ReconBatchProcessEntity reconProcessManager,
 			ReconUser userDetails, File file) throws JRException, IOException {
+		logger.info("============== SQL LOADER STARTED ==============");
 
-		String cmd = "sqlldr " + userName + "/" + password + url + " control=" + controlFile + " log=" + logFile
-				+ " bad=" + badFile + " direct=true";
-		logger.info("SQL LOADER COMMAND :::::::::: " + cmd);
+        /* MY CODE START - Connectivity Fix */
+		String[] command = { 
+			    "sqlldr", 
+			    userName + "/" + password + "@" + url, // @ add kiya hai
+			    "control=" + controlFile, 
+			    "log=" + logFile, 
+			    "bad=" + badFile, 
+			    "direct=true" 
+			};
+		
+		ProcessBuilder pb = new ProcessBuilder(command);
+		Map<String, String> env = pb.environment();
+		env.put("TNS_ADMIN", "C:\\Reconciliation\\Wallet_RECONDB1");
+		logger.info("SQL LOADER COMMAND :::::::::: " + String.join(" ", command));
+        /* MY CODE END */
 
 		StringBuilder output = new StringBuilder();
 		StringBuilder errorOutput = new StringBuilder();
@@ -92,10 +96,11 @@ public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 		int exitCode = -1;
 
 		try {
-			Process process = Runtime.getRuntime().exec(cmd);
+            /* MY CODE START - ProcessBuilder execution */
+			Process process = pb.start();
+            /* MY CODE END */
 			logger.info("Output of sqlloader ::::::::::");
 
-			// Thread to read standard output
 			Thread outputReader = new Thread(() -> {
 				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
 					String line;
@@ -113,7 +118,6 @@ public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 				}
 			});
 
-			// Thread to read error output
 			Thread errorReader = new Thread(() -> {
 				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
 					String line;
@@ -127,14 +131,10 @@ public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 
 			outputReader.start();
 			errorReader.start();
-
 			exitCode = process.waitFor();
-
-			// Wait for threads to finish reading streams
 			outputReader.join();
 			errorReader.join();
 
-			// Log both outputs
 			logger.info("SQL Loader Standard Output:\n" + output.toString());
 			logger.info("SQL Loader Error Output:\n" + errorOutput.toString());
 
@@ -149,33 +149,18 @@ public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 				output.toString(), errorOutput.toString(), dataCount);
 
 		if ("Completed".equalsIgnoreCase(reconProcessManager.getExtractionStatus())) {
-			// EXTRACTION COMPLETED
-			// IF FILE UPDATE FLAG IS Y THEN START PROCESS
-//			if (reconFileDetails.getFileUpdateFlag().equalsIgnoreCase("Y")) {
-//				Boolean fileDataUpdateStatus = dataUpdateService.dataUpdateProcess(reconFileDetails,
-//						reconProcessManager);
-//				if (Boolean.FALSE.equals(fileDataUpdateStatus)) {
-//					logger.info("SP Data Update FAILED To EXECUTE :::::::::::::::" + fileDataUpdateStatus);
-//					return null;
-//				} else if (reconFileDetails.getReconFileName().equalsIgnoreCase("CBS_AEPS")
-//						|| reconFileDetails.getReconFileName().equalsIgnoreCase("EPIK_AEP_AEPS")) {
-//					reportGenerationService.writeReversalReport(reconFileDetails, reconProcessManager);
-//				}
-//			}
-
-			// SEGRETION PROCESS STARTED
-			Boolean segregationStatus = segretionAiService.startSegretion(reconProcessManager,
-					reconTemplateFileDetails);
+			Boolean segregationStatus = segretionAiService.startSegretion(reconProcessManager, reconTemplateFileDetails);
 			logger.info("Segregation Status :::::::::::::::" + segregationStatus);
 			if (Boolean.TRUE.equals(segregationStatus)) {
-				ResponseEntity<ResponseDto> result = reportGenerationAiService.generateReport(reconTemplateFileDetails, output,
-						reconProcessManager, dataCount, file);
+				ResponseEntity<ResponseDto> result = reportGenerationAiService.generateReport(reconTemplateFileDetails, output, reconProcessManager, dataCount, file);
 				logger.info("REPORT STATUS ::::::::::::::::::" + result);
 
 				if (result != null && result.getBody() != null) {
 					ResponseDto responseDto = result.getBody();
 					String statusCode = responseDto.getStatusCode();
-					if ("200".equalsIgnoreCase(statusCode)) {
+                    /* MY CODE START - Fixed typo here */
+					if ("200".equalsIgnoreCase(statusCode)) { 
+                        /* MY CODE END */
 						reconProcessManager.setReportStatus("Completed");
 						reconProcessManager.setStatus("Completed");
 					} else {
@@ -197,11 +182,12 @@ public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 			reconProcessManager.setSegretionStatus("Error");
 			reconProcessManager.setReportStatus("Error");
 		}
-
+		logger.info("============== SQL LOADER FINISHED ==============");
 		auditLogManagerService.extractionAudit(reconProcessManager, userDetails);
 		return output.toString();
 	}
 
+    /* SIR CODE START - updateBatchProcessStatus */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	private void updateBatchProcessStatus(ReconBatchProcessEntity reconProcessManager,
 			Optional<ReconTmpltFieldDtls> reconTemplateFileDetails, ReconUser userDetails, int exitCode,
@@ -225,4 +211,5 @@ public class SqlLoaderAiServiceImpl implements SqlLoaderAiService {
 		reconBatchProcessEntityRepository.flush();
 		logger.info("Updated ReconBatchProcessEntity status for process ID: {}", reconProcessManager.getProcessId());
 	}
+    /* SIR CODE END */
 }

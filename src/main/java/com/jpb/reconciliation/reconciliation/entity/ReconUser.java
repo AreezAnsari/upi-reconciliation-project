@@ -36,18 +36,19 @@ public class ReconUser {
 	@Id
 	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_USER")
 	@SequenceGenerator(name = "SEQ_USER", sequenceName = "SEQ_USER",allocationSize = 1)
-	@Column(name = "user_id")
+	@Column(name = "USER_ID")
 	private Long userId;
-	
+	@Column(name = "BANK")
 	private String institution;
+	@Column(name="DESIGNATION")
 	private String designation;
 
-	@Column(name = "email_id")
+	@Column(name = "EMAIL_ID")
 	private String emailId;
 
 	private String type;
 
-	@Column(name = "user_status")
+	@Column(name = "USER_STATUS")
 	private String userStatus;
 
 	@OneToOne(mappedBy = "reconUser", cascade = CascadeType.ALL)
@@ -59,26 +60,26 @@ public class ReconUser {
 	@JsonManagedReference
 	private Role role;
 	
-	@Column(name = "user_name")
+	@Column(name = "USER_NAME")
 	private String userName;
 	
-	@Column(name = "mobile_number")
+	@Column(name = "MOBILE_NUMBER")
 	private Long mobileNumber;
 
 	@CreatedDate
-	@Column(updatable = false, name = "crated_at")
+	@Column(updatable = false, name = "CRATED_AT")
 	private LocalDateTime createdAt;
 
 	@CreatedBy
-	@Column(updatable = false, name = "created_by")
+	@Column(updatable = false, name = "CREATED_BY")
 	private String createdBy;
 
 	@LastModifiedDate
-	@Column(insertable = false, name = "updated_at")
+	@Column(insertable = false, name = "UPDATED_AT")
 	private LocalDateTime updatedAt;
 
 	@LastModifiedBy
-	@Column(insertable = false, name = "updated_by")
+	@Column(insertable = false, name = "UPDATED_BY")
 	private String updatedBy;
 	
 	@Column(name = "APPROVED_YN")

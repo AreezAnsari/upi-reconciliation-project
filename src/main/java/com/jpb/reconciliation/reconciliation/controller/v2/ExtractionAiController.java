@@ -77,7 +77,9 @@ public class ExtractionAiController {
 		List<File> processedFiles = new ArrayList<>();
 		
 		// Find Template Data
-		Optional<ReconTmpltFieldDtls> reconTemplateFileDetails = reconTemplateFileDtlRepository.findById(templateId);
+		// sir code searching for fieldID 
+		//Optional<ReconTmpltFieldDtls> reconTemplateFileDetails = reconTemplateFileDtlRepository.findById(templateId);
+		Optional<ReconTmpltFieldDtls> reconTemplateFileDetails = reconTemplateFileDtlRepository.findFirstByTemplate_TemplateId(templateId);
 //		ReconFileDetailsMaster reconFileDetails = reconFileDetailsMasterRepository.findByReconFileId(processId);
 		logger.info("TEMPLATE DETAILS WITH FILE :::::::::::::::::" + reconTemplateFileDetails);
 		ReconUser userData = reconUserRepository.findByUserName(userDetails.getUsername()).get();
