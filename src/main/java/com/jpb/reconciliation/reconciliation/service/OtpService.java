@@ -98,6 +98,27 @@ public class OtpService {
         return OtpVerifyResult.SUCCESS;
     }
 
+    // ─── Peek OTP (verify without consuming) ─────────────────────────────────
+    // Use this when you need to validate the OTP but leave it for a subsequent step.
+    public OtpVerifyResult peekOtp(String email, String submittedOtp) {
+        String key = email.toLowerCase();
+        OtpEntry entry = otpStore.get(key);
+        if (entry == null) return OtpVerifyResult.NOT_FOUND;
+        if (LocalDateTime.now().isAfter(entry.expiry)) {
+            otpStore.remove(key);
+            return OtpVerifyResult.EXPIRED;
+        }
+        if (entry.attempts >= MAX_ATTEMPTS) {
+            otpStore.remove(key);
+            return OtpVerifyResult.MAX_ATTEMPTS_EXCEEDED;
+        }
+        if (!entry.otp.equals(submittedOtp)) {
+            entry.attempts++;
+            return OtpVerifyResult.INVALID;
+        }
+        return OtpVerifyResult.SUCCESS; // does NOT remove — caller must use verifyOtp() to consume
+    }
+
     // ─── Resend OTP ──────────────────────────────────────────────────────────
 
     public void resendOtp(String email) {

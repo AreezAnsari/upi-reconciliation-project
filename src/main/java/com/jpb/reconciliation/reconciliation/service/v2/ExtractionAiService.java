@@ -8,8 +8,8 @@ import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 
 @Service
 public interface ExtractionAiService {

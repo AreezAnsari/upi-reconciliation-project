@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.ForgotPasswordResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.ResetPasswordRequest;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;
 
 @Service

@@ -1,7 +1,8 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;

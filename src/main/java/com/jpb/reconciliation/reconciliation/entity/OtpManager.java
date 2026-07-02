@@ -15,7 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "RCN_OTP_MANAGER")
+@Table(name = "RECON_OTP_MANAGER")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

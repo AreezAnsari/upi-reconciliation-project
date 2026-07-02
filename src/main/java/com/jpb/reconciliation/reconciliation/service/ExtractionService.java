@@ -12,7 +12,7 @@ import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 
 import net.sf.jasperreports.engine.JRException;
 

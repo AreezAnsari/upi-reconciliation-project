@@ -18,6 +18,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 
 import lombok.Getter;
 import lombok.Setter;

@@ -1,10 +1,10 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
-import com.jpb.reconciliation.reconciliation.entity.ReconBankMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-import com.jpb.reconciliation.reconciliation.repository.ReconBankMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.security.JwtHelper;
 import com.jpb.reconciliation.reconciliation.service.OtpService;
 import com.jpb.reconciliation.reconciliation.service.OtpService.OtpVerifyResult;

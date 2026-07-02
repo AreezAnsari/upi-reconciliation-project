@@ -20,12 +20,12 @@ import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException;
 import com.jpb.reconciliation.reconciliation.mapper.ReconMenuMasterMapper;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 @Service
 public class MenuMasterServiceImpl implements MenuMasterService {

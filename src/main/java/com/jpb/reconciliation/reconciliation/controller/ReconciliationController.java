@@ -24,10 +24,10 @@ import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessDefMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.ReconciliationService;
 
 @RestController

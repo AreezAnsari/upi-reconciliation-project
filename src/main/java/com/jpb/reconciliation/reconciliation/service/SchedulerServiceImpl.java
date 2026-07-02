@@ -24,13 +24,13 @@ import com.jpb.reconciliation.reconciliation.controller.ExtractionController;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.entity.SchedulerJob;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessDefMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.SchedulerRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 import net.sf.jasperreports.engine.JRException;
 

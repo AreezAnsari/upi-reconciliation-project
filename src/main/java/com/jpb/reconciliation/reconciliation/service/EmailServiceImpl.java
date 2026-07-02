@@ -32,6 +32,30 @@ public class EmailServiceImpl implements EmailService {
     private String fromName;
 
     // ─────────────────────────────────────────────────────────────────────
+    // SEND LOGIN OTP EMAIL
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    public void sendLoginOtp(String toEmail, String userName,
+                             String otpCode, int expiryMins) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai - Your OTP for Login");
+            helper.setText(buildLoginOtpEmailHtml(userName, otpCode, expiryMins), true);
+            mailSender.send(message);
+            logger.info("Login OTP email sent successfully to: {}", toEmail);
+        } catch (MessagingException e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Login OTP email — recipient: {} | reason: {}", toEmail, e.getMessage());
+            throw new EmailDeliveryException("Failed to deliver login OTP email (messaging error): " + e.getMessage(), toEmail, e);
+        } catch (Exception e) {
+            logger.error("[EMAIL-DELIVERY-FAIL] Login OTP email — unexpected error — recipient: {} | reason: {}", toEmail, e.getMessage());
+            throw new EmailDeliveryException("Failed to deliver login OTP email (unexpected error): " + e.getMessage(), toEmail, e);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // SEND FORGOT PASSWORD OTP EMAIL
     // ─────────────────────────────────────────────────────────────────────
     @Override
@@ -86,6 +110,30 @@ public class EmailServiceImpl implements EmailService {
         } catch (Exception e) {
             logger.error("[EMAIL-DELIVERY-FAIL] SuperUser welcome — unexpected error — recipient: {} | reason: {}", toEmail, e.getMessage());
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // HTML TEMPLATE — Login OTP Email
+    // ─────────────────────────────────────────────────────────────────────
+    private String buildLoginOtpEmailHtml(String userName, String otpCode, int expiryMins) {
+        return "<div style='font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:8px;'>"
+            + "<div style='text-align:center;margin-bottom:24px;'>"
+            + "<span style='font-size:20px;font-weight:600;color:#1e3a5f;'>ReconXpert.Ai</span><br/>"
+            + "<span style='font-size:12px;color:#6b7280;'>by KalInfotech</span>"
+            + "</div>"
+            + "<p style='color:#374151;font-size:15px;'>Dear <strong>" + sanitize(userName) + "</strong>,</p>"
+            + "<p style='color:#374151;font-size:15px;'>Your One-Time Password (OTP) for login is:</p>"
+            + "<div style='text-align:center;margin:24px 0;'>"
+            + "<span style='display:inline-block;font-size:36px;font-weight:700;letter-spacing:12px;"
+            + "color:#1e3a5f;background:#f0f4ff;padding:16px 28px;border-radius:8px;'>"
+            + sanitize(otpCode)
+            + "</span>"
+            + "</div>"
+            + "<p style='color:#6b7280;font-size:13px;'>This OTP is valid for <strong>" + expiryMins + " minutes</strong> and can only be used once.</p>"
+            + "<p style='color:#6b7280;font-size:13px;'>If you did not request this, please ignore this email.</p>"
+            + "<hr style='border:none;border-top:1px solid #e5e7eb;margin:24px 0;'/>"
+            + "<p style='color:#9ca3af;font-size:11px;text-align:center;'>ReconXpert.Ai | KalInfotech | Do not reply to this email</p>"
+            + "</div>";
     }
 
     // ─────────────────────────────────────────────────────────────────────

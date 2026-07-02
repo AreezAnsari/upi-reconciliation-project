@@ -12,6 +12,11 @@ import java.util.Map;
 public interface EmailService {
 
     /**
+     * Send OTP email for Login verification flow.
+     */
+    void sendLoginOtp(String toEmail, String userName, String otpCode, int expiryMins);
+
+    /**
      * Send OTP email for Forgot Password flow.
      */
     void sendForgotPasswordOtp(String toEmail, String userName, String otpCode, int expiryMins);

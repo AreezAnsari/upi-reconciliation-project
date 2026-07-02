@@ -1,7 +1,8 @@
 package com.jpb.reconciliation.reconciliation.config;
 
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -14,6 +14,7 @@ public class AuthResponse {
 	private String userType;
 	private String fullName;
 	private String username;
+	private Long   bankId;
 
 	public AuthResponse(String accessToken, String refreshToken) {
 		this.accessToken  = accessToken;
@@ -29,5 +30,11 @@ public class AuthResponse {
 		this.userType     = userType;
 		this.fullName     = fullName;
 		this.username     = username;
+	}
+
+	public AuthResponse(String accessToken, String refreshToken,
+						Long userId, Long roleId, String userType, String fullName, String username, Long bankId) {
+		this(accessToken, refreshToken, userId, roleId, userType, fullName, username);
+		this.bankId = bankId;
 	}
 }

@@ -33,13 +33,13 @@ import org.springframework.stereotype.Service;
 
 import com.jpb.reconciliation.reconciliation.dto.ReportDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
 import com.jpb.reconciliation.reconciliation.entity.ReportEntity;
 import com.jpb.reconciliation.reconciliation.entity.TTUMRefundQueryMasterEntity;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessDefMasterRepository;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReportRepository;
 import com.jpb.reconciliation.reconciliation.repository.TTUMRefundQueryMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

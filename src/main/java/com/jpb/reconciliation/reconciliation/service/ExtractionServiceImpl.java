@@ -38,7 +38,7 @@ import com.jpb.reconciliation.reconciliation.entity.ReconFieldTypeMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconKeyIdentifyMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconTemplateDetails;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFieldDetailsMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFieldFormatMasterRepository;

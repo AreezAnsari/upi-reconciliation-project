@@ -13,8 +13,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
-import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 @Service
 public class CustomUserDetailService implements UserDetailsService {

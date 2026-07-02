@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconProcessManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReportRepository;

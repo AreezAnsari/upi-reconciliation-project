@@ -70,6 +70,10 @@ public class SecurityConfig {
                 // KalAdmin V2 Auth — create is public (no token needed for self-registration)
                 .requestMatchers(new AntPathRequestMatcher("/api/v2/admin/auth/create")).permitAll()
 
+                // Product Master — read-only list is public (used on bank onboarding form)
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/product/get-all")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/product/get-by-status")).permitAll()
+
                 // H2
                 .requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll()
 
@@ -89,6 +93,9 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/get-by-code/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/logo/**")).permitAll()
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/branch/get-by-code/**")).permitAll()
+                // V2 logo + get-by-code — public
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/bank/logo/**")).permitAll()
+                .requestMatchers(new AntPathRequestMatcher("/api/v2/bank/get-by-code/**")).permitAll()
 
                 // Bank uniqueness check APIs — non-critical, fail-open on frontend
                 .requestMatchers(new AntPathRequestMatcher("/test/api/v1/bank/check-email")).permitAll()

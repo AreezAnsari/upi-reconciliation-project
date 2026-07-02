@@ -20,7 +20,19 @@ ALTER TABLE KAL_RECON.RECON_BANK_MASTER ADD (
     TOKEN_EXPIRY        TIMESTAMP
 );
 
--- 2. BANK_TYPE column already widened in previous migration (VARCHAR2 100)
+-- 2. LOGO_PATH — stores path to uploaded bank/branch logo
+ALTER TABLE KAL_RECON.RECON_BANK_MASTER ADD (LOGO_PATH VARCHAR2(500));
+COMMIT;
+
+-- 3. BANK_LEVEL — differentiates top-level banks from branches
+ALTER TABLE KAL_RECON.RECON_BANK_MASTER ADD (
+    BANK_LEVEL VARCHAR2(10)
+);
+-- Backfill: existing rows with PARENT_BANK_ID = BRANCH, others = BANK
+UPDATE KAL_RECON.RECON_BANK_MASTER SET BANK_LEVEL = CASE WHEN PARENT_BANK_ID IS NOT NULL THEN 'BRANCH' ELSE 'BANK' END;
+COMMIT;
+
+-- 3. BANK_TYPE column already widened in previous migration (VARCHAR2 100)
 -- ALTER TABLE KAL_RECON.RECON_BANK_MASTER MODIFY BANK_TYPE VARCHAR2(100);
 
 -- 3. RCN_RECON_USER — add CONTACT_RANK if not present (should already exist)

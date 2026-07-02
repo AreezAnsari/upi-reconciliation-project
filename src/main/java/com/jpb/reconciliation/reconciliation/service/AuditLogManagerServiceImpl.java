@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import com.jpb.reconciliation.reconciliation.entity.AuditLogManager;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
-import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.AuditLogManagerRepository;
 
 @Service
