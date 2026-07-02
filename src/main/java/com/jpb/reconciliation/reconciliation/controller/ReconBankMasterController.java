@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v2/bank")
@@ -188,40 +189,43 @@ public class ReconBankMasterController {
         return reconBankMasterService.unblockBank(bankId, updatedBy);
     }
 
-    @Operation(summary = "Schedule bank inactivation at a future datetime (ISO format: 2025-01-15T10:30:00)")
+    @Operation(summary = "Schedule bank inactivation at a future datetime (ISO format: 2025-01-15T10:30:00). Omit scheduledAt to schedule immediately (~30s, used by the admin-handover flow).")
     @PostMapping(value = "/schedule-inactivate/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> scheduleInactivate(
             @PathVariable Long bankId,
-            @RequestParam String scheduledAt,
+            @RequestParam(required = false) String scheduledAt,
             Authentication authentication) {
         String scheduledBy = resolveUser(authentication);
-        LocalDateTime dateTime = LocalDateTime.parse(scheduledAt);
-        logger.info("Schedule inactivate for bankId: {} at {} by {}", bankId, scheduledAt, scheduledBy);
+        LocalDateTime dateTime = (scheduledAt != null && !scheduledAt.trim().isEmpty())
+                ? LocalDateTime.parse(scheduledAt) : LocalDateTime.now().plusSeconds(5);
+        logger.info("Schedule inactivate for bankId: {} at {} by {}", bankId, dateTime, scheduledBy);
         return reconBankMasterService.scheduleInactivate(bankId, dateTime, scheduledBy);
     }
 
-    @Operation(summary = "Schedule bank reactivation at a future datetime (ISO format: 2025-01-15T10:30:00)")
+    @Operation(summary = "Schedule bank reactivation at a future datetime (ISO format: 2025-01-15T10:30:00). Omit scheduledAt to schedule immediately (~30s, used by the admin-handover flow).")
     @PostMapping(value = "/schedule-reactivate/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> scheduleReactivate(
             @PathVariable Long bankId,
-            @RequestParam String scheduledAt,
+            @RequestParam(required = false) String scheduledAt,
             Authentication authentication) {
         String scheduledBy = resolveUser(authentication);
-        LocalDateTime dateTime = LocalDateTime.parse(scheduledAt);
-        logger.info("Schedule reactivate for bankId: {} at {} by {}", bankId, scheduledAt, scheduledBy);
+        LocalDateTime dateTime = (scheduledAt != null && !scheduledAt.trim().isEmpty())
+                ? LocalDateTime.parse(scheduledAt) : LocalDateTime.now().plusSeconds(5);
+        logger.info("Schedule reactivate for bankId: {} at {} by {}", bankId, dateTime, scheduledBy);
         return reconBankMasterService.scheduleReactivate(bankId, dateTime, scheduledBy);
     }
 
-    @Operation(summary = "Schedule bank block at a future datetime (ISO format: 2025-01-15T10:30:00)")
+    @Operation(summary = "Schedule bank block at a future datetime (ISO format: 2025-01-15T10:30:00). Omit scheduledAt to schedule immediately (~30s, used by the admin-handover flow).")
     @PostMapping(value = "/schedule-block/{bankId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> scheduleBlock(
             @PathVariable Long bankId,
-            @RequestParam String scheduledAt,
+            @RequestParam(required = false) String scheduledAt,
             @RequestParam(required = false) String reason,
             Authentication authentication) {
         String scheduledBy = resolveUser(authentication);
-        LocalDateTime dateTime = LocalDateTime.parse(scheduledAt);
-        logger.info("Schedule block for bankId: {} at {} by {}", bankId, scheduledAt, scheduledBy);
+        LocalDateTime dateTime = (scheduledAt != null && !scheduledAt.trim().isEmpty())
+                ? LocalDateTime.parse(scheduledAt) : LocalDateTime.now().plusSeconds(5);
+        logger.info("Schedule block for bankId: {} at {} by {}", bankId, dateTime, scheduledBy);
         return reconBankMasterService.scheduleBlock(bankId, dateTime, scheduledBy, reason);
     }
 
@@ -280,16 +284,27 @@ public class ReconBankMasterController {
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank admins fetched", result));
     }
 
-    @Operation(summary = "Get all branch admins for the current bank admin's bank")
+    @Operation(summary = "Get all branch admins — KalAdmin sees every branch across all banks, Bank Admin sees only their own bank's branches")
     @GetMapping(value = "/get-all-admins", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getAllBranchAdmins(Authentication authentication) {
         String username = resolveUser(authentication);
         ReconUser currentUser = reconUserRepository.findByUsername(username).orElse(null);
-        if (currentUser == null || currentUser.getBankId() == null) {
+        if (currentUser == null) {
             return ResponseEntity.ok(new RestWithStatusList("FAILURE", "User not found", null));
         }
-        Long parentBankId = currentUser.getBankId();
-        List<ReconBankMaster> branchBanks = reconBankMasterRepository.findByParentBankId(parentBankId);
+
+        List<ReconBankMaster> branchBanks;
+        if ("KAL_ADMIN".equals(currentUser.getUserType())) {
+            // KalAdmin has no bankId of their own — return branches across every bank.
+            branchBanks = reconBankMasterRepository.findAllPrimary().stream()
+                    .filter(b -> b.getParentBankId() != null)
+                    .collect(Collectors.toList());
+        } else {
+            if (currentUser.getBankId() == null) {
+                return ResponseEntity.ok(new RestWithStatusList("FAILURE", "User not found", null));
+            }
+            branchBanks = reconBankMasterRepository.findByParentBankId(currentUser.getBankId());
+        }
         List<Map<String, Object>> result = new ArrayList<>();
         for (ReconBankMaster branch : branchBanks) {
             ReconUser branchAdmin = reconUserRepository

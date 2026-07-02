@@ -4,6 +4,7 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconPasswordManager;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconPasswordManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
@@ -32,6 +33,9 @@ public class NewReconUserServiceImpl implements NewReconUserService {
 
     @Autowired
     private ReconPasswordManagerRepository reconPasswordManagerRepository;
+
+    @Autowired
+    private ReconBankMasterRepository reconBankMasterRepository;
 
     @Autowired
     private ReconRoleMasterRepository reconRoleMasterRepository;
@@ -135,6 +139,17 @@ public class NewReconUserServiceImpl implements NewReconUserService {
     @Override
     public ResponseEntity<RestWithStatusList> getUsersByBankId(Long bankId) {
         List<ReconUser> users = reconUserRepository.findByBankId(bankId);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched by bank.", users));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getUsersByBankCode(String bankCode) {
+        Optional<com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster> bankOpt =
+                reconBankMasterRepository.findByBankCode(bankCode);
+        if (!bankOpt.isPresent()) {
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No data", Collections.emptyList()));
+        }
+        List<ReconUser> users = reconUserRepository.findByBankId(bankOpt.get().getBankId());
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched by bank.", users));
     }
 

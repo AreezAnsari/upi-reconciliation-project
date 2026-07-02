@@ -28,6 +28,8 @@ import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterReposi
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.v2.ReconUserService;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -111,13 +113,22 @@ public class ReconUserController {
 			return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No data", Collections.emptyList()));
 		}
 		Long mainBankId = bankOpt.get().getBankId();
-		List<ReconBankMaster> branches = reconBankMasterRepository.findByParentBankId(mainBankId);
 		List<Map<String, Object>> result = new ArrayList<>();
+
+		// Users directly under the bank itself (not under any branch)
+		List<ReconUser> directUsers = reconUserRepository.findByBankId(mainBankId);
+		for (ReconUser u : directUsers) {
+			if (!"BANK_USER".equals(u.getUserType())) continue;
+			result.add(buildUserRow(u, bankCode));
+		}
+
+		// Users under each of this bank's branches
+		List<ReconBankMaster> branches = reconBankMasterRepository.findByParentBankId(mainBankId);
 		for (ReconBankMaster branch : branches) {
 			String bCode = branch.getBankCode();
 			List<ReconUser> users = reconUserRepository.findByBankId(branch.getBankId());
 			for (ReconUser u : users) {
-				if ("BRANCH_ADMIN".equals(u.getUserType())) continue;
+				if (!"BRANCH_USER".equals(u.getUserType())) continue;
 				result.add(buildUserRow(u, bCode));
 			}
 		}
@@ -134,7 +145,7 @@ public class ReconUserController {
 		List<ReconUser> users = reconUserRepository.findByBankId(branchBankId);
 		List<Map<String, Object>> result = new ArrayList<>();
 		for (ReconUser u : users) {
-			if ("BRANCH_ADMIN".equals(u.getUserType())) continue;
+			if (!"BRANCH_USER".equals(u.getUserType())) continue;
 			result.add(buildUserRow(u, branchCode));
 		}
 		return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Branch users fetched", result));
@@ -162,5 +173,69 @@ public class ReconUserController {
 		return row;
 	}
 
+	@Operation(summary = "Get reporting-hierarchy tree of users under a branch (nested by parentUserId)")
+	@GetMapping(value = "/hierarchy/branch/{branchCode}", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> getUserHierarchyByBranch(@PathVariable String branchCode) {
+		Optional<ReconBankMaster> branchOpt = reconBankMasterRepository.findByBankCode(branchCode);
+		if (!branchOpt.isPresent()) {
+			return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No data", Collections.emptyList()));
+		}
+		List<Map<String, Object>> tree = buildUserHierarchyTree(branchOpt.get().getBankId(), branchCode);
+		return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Branch hierarchy fetched", tree));
+	}
+
+	@Operation(summary = "Get reporting-hierarchy tree of users directly under a bank (not under any branch)")
+	@GetMapping(value = "/hierarchy/bank/{bankCode}/direct", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> getUserHierarchyByBankDirect(@PathVariable String bankCode) {
+		Optional<ReconBankMaster> bankOpt = reconBankMasterRepository.findByBankCode(bankCode);
+		if (!bankOpt.isPresent()) {
+			return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No data", Collections.emptyList()));
+		}
+		List<Map<String, Object>> tree = buildUserHierarchyTree(bankOpt.get().getBankId(), bankCode);
+		return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank direct hierarchy fetched", tree));
+	}
+
+	// Users of the given bankId, nested by parentUserId. Roots = users whose
+	// parent isn't also a user of this same bankId (e.g. admin created by a KalAdmin/BankAdmin
+	// who sits outside this institution's own user scope).
+	private List<Map<String, Object>> buildUserHierarchyTree(Long bankId, String codeForRow) {
+		List<ReconUser> allUsers = new ArrayList<>();
+		for (ReconUser u : reconUserRepository.findByBankId(bankId)) {
+			// Only regular (non-admin) users belong in the hierarchy tree.
+			if ("BANK_USER".equals(u.getUserType()) || "BRANCH_USER".equals(u.getUserType())) {
+				allUsers.add(u);
+			}
+		}
+		java.util.Set<Long> idsInScope = new java.util.HashSet<>();
+		for (ReconUser u : allUsers) idsInScope.add(u.getUserId());
+
+		Map<Long, List<ReconUser>> byParent = new java.util.HashMap<>();
+		List<ReconUser> roots = new ArrayList<>();
+		for (ReconUser u : allUsers) {
+			Long parentId = u.getParentUserId();
+			if (parentId == null || !idsInScope.contains(parentId)) {
+				roots.add(u);
+			} else {
+				byParent.computeIfAbsent(parentId, k -> new ArrayList<>()).add(u);
+			}
+		}
+
+		List<Map<String, Object>> result = new ArrayList<>();
+		for (ReconUser root : roots) {
+			result.add(buildUserNode(root, byParent, codeForRow));
+		}
+		return result;
+	}
+
+	private Map<String, Object> buildUserNode(ReconUser u, Map<Long, List<ReconUser>> byParent, String codeForRow) {
+		Map<String, Object> node = buildUserRow(u, codeForRow);
+		List<ReconUser> children = byParent.getOrDefault(u.getUserId(), Collections.emptyList());
+		List<Map<String, Object>> childNodes = new ArrayList<>();
+		for (ReconUser c : children) {
+			childNodes.add(buildUserNode(c, byParent, codeForRow));
+		}
+		node.put("children", childNodes);
+		return node;
+	}
 
 }

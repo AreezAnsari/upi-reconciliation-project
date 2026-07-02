@@ -42,6 +42,7 @@ public class StatusSchedulerService {
             if (user.getInactivateScheduledAt().plusSeconds(30).isAfter(now)) continue;
 
             Long userId = user.getUserId();
+            String actor = user.getInactivateScheduledBy();
             user.setStatus("INACTIVE");
             user.setInactivateScheduledAt(null);
             user.setInactivateScheduledBy(null);
@@ -58,6 +59,8 @@ public class StatusSchedulerService {
 
             try { emailService.sendInactivatedNotification(user.getEmail(), user.getFullName(), resolveEntityName(user), resolveEntityCode(user)); }
             catch (Exception e) { logger.warn("sendInactivatedNotification failed: {}", e.getMessage()); }
+
+            notifyActor(actor, "Inactivated", user.getFullName(), user.getUsername());
         }
 
         // ACTIVE_PENDING (reactivation) → ACTIVE (30s after scheduling)
@@ -68,6 +71,7 @@ public class StatusSchedulerService {
             if (user.getReactivateScheduledAt().plusSeconds(30).isAfter(now)) continue;
 
             Long userId = user.getUserId();
+            String actor = user.getReactivateScheduledBy();
             user.setStatus("ACTIVE");
             user.setReactivateScheduledAt(null);
             user.setReactivateScheduledBy(null);
@@ -84,6 +88,8 @@ public class StatusSchedulerService {
 
             try { emailService.sendReactivatedNotification(user.getEmail(), user.getFullName(), resolveEntityName(user), resolveEntityCode(user), user.getUsername(), ""); }
             catch (Exception e) { logger.warn("sendReactivatedNotification failed: {}", e.getMessage()); }
+
+            notifyActor(actor, "Reactivated", user.getFullName(), user.getUsername());
         }
 
         // BLOCK_PENDING → BLOCKED (24h after scheduling)
@@ -93,6 +99,7 @@ public class StatusSchedulerService {
             if (user.getBlockScheduledAt().plusHours(24).isAfter(now)) continue;
 
             Long userId = user.getUserId();
+            String actor = user.getBlockScheduledBy();
             user.setStatus("BLOCKED");
             user.setBlockScheduledAt(null);
             user.setBlockScheduledBy(null);
@@ -109,6 +116,8 @@ public class StatusSchedulerService {
 
             try { emailService.sendBlockedNotification(user.getEmail(), user.getFullName()); }
             catch (Exception e) { logger.warn("sendBlockedNotification failed: {}", e.getMessage()); }
+
+            notifyActor(actor, "Blocked", user.getFullName(), user.getUsername());
         }
     }
 
@@ -125,6 +134,7 @@ public class StatusSchedulerService {
                     || "BLOCK_PENDING".equals(bank.getStatus())) continue;
             String actor = bank.getInactivateScheduledBy();
             bank.setStatus("INACTIVE");
+            bank.setInactivatedAt(now);
             bank.setInactivateScheduledAt(null);
             bank.setInactivateScheduledBy(null);
             bank.setUpdatedAt(now);
@@ -134,8 +144,6 @@ public class StatusSchedulerService {
 
             cascadeInactivateUsers(bank.getBankId(), now);
 
-            try { emailService.sendBankInactivatedNotification(bank.getEmail(), bank.getBankName()); }
-            catch (Exception e) { logger.warn("sendBankInactivatedNotification failed: {}", e.getMessage()); }
             notifyActor(actor, "Inactivated", bank.getBankName(), bank.getBankCode());
         }
 
@@ -155,8 +163,6 @@ public class StatusSchedulerService {
 
             cascadeReactivateUsers(bank.getBankId(), now);
 
-            try { emailService.sendBankReactivatedNotification(bank.getEmail(), bank.getBankName()); }
-            catch (Exception e) { logger.warn("sendBankReactivatedNotification failed: {}", e.getMessage()); }
             notifyActor(actor, "Reactivated", bank.getBankName(), bank.getBankCode());
         }
 
@@ -177,8 +183,6 @@ public class StatusSchedulerService {
 
             cascadeBlockUsers(bank.getBankId(), now, bank.getBlockReason() != null ? bank.getBlockReason() : "Bank blocked");
 
-            try { emailService.sendBankBlockedNotification(bank.getEmail(), bank.getBankName()); }
-            catch (Exception e) { logger.warn("sendBankBlockedNotification failed: {}", e.getMessage()); }
             notifyActor(actor, "Blocked", bank.getBankName(), bank.getBankCode());
         }
     }
@@ -194,6 +198,12 @@ public class StatusSchedulerService {
             u.setUpdatedAt(now);
             u.setUpdatedBy("SCHEDULER");
             reconUserRepository.save(u);
+            // This cascade is the bank/branch-triggered path (separate from the individual
+            // user scheduler above) — a Bank/Branch Admin's own inactivation is scheduled
+            // here, so any pending replacement for them must be finalized here too, or it
+            // never fires when this scheduler job wins the race against the per-user one.
+            try { replacementService.finalizePendingReplacement(u.getUserId()); }
+            catch (Exception e) { logger.warn("cascade finalizePendingReplacement failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { emailService.sendInactivatedNotification(u.getEmail(), u.getFullName(), resolveEntityName(u), resolveEntityCode(u)); }
             catch (Exception e) { logger.warn("cascade inactivate email failed: {}", e.getMessage()); }
         }
@@ -211,6 +221,8 @@ public class StatusSchedulerService {
             u.setUpdatedAt(now);
             u.setUpdatedBy("SCHEDULER");
             reconUserRepository.save(u);
+            try { replacementService.onOriginalReactivated(u.getUserId()); }
+            catch (Exception e) { logger.warn("cascade onOriginalReactivated failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { emailService.sendReactivatedNotification(u.getEmail(), u.getFullName(), resolveEntityName(u), resolveEntityCode(u), u.getUsername(), ""); }
             catch (Exception e) { logger.warn("cascade reactivate email failed: {}", e.getMessage()); }
         }
@@ -229,6 +241,8 @@ public class StatusSchedulerService {
             u.setUpdatedAt(now);
             u.setUpdatedBy("SCHEDULER");
             reconUserRepository.save(u);
+            try { replacementService.onOriginalBlocked(u.getUserId()); }
+            catch (Exception e) { logger.warn("cascade onOriginalBlocked failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { emailService.sendBlockedNotification(u.getEmail(), u.getFullName()); }
             catch (Exception e) { logger.warn("cascade block email failed: {}", e.getMessage()); }
         }

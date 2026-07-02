@@ -229,13 +229,4 @@ public interface EmailService {
 
     /** Sent when a user is automatically blocked by the scheduler (24h window elapsed). */
     void sendBlockedNotification(String toEmail, String contactName);
-
-    /** Sent to bank primary contact when the bank is automatically inactivated. */
-    void sendBankInactivatedNotification(String toEmail, String bankName);
-
-    /** Sent to bank primary contact when the bank is automatically reactivated. */
-    void sendBankReactivatedNotification(String toEmail, String bankName);
-
-    /** Sent to bank primary contact when the bank is automatically blocked. */
-    void sendBankBlockedNotification(String toEmail, String bankName);
 }

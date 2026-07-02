@@ -24,7 +24,7 @@ public class AuditLog {
     @Column(name = "RECORD_ID", nullable = false)
     private Long recordId;
 
-    @Column(name = "OPERATION", length = 10, nullable = false)
+    @Column(name = "OPERATION", length = 30, nullable = false)
     private String operation;
 
     @Column(name = "ACTOR_USER_ID")

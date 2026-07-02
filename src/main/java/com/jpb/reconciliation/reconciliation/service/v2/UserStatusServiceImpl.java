@@ -182,6 +182,9 @@ public class UserStatusServiceImpl implements UserStatusService {
             logger.warn("sendReactivateCancelled failed: {}", e.getMessage());
         }
 
+        notifyActor(undoneBy, "Reactivation Cancelled", user.getFullName(), user.getUsername(),
+                LocalDateTime.now().format(FMT), user);
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Reactivation cancelled. User remains INACTIVE.", null));
     }
 
@@ -221,6 +224,8 @@ public class UserStatusServiceImpl implements UserStatusService {
         // Notify delegatee if user has active delegation
         notifyDelegateeBlockPending(user, blockAt);
 
+        notifyActor(scheduledBy, "Block Scheduled", user.getFullName(), user.getUsername(), blockAt, user);
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block scheduled. User will be BLOCKED in 24 hours.", null));
     }
@@ -258,6 +263,9 @@ public class UserStatusServiceImpl implements UserStatusService {
             logger.warn("sendBlockCancelled failed: {}", e.getMessage());
         }
 
+        notifyActor(undoneBy, "Block Cancelled", user.getFullName(), user.getUsername(),
+                LocalDateTime.now().format(FMT), user);
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "Block cancelled. User restored to " + restore + ".", null));
     }
@@ -288,6 +296,16 @@ public class UserStatusServiceImpl implements UserStatusService {
         replacementService.onOriginalBlocked(userId);
         try { delegationService.notifyDelegateeBlocked(userId); } catch (Exception e) { logger.warn("notifyDelegateeBlocked: {}", e.getMessage()); }
 
+        try {
+            String[] orgInfo = resolveOrgInfo(user);
+            emailService.sendBlockedNotification(user.getEmail(), user.getFullName());
+        } catch (Exception e) {
+            logger.warn("sendBlockedNotification failed: {}", e.getMessage());
+        }
+
+        notifyActor(blockedBy, "Blocked", user.getFullName(), user.getUsername(),
+                LocalDateTime.now().format(FMT), user);
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User BLOCKED.", null));
     }
 
@@ -314,6 +332,16 @@ public class UserStatusServiceImpl implements UserStatusService {
         auditLog("RCN_RECON_USER", userId, "STATUS_CHANGE", "BLOCKED", restore,
                 unblockedBy, user.getUserType(), user.getBankId(), "User unblocked");
         try { delegationService.notifyDelegateeUnblocked(userId); } catch (Exception e) { logger.warn("notifyDelegateeUnblocked: {}", e.getMessage()); }
+
+        try {
+            String[] orgInfo = resolveOrgInfo(user);
+            emailService.sendBlockCancelled(user.getEmail(), user.getFullName(), orgInfo[0], orgInfo[1], restore);
+        } catch (Exception e) {
+            logger.warn("sendBlockCancelled failed: {}", e.getMessage());
+        }
+
+        notifyActor(unblockedBy, "Unblocked", user.getFullName(), user.getUsername(),
+                LocalDateTime.now().format(FMT), user);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
                 "User unblocked. Status restored to " + restore + ".", null));
@@ -358,7 +386,8 @@ public class UserStatusServiceImpl implements UserStatusService {
                            String actor, String actorType, Long bankId, String label) {
         try {
             AuditLog log = new AuditLog();
-            log.setTableName(table); log.setRecordId(recordId); log.setOperation(op);
+            log.setTableName(table); log.setRecordId(recordId);
+            log.setOperation(op != null && op.length() > 10 ? op.substring(0, 10) : op);
             log.setOldValue(oldVal); log.setNewValue(newVal);
             log.setActorUsername(actor); log.setActorType(actorType); log.setBankId(bankId);
             log.setActionLabel(label); log.setChangedAt(LocalDateTime.now());

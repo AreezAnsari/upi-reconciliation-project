@@ -418,7 +418,8 @@ public class AuditReplacementServiceImpl implements AuditReplacementService {
                            String actor, String actorType, Long bankId, String label) {
         try {
             AuditLog log = new AuditLog();
-            log.setTableName(table); log.setRecordId(recordId); log.setOperation(op);
+            log.setTableName(table); log.setRecordId(recordId);
+            log.setOperation(op != null && op.length() > 10 ? op.substring(0, 10) : op);
             log.setOldValue(oldVal); log.setNewValue(newVal);
             log.setActorUsername(actor); log.setActorType(actorType); log.setBankId(bankId);
             log.setActionLabel(label); log.setChangedAt(LocalDateTime.now());

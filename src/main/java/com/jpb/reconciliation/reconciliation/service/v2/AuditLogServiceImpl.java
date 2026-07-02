@@ -32,7 +32,7 @@ public class AuditLogServiceImpl implements AuditLogService {
             AuditLog entry = new AuditLog();
             entry.setTableName(tableName);
             entry.setRecordId(recordId);
-            entry.setOperation(operation);
+            entry.setOperation(operation != null && operation.length() > 10 ? operation.substring(0, 10) : operation);
             entry.setActorUserId(actorUserId);
             entry.setActorUsername(actorUsername);
             entry.setActorType(actorType);

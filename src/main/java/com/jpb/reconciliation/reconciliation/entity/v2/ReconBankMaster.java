@@ -57,6 +57,11 @@ public class ReconBankMaster {
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;
 
+    // When the bank most recently became INACTIVE — drives the reactivation
+    // cooldown in updateStatus() (can't go ACTIVE again within the window).
+    @Column(name = "INACTIVATED_AT")
+    private LocalDateTime inactivatedAt;
+
     @Column(name = "INACTIVATE_SCHEDULED_AT")
     private LocalDateTime inactivateScheduledAt;
 

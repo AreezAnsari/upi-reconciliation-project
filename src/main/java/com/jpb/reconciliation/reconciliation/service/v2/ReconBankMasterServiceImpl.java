@@ -68,6 +68,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Autowired private ReconProductMasterRepository productMasterRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private EmailService emailService;
+    @Autowired private AuditReplacementService replacementService;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -86,6 +87,18 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         // Name uniqueness is intentionally not enforced here — matches old backend
         // behavior (MainBankServiceImpl/BranchBankServiceImpl.checkNameExists()),
         // where the same institution name is always allowed for both banks and branches.
+
+        // ── Server-side email-exists validation (mirrors /check-email) ─────────
+        String primaryEmailLc = bank.getEmail() != null ? bank.getEmail().trim().toLowerCase() : null;
+        if (primaryEmailLc != null && !primaryEmailLc.isEmpty() && reconUserRepository.existsByEmail(primaryEmailLc)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "\"" + primaryEmailLc + "\" is already registered.", null));
+        }
+        String secondaryEmailLc = bank.getSecondaryEmail() != null ? bank.getSecondaryEmail().trim().toLowerCase() : null;
+        if (secondaryEmailLc != null && !secondaryEmailLc.isEmpty() && reconUserRepository.existsByEmail(secondaryEmailLc)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "\"" + secondaryEmailLc + "\" is already registered.", null));
+        }
 
         // ── Determine branch vs bank ─────────────────────────────────────────
         boolean isBranch     = bank.getParentBankId() != null;
@@ -111,22 +124,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         }
         bank.setBankCode(generatedCode);
 
-        // ── Map transient address lines → regAddress ─────────────────────────
-        String combinedAddress = Stream.of(bank.getRegAddressLine1(), bank.getRegAddressLine2(), bank.getRegAddressLine3())
-                .filter(s -> s != null && !s.trim().isEmpty())
-                .collect(Collectors.joining(", "));
-        if (!combinedAddress.trim().isEmpty()) bank.setRegAddress(combinedAddress);
-
-        // ── Map transient phone parts → regPhone ─────────────────────────────
-        String phoneCode = bank.getRegPhoneCode();
-        String cityCode  = bank.getRegCityCode();
-        String phoneNum  = bank.getRegPhone();
-        if ((phoneCode != null && !phoneCode.trim().isEmpty()) || (cityCode != null && !cityCode.trim().isEmpty())) {
-            String combined = Stream.of(phoneCode, cityCode, phoneNum)
-                    .filter(s -> s != null && !s.trim().isEmpty())
-                    .collect(Collectors.joining("-"));
-            bank.setRegPhone(combined);
-        }
+        mapAddressAndPhoneTransients(bank);
 
         bank.setContactRank("PRIMARY");
         bank.setCreatedAt(LocalDateTime.now());
@@ -254,6 +252,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         }
         ReconBankMaster found = opt.get();
         enrichWithProducts(found);
+        enrichForEditAndDetail(found);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(found)));
     }
 
@@ -266,7 +265,36 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         }
         ReconBankMaster found = opt.get();
         enrichWithProducts(found);
+        enrichForEditAndDetail(found);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(found)));
+    }
+
+    // Populates fields that are stored separately/combined in the DB but that the
+    // Detail view and Edit form need split back out — secondary contact (a separate
+    // row), the registered address (surfaced whole into Line 1, no lossy re-split of
+    // free text), and the registered phone (split back into code/city/number, the
+    // reverse of mapAddressAndPhoneTransients()'s join).
+    private void enrichForEditAndDetail(ReconBankMaster bank) {
+        reconBankMasterRepository.findByBankCodeAndContactRank(bank.getBankCode(), "SECONDARY")
+                .ifPresent(sec -> {
+                    bank.setSecondaryFullName(sec.getFullName());
+                    bank.setSecondaryEmail(sec.getEmail());
+                    bank.setSecondaryMobileNumber(sec.getMobileNumber());
+                    bank.setSecondaryAltMobile(sec.getAltMobileNumber());
+                });
+
+        if (bank.getRegAddress() != null && !bank.getRegAddress().isEmpty()) {
+            bank.setRegAddressLine1(bank.getRegAddress());
+        }
+
+        if (bank.getRegPhone() != null && bank.getRegPhone().contains("-")) {
+            String[] parts = bank.getRegPhone().split("-", 3);
+            if (parts.length == 3) {
+                bank.setRegPhoneCode(parts[0]);
+                bank.setRegCityCode(parts[1]);
+                bank.setRegPhone(parts[2]);
+            }
+        }
     }
 
     @Override
@@ -284,6 +312,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Override
     public ResponseEntity<RestWithStatusList> getBranchBanks(Long parentBankId) {
         List<ReconBankMaster> banks = reconBankMasterRepository.findByParentBankId(parentBankId);
+        banks.forEach(this::enrichWithProducts);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Branch banks fetched.", banks));
     }
 
@@ -296,30 +325,237 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                     .body(new RestWithStatusList("FAILURE", "Bank not found with ID: " + bankId, null));
         }
         ReconBankMaster existing = opt.get();
-        if (bank.getBankName() != null) existing.setBankName(bank.getBankName());
-        if (bank.getBankCategory() != null) existing.setBankCategory(bank.getBankCategory());
-        if (bank.getRegAddress() != null) existing.setRegAddress(bank.getRegAddress());
-        if (bank.getRegCity() != null) existing.setRegCity(bank.getRegCity());
-        if (bank.getRegState() != null) existing.setRegState(bank.getRegState());
-        if (bank.getRegCountry() != null) existing.setRegCountry(bank.getRegCountry());
-        if (bank.getRegPhone() != null) existing.setRegPhone(bank.getRegPhone());
-        if (bank.getSelectedProducts() != null && !bank.getSelectedProducts().isEmpty()) {
-            saveProductMappings(bankId, bank, updatedBy);
+        boolean isBranch = existing.getParentBankId() != null;
+        String adminUserType = isBranch ? "BRANCH_ADMIN" : "BANK_ADMIN";
+
+        // ── Server-side email-exists validation (mirrors /check-email; excludes this record's own current email) ──
+        String newPrimaryEmail = bank.getEmail() != null ? bank.getEmail().trim().toLowerCase() : null;
+        if (newPrimaryEmail != null && !newPrimaryEmail.isEmpty()
+                && !newPrimaryEmail.equalsIgnoreCase(existing.getEmail())
+                && reconUserRepository.existsByEmail(newPrimaryEmail)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "\"" + newPrimaryEmail + "\" is already registered.", null));
         }
+        ReconBankMaster secondaryRow = reconBankMasterRepository
+                .findByBankCodeAndContactRank(existing.getBankCode(), "SECONDARY").orElse(null);
+        String newSecondaryEmail = bank.getSecondaryEmail() != null ? bank.getSecondaryEmail().trim().toLowerCase() : null;
+        if (newSecondaryEmail != null && !newSecondaryEmail.isEmpty()
+                && (secondaryRow == null || !newSecondaryEmail.equalsIgnoreCase(secondaryRow.getEmail()))
+                && reconUserRepository.existsByEmail(newSecondaryEmail)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "\"" + newSecondaryEmail + "\" is already registered.", null));
+        }
+
+        mapAddressAndPhoneTransients(bank);
+
+        // ── Snapshot OLD values for the change-notification diff ─────────────
+        enrichWithProducts(existing);
+        final String oldBankNameShort = existing.getBankNameShort();
+        final String oldRegAddress    = existing.getRegAddress();
+        final String oldRegCity       = existing.getRegCity();
+        final String oldRegState      = existing.getRegState();
+        final String oldRegCountry    = existing.getRegCountry();
+        final String oldRegPhone      = existing.getRegPhone();
+        final String oldFullName      = existing.getFullName();
+        final String oldEmail         = existing.getEmail();
+        final String oldMobile        = existing.getMobileNumber();
+        final String oldAltMobile     = existing.getAltMobileNumber();
+        final Boolean oldMfa          = existing.getEnableMfa();
+        final Boolean oldOtp          = existing.getEnableOtp();
+        final Boolean oldHrms         = existing.getEnableHrms();
+        final String oldSecFullName   = secondaryRow != null ? secondaryRow.getFullName() : null;
+        final String oldSecEmail      = secondaryRow != null ? secondaryRow.getEmail() : null;
+        final String oldSecMobile     = secondaryRow != null ? secondaryRow.getMobileNumber() : null;
+        final String oldSecAltMobile  = secondaryRow != null ? secondaryRow.getAltMobileNumber() : null;
+        final List<String> oldProducts = existing.getSelectedProducts() != null
+                ? new ArrayList<>(existing.getSelectedProducts()) : new ArrayList<>();
+
+        // ── Apply updates to PRIMARY row (protected fields — code/status/logo/admin
+        //    username/default password/created* — are never touched here) ─────────
+        if (bank.getBankName() != null)       existing.setBankName(bank.getBankName());
+        if (bank.getBankNameShort() != null)  existing.setBankNameShort(bank.getBankNameShort());
+        if (bank.getBankCategory() != null)   existing.setBankCategory(bank.getBankCategory());
+        if (bank.getBankType() != null)       existing.setBankType(bank.getBankType());
+        if (bank.getRegAddress() != null)     existing.setRegAddress(bank.getRegAddress());
+        if (bank.getRegCity() != null)        existing.setRegCity(bank.getRegCity());
+        if (bank.getRegState() != null)       existing.setRegState(bank.getRegState());
+        if (bank.getRegCountry() != null)     existing.setRegCountry(bank.getRegCountry());
+        if (bank.getRegPhone() != null)       existing.setRegPhone(bank.getRegPhone());
+        if (bank.getFullName() != null)       existing.setFullName(bank.getFullName());
+        if (newPrimaryEmail != null && !newPrimaryEmail.isEmpty()) existing.setEmail(newPrimaryEmail);
+        if (bank.getMobileNumber() != null)   existing.setMobileNumber(bank.getMobileNumber());
+        if (bank.getAltMobileNumber() != null) existing.setAltMobileNumber(bank.getAltMobileNumber());
+        if (bank.getEnableMfa() != null)      existing.setEnableMfa(bank.getEnableMfa());
+        if (bank.getEnableOtp() != null)      existing.setEnableOtp(bank.getEnableOtp());
+        if (bank.getEnableHrms() != null)     existing.setEnableHrms(bank.getEnableHrms());
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(updatedBy);
         reconBankMasterRepository.save(existing);
-        saveAuditLog("RECON_BANK_MASTER", bankId, "UPDATE", null, null, updatedBy, null, bankId, "Bank updated");
+
+        // ── Sync the linked PRIMARY admin ReconUser's contact info (non-fatal) ───
+        try {
+            reconUserRepository.findByBankIdAndUserTypeAndContactRank(bankId, adminUserType, "PRIMARY")
+                    .ifPresent(admin -> {
+                        boolean changed = false;
+                        if (bank.getFullName() != null && !bank.getFullName().equals(admin.getFullName())) {
+                            admin.setFullName(bank.getFullName()); changed = true;
+                        }
+                        if (newPrimaryEmail != null && !newPrimaryEmail.isEmpty() && !newPrimaryEmail.equalsIgnoreCase(admin.getEmail())) {
+                            admin.setEmail(newPrimaryEmail); changed = true;
+                        }
+                        if (bank.getMobileNumber() != null && !bank.getMobileNumber().equals(admin.getMobileNumber())) {
+                            admin.setMobileNumber(bank.getMobileNumber()); changed = true;
+                        }
+                        if (changed) {
+                            admin.setUpdatedAt(LocalDateTime.now());
+                            admin.setUpdatedBy(updatedBy);
+                            reconUserRepository.save(admin);
+                        }
+                    });
+        } catch (Exception e) {
+            logger.warn("Primary admin contact sync failed for bankId {}: {}", bankId, e.getMessage());
+        }
+
+        // ── Update / create SECONDARY row + sync its admin account ───────────────
+        if (newSecondaryEmail != null && !newSecondaryEmail.isEmpty()) {
+            if (secondaryRow != null) {
+                if (bank.getSecondaryFullName() != null) secondaryRow.setFullName(bank.getSecondaryFullName());
+                secondaryRow.setEmail(newSecondaryEmail);
+                if (bank.getSecondaryMobileNumber() != null) secondaryRow.setMobileNumber(bank.getSecondaryMobileNumber());
+                if (bank.getSecondaryAltMobile() != null) secondaryRow.setAltMobileNumber(bank.getSecondaryAltMobile());
+                secondaryRow.setUpdatedAt(LocalDateTime.now());
+                secondaryRow.setUpdatedBy(updatedBy);
+                reconBankMasterRepository.save(secondaryRow);
+
+                try {
+                    reconUserRepository.findByBankIdAndUserTypeAndContactRank(bankId, adminUserType, "SECONDARY")
+                            .ifPresent(admin -> {
+                                boolean changed = false;
+                                if (bank.getSecondaryFullName() != null && !bank.getSecondaryFullName().equals(admin.getFullName())) {
+                                    admin.setFullName(bank.getSecondaryFullName()); changed = true;
+                                }
+                                if (!newSecondaryEmail.equalsIgnoreCase(admin.getEmail())) {
+                                    admin.setEmail(newSecondaryEmail); changed = true;
+                                }
+                                if (bank.getSecondaryMobileNumber() != null && !bank.getSecondaryMobileNumber().equals(admin.getMobileNumber())) {
+                                    admin.setMobileNumber(bank.getSecondaryMobileNumber()); changed = true;
+                                }
+                                if (changed) {
+                                    admin.setUpdatedAt(LocalDateTime.now());
+                                    admin.setUpdatedBy(updatedBy);
+                                    reconUserRepository.save(admin);
+                                }
+                            });
+                } catch (Exception e) {
+                    logger.warn("Secondary admin contact sync failed for bankId {}: {}", bankId, e.getMessage());
+                }
+            } else {
+                // No secondary contact existed before — create it now (row + INACTIVE admin), mirroring createBank()
+                try {
+                    ReconBankMaster newSecondaryRow = new ReconBankMaster();
+                    newSecondaryRow.setBankCode(existing.getBankCode());
+                    newSecondaryRow.setBankName(existing.getBankName());
+                    newSecondaryRow.setBankType(existing.getBankType());
+                    newSecondaryRow.setParentBankId(existing.getParentBankId());
+                    newSecondaryRow.setContactRank("SECONDARY");
+                    newSecondaryRow.setFullName(bank.getSecondaryFullName());
+                    newSecondaryRow.setEmail(newSecondaryEmail);
+                    newSecondaryRow.setMobileNumber(bank.getSecondaryMobileNumber());
+                    newSecondaryRow.setAltMobileNumber(bank.getSecondaryAltMobile());
+                    newSecondaryRow.setStatus("INACTIVE");
+                    newSecondaryRow.setCreatedAt(LocalDateTime.now());
+                    newSecondaryRow.setCreatedBy(updatedBy);
+                    reconBankMasterRepository.save(newSecondaryRow);
+
+                    String secUsername   = deriveUsername(newSecondaryEmail, bank.getSecondaryFullName());
+                    String secDefaultPwd = generatePassword(10);
+                    ReconUser secondaryUser = buildAdminUser(bankId, bank.getSecondaryFullName(), newSecondaryEmail,
+                            bank.getSecondaryMobileNumber(), secUsername, adminUserType, "SECONDARY",
+                            secDefaultPwd, "INACTIVE", updatedBy);
+                    reconUserRepository.findByBankIdAndUserTypeAndContactRank(bankId, adminUserType, "PRIMARY")
+                            .ifPresent(primaryAdmin -> secondaryUser.setParentUserId(primaryAdmin.getParentUserId()));
+                    ReconUser savedSecondaryUser = reconUserRepository.saveAndFlush(secondaryUser);
+                    savePasswordHistory(savedSecondaryUser, updatedBy);
+                    logger.info("Secondary {} created (INACTIVE) via update: {} for bank {}", adminUserType, secUsername, existing.getBankCode());
+                } catch (Exception e) {
+                    logger.error("Failed to create secondary contact during update for bankId {}: {}", bankId, e.getMessage(), e);
+                }
+            }
+        }
+
+        // ── Products ───────────────────────────────────────────────────────────
+        if (bank.getSelectedProducts() != null && !bank.getSelectedProducts().isEmpty()) {
+            saveProductMappings(bankId, bank, updatedBy);
+        }
+
+        // ── Build per-section diff & notify primary contact (only if something changed) ──
+        Map<String, List<String>> sections = new LinkedHashMap<>();
+        List<String> addressDiffs = new ArrayList<>();
+        diffF("Institution Name (Short)", oldBankNameShort, existing.getBankNameShort(), addressDiffs);
+        diffF("Registered Address", oldRegAddress, existing.getRegAddress(), addressDiffs);
+        diffF("City", oldRegCity, existing.getRegCity(), addressDiffs);
+        diffF("State", oldRegState, existing.getRegState(), addressDiffs);
+        diffF("Country", oldRegCountry, existing.getRegCountry(), addressDiffs);
+        diffF("Phone", oldRegPhone, existing.getRegPhone(), addressDiffs);
+        if (!addressDiffs.isEmpty()) sections.put("Registered Address", addressDiffs);
+
+        List<String> contactDiffs = new ArrayList<>();
+        diffF("Primary Full Name", oldFullName, existing.getFullName(), contactDiffs);
+        diffF("Primary Email", oldEmail, existing.getEmail(), contactDiffs);
+        diffF("Primary Mobile", oldMobile, existing.getMobileNumber(), contactDiffs);
+        diffF("Primary Alt. Mobile", oldAltMobile, existing.getAltMobileNumber(), contactDiffs);
+        String finalSecFullName  = secondaryRow != null ? secondaryRow.getFullName() : bank.getSecondaryFullName();
+        String finalSecEmail     = secondaryRow != null ? secondaryRow.getEmail() : newSecondaryEmail;
+        String finalSecMobile    = secondaryRow != null ? secondaryRow.getMobileNumber() : bank.getSecondaryMobileNumber();
+        String finalSecAltMobile = secondaryRow != null ? secondaryRow.getAltMobileNumber() : bank.getSecondaryAltMobile();
+        diffF("Secondary Full Name", oldSecFullName, finalSecFullName, contactDiffs);
+        diffF("Secondary Email", oldSecEmail, finalSecEmail, contactDiffs);
+        diffF("Secondary Mobile", oldSecMobile, finalSecMobile, contactDiffs);
+        diffF("Secondary Alt. Mobile", oldSecAltMobile, finalSecAltMobile, contactDiffs);
+        if (!contactDiffs.isEmpty()) sections.put("Contact Details", contactDiffs);
+
+        List<String> securityDiffs = new ArrayList<>();
+        diffB("Multi-Factor Authentication", oldMfa, existing.getEnableMfa(), securityDiffs);
+        diffB("OTP Verification", oldOtp, existing.getEnableOtp(), securityDiffs);
+        diffB("HRMS Integration", oldHrms, existing.getEnableHrms(), securityDiffs);
+        if (!securityDiffs.isEmpty()) sections.put("Security & Compliance Settings", securityDiffs);
+
+        List<String> productDiffs = diffProducts(oldProducts, bank.getSelectedProducts());
+        if (!productDiffs.isEmpty()) sections.put("Product Subscriptions & Validity Dates", productDiffs);
+
+        String updatedAtFormatted = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+        if (!sections.isEmpty()) {
+            try {
+                if (existing.getEmail() != null && !existing.getEmail().isEmpty()) {
+                    emailService.sendBankUpdateNotification(existing.getEmail(), existing.getFullName(),
+                            existing.getBankName(), existing.getBankCode(), updatedAtFormatted, sections);
+                }
+            } catch (Exception e) {
+                logger.warn("Bank update notification email failed for {}: {}", existing.getBankCode(), e.getMessage());
+            }
+        }
+        notifyActor(updatedBy, "Updated", existing.getBankName(), existing.getBankCode(), null);
+
+        String changeSummary = sections.values().stream().flatMap(List::stream).collect(Collectors.joining("; "));
+        saveAuditLog("RECON_BANK_MASTER", bankId, "UPDATE", null,
+                changeSummary.isEmpty() ? "No field changes" : changeSummary,
+                updatedBy, adminUserType, bankId, (isBranch ? "Branch" : "Bank") + " updated");
         logger.info("ReconBankMaster updated: {} by {}", bankId, updatedBy);
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank updated successfully.", Collections.singletonList(existing)));
+        enrichWithProducts(existing);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
+                (isBranch ? "Branch" : "Bank") + " updated successfully.", Collections.singletonList(existing)));
     }
 
     @Override
     @Transactional
     public ResponseEntity<RestWithStatusList> updateStatus(Long bankId, String status, String updatedBy) {
+        // INACTIVE_PENDING / ACTIVE_PENDING / BLOCK_PENDING are intentionally NOT
+        // settable here — each requires a scheduledAt time, which only
+        // scheduleInactivate()/scheduleReactivate()/scheduleBlock() capture.
+        // Setting them directly would leave the bank stuck forever, since the
+        // scheduler only picks up rows with a real *_SCHEDULED_AT value.
         List<String> validStatuses = Arrays.asList(
-                "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED",
-                "BLOCK_PENDING", "INACTIVE_PENDING", "ACTIVE_PENDING");
+                "REQUEST", "VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED");
         if (status == null || !validStatuses.contains(status.toUpperCase())) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "Invalid status. Allowed: " + validStatuses, null));
@@ -341,20 +577,36 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
 
         // Transition validation
         Map<String, List<String>> allowedTransitions = new LinkedHashMap<>();
-        allowedTransitions.put("REQUEST",          Arrays.asList("VERIFIED", "ACTIVE", "INACTIVE", "BLOCK_PENDING", "BLOCKED"));
-        allowedTransitions.put("VERIFIED",         Arrays.asList("ACTIVE", "INACTIVE", "BLOCK_PENDING", "BLOCKED"));
-        allowedTransitions.put("ACTIVE",           Arrays.asList("INACTIVE", "INACTIVE_PENDING", "BLOCK_PENDING", "BLOCKED"));
-        allowedTransitions.put("INACTIVE",         Arrays.asList("ACTIVE", "ACTIVE_PENDING", "BLOCK_PENDING", "BLOCKED"));
-        allowedTransitions.put("INACTIVE_PENDING", Arrays.asList("ACTIVE", "INACTIVE", "BLOCK_PENDING", "BLOCKED"));
-        allowedTransitions.put("ACTIVE_PENDING",   Arrays.asList("ACTIVE", "INACTIVE", "BLOCK_PENDING", "BLOCKED"));
-        allowedTransitions.put("BLOCK_PENDING",    Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED"));
+        allowedTransitions.put("REQUEST",          Arrays.asList("VERIFIED", "ACTIVE", "INACTIVE", "BLOCKED"));
+        allowedTransitions.put("VERIFIED",         Arrays.asList("ACTIVE", "INACTIVE", "BLOCKED"));
+        allowedTransitions.put("ACTIVE",           Arrays.asList("INACTIVE", "BLOCKED"));
+        allowedTransitions.put("INACTIVE",         Arrays.asList("ACTIVE", "BLOCKED"));
+        // No entries for INACTIVE_PENDING / ACTIVE_PENDING / BLOCK_PENDING as
+        // sources — a bank in a PENDING state must leave it via
+        // cancelSchedule(), which properly clears the *_SCHEDULED_AT fields.
+        // Allowing a plain updateStatus() override here would leave those
+        // fields stale, and the scheduler would later re-trigger the pending
+        // action since it only checks *_SCHEDULED_AT, not the current status.
         List<String> allowed = allowedTransitions.getOrDefault(oldStatus, new ArrayList<>());
         if (!allowed.contains(newStatus)) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "Cannot change status from '" + oldStatus + "' to '" + newStatus + "'. Allowed: " + allowed, null));
         }
 
+        // Reactivation cooldown — can't go ACTIVE within 30s of becoming INACTIVE
+        if ("ACTIVE".equals(newStatus) && "INACTIVE".equals(oldStatus) && existing.getInactivatedAt() != null) {
+            LocalDateTime allowedAfter = existing.getInactivatedAt().plusSeconds(30);
+            if (LocalDateTime.now().isBefore(allowedAfter)) {
+                long secsLeft = java.time.Duration.between(LocalDateTime.now(), allowedAfter).getSeconds();
+                return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                        "Cannot mark Active yet. Institution was recently made Inactive. Please wait " + secsLeft + " more second(s).", null));
+            }
+        }
+
         existing.setStatus(newStatus);
+        if ("INACTIVE".equals(newStatus)) {
+            existing.setInactivatedAt(LocalDateTime.now());
+        }
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(updatedBy);
         reconBankMasterRepository.save(existing);
@@ -703,7 +955,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
 
         // Cascade BLOCK_PENDING to all users of this institution + warning email each
         cascadeScheduleBlockUsers(bankId, scheduledAt, scheduledBy, reason,
-                existing.getBankName(), existing.getBankCode(), atFormatted);
+                existing.getBankName(), existing.getBankCode(), atFormatted, existing.getEmail());
 
         // If top-level bank: cascade BLOCK_PENDING to all branches + their users
         if (existing.getParentBankId() == null) {
@@ -719,7 +971,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 branch.setUpdatedBy(scheduledBy);
                 reconBankMasterRepository.save(branch);
                 cascadeScheduleBlockUsers(branch.getBankId(), scheduledAt, scheduledBy, reason,
-                        branch.getBankName(), branch.getBankCode(), atFormatted);
+                        branch.getBankName(), branch.getBankCode(), atFormatted, null);
                 try {
                     if (branch.getEmail() != null && !branch.getEmail().isEmpty()) {
                         emailService.sendBranchBankBlockWarning(branch.getEmail(), branch.getFullName(),
@@ -778,6 +1030,15 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                         u.setUpdatedAt(LocalDateTime.now());
                         u.setUpdatedBy(updatedBy);
                         reconUserRepository.save(u);
+                        // Undoing the bank/branch-level inactivation goes through this
+                        // path (not UserStatusServiceImpl.undoInactivate), so any pending
+                        // replacement scheduled against this admin must be cancelled here too
+                        // — otherwise it's left stuck at PENDING forever.
+                        try {
+                            replacementService.cancelPendingReplacement(u.getUserId());
+                        } catch (Exception e) {
+                            logger.warn("cancelPendingReplacement failed for userId {}: {}", u.getUserId(), e.getMessage());
+                        }
                     }
                 }
                 try {
@@ -823,7 +1084,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                     String restored = existing.getPreBlockStatus() != null ? existing.getPreBlockStatus() : "ACTIVE";
                     existing.setStatus(restored);
                     existing.setPreBlockStatus(null);
-                    cascadeCancelBlockUsers(bankId, updatedBy, existing.getBankName(), existing.getBankCode());
+                    cascadeCancelBlockUsers(bankId, updatedBy, existing.getBankName(), existing.getBankCode(), existing.getEmail());
                     if (existing.getParentBankId() == null) {
                         for (ReconBankMaster branch : reconBankMasterRepository.findByParentBankId(bankId)) {
                             if (!"BLOCK_PENDING".equals(branch.getStatus())) continue;
@@ -836,7 +1097,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                             branch.setUpdatedAt(LocalDateTime.now());
                             branch.setUpdatedBy(updatedBy);
                             reconBankMasterRepository.save(branch);
-                            cascadeCancelBlockUsers(branch.getBankId(), updatedBy, branch.getBankName(), branch.getBankCode());
+                            cascadeCancelBlockUsers(branch.getBankId(), updatedBy, branch.getBankName(), branch.getBankCode(), null);
                             try {
                                 if (branch.getEmail() != null && !branch.getEmail().isEmpty()) {
                                     emailService.sendBranchBankBlockCancelled(branch.getEmail(), branch.getFullName(),
@@ -870,6 +1131,52 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         logger.info("ReconBankMaster {} schedule cancelled for bankId={} by {}", scheduleType, bankId, updatedBy);
         notifyActor(updatedBy, scheduleType + " Schedule Cancelled", existing.getBankName(), existing.getBankCode(), null);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", scheduleType + " schedule cancelled.", null));
+    }
+
+    // ── Helper: map transient address lines / phone parts → regAddress / regPhone ──
+    private void mapAddressAndPhoneTransients(ReconBankMaster bank) {
+        String combinedAddress = Stream.of(bank.getRegAddressLine1(), bank.getRegAddressLine2(), bank.getRegAddressLine3())
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .collect(Collectors.joining(", "));
+        if (!combinedAddress.trim().isEmpty()) bank.setRegAddress(combinedAddress);
+
+        String phoneCode = bank.getRegPhoneCode();
+        String cityCode  = bank.getRegCityCode();
+        String phoneNum  = bank.getRegPhone();
+        if ((phoneCode != null && !phoneCode.trim().isEmpty()) || (cityCode != null && !cityCode.trim().isEmpty())) {
+            String combined = Stream.of(phoneCode, cityCode, phoneNum)
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .collect(Collectors.joining("-"));
+            bank.setRegPhone(combined);
+        }
+    }
+
+    // ── Helper: string-field diff for update-notification sections ─────────────
+    private void diffF(String label, String oldVal, String newVal, List<String> target) {
+        if (newVal != null && !newVal.equals(oldVal)) {
+            target.add(label + ": " + (oldVal == null || oldVal.isEmpty() ? "—" : oldVal) + " → " + newVal);
+        }
+    }
+
+    // ── Helper: boolean-field diff (rendered as Enabled/Disabled) ──────────────
+    private void diffB(String label, Boolean oldVal, Boolean newVal, List<String> target) {
+        if (newVal != null && !newVal.equals(oldVal)) {
+            String oldDisplay = oldVal == null ? "—" : (oldVal ? "Enabled" : "Disabled");
+            target.add(label + ": " + oldDisplay + " → " + (newVal ? "Enabled" : "Disabled"));
+        }
+    }
+
+    // ── Helper: product-subscription diff (added/removed) ──────────────────────
+    private List<String> diffProducts(List<String> oldProducts, List<String> newProducts) {
+        List<String> diffs = new ArrayList<>();
+        if (newProducts == null || newProducts.isEmpty()) return diffs;
+        for (String p : newProducts) {
+            if (!oldProducts.contains(p)) diffs.add("Added: " + p);
+        }
+        for (String p : oldProducts) {
+            if (!newProducts.contains(p)) diffs.add("Removed: " + p);
+        }
+        return diffs;
     }
 
     // ── Helper: build a ReconUser for primary/secondary admin ──────────────────
@@ -914,7 +1221,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             AuditLog log = new AuditLog();
             log.setTableName(tableName);
             log.setRecordId(recordId);
-            log.setOperation(operation);
+            log.setOperation(operation != null && operation.length() > 10 ? operation.substring(0, 10) : operation);
             log.setOldValue(oldValue);
             log.setNewValue(newValue);
             log.setActorUsername(actorUsername);
@@ -1008,8 +1315,12 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     }
 
     // BLOCK_PENDING cascade to all users + per-user warning email
+    // skipEmail: the institution's own primary contact — they already get a dedicated
+    // sendBlockWarning call at the bank/branch level, so don't email them twice here
+    // (the PRIMARY admin's ReconUser email is always identical to that contact email).
     private void cascadeScheduleBlockUsers(Long bankId, LocalDateTime scheduledAt, String scheduledBy,
-                                           String reason, String entityName, String entityCode, String atFormatted) {
+                                           String reason, String entityName, String entityCode, String atFormatted,
+                                           String skipEmail) {
         try {
             for (ReconUser u : reconUserRepository.findByBankId(bankId)) {
                 if ("BLOCKED".equals(u.getStatus()) || "BLOCK_PENDING".equals(u.getStatus())) continue;
@@ -1026,7 +1337,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 u.setUpdatedBy(scheduledBy);
                 reconUserRepository.save(u);
                 try {
-                    if (u.getEmail() != null && !u.getEmail().isEmpty()) {
+                    boolean alreadyNotified = skipEmail != null && u.getEmail() != null
+                            && skipEmail.equalsIgnoreCase(u.getEmail());
+                    if (!alreadyNotified && u.getEmail() != null && !u.getEmail().isEmpty()) {
                         emailService.sendBlockWarning(u.getEmail(),
                                 u.getFullName() != null ? u.getFullName() : u.getUsername(),
                                 entityName, entityCode, atFormatted);
@@ -1040,8 +1353,11 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         }
     }
 
-    // Restore BLOCK_PENDING users to pre-block status + per-user cancellation email
-    private void cascadeCancelBlockUsers(Long bankId, String updatedBy, String entityName, String entityCode) {
+    // Restore BLOCK_PENDING users to pre-block status + per-user cancellation email.
+    // skipEmail: the institution's own primary contact — they already get a dedicated
+    // sendBlockCancelled call at the bank/branch level, so don't email them twice here
+    // (the PRIMARY admin's ReconUser email is always identical to that contact email).
+    private void cascadeCancelBlockUsers(Long bankId, String updatedBy, String entityName, String entityCode, String skipEmail) {
         try {
             for (ReconUser u : reconUserRepository.findByBankId(bankId)) {
                 if (!"BLOCK_PENDING".equals(u.getStatus())) continue;
@@ -1055,7 +1371,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 u.setUpdatedBy(updatedBy);
                 reconUserRepository.save(u);
                 try {
-                    if (u.getEmail() != null && !u.getEmail().isEmpty()) {
+                    boolean alreadyNotified = skipEmail != null && u.getEmail() != null
+                            && skipEmail.equalsIgnoreCase(u.getEmail());
+                    if (!alreadyNotified && u.getEmail() != null && !u.getEmail().isEmpty()) {
                         emailService.sendBlockCancelled(u.getEmail(),
                                 u.getFullName() != null ? u.getFullName() : u.getUsername(),
                                 entityName, entityCode, restored);

@@ -57,6 +57,23 @@ public class ReconUser {
     @Column(name = "DEPARTMENT", length = 150)
     private String department;
 
+    // Employee classification — separate from USER_TYPE (which is the
+    // institution-role: KAL_ADMIN/BANK_ADMIN/BRANCH_ADMIN/BANK_USER/BRANCH_USER)
+    @Column(name = "EMPLOYMENT_TYPE", length = 20)
+    private String employmentType;
+
+    @Column(name = "EXTERNAL_DEPARTMENT_NAME", length = 200)
+    private String externalDepartmentName;
+
+    @Column(name = "EXTERNAL_SUPERVISOR_NAME", length = 100)
+    private String externalSupervisorName;
+
+    @Column(name = "EXTERNAL_SUPERVISOR_EMAIL", length = 150)
+    private String externalSupervisorEmail;
+
+    @Column(name = "EXTERNAL_SUPERVISOR_PHONE", length = 20)
+    private String externalSupervisorPhone;
+
     @Column(name = "STATUS", length = 20, nullable = false)
     private String status = "ACTIVE_PENDING";
 

@@ -52,10 +52,10 @@ public class NewReconUserController {
         return newReconUserService.getUserByUsername(username);
     }
 
-    @Operation(summary = "Get users by bank ID")
-    @GetMapping(value = "/get-by-bank/{bankId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getUsersByBankId(@PathVariable Long bankId) {
-        return newReconUserService.getUsersByBankId(bankId);
+    @Operation(summary = "Get users by bank code")
+    @GetMapping(value = "/get-by-bank/{bankCode}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getUsersByBankId(@PathVariable String bankCode) {
+        return newReconUserService.getUsersByBankCode(bankCode);
     }
 
     @Operation(summary = "Get users by status")

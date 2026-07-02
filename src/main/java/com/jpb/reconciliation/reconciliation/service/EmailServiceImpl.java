@@ -2184,63 +2184,6 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    @Override
-    @Async
-    public void sendBankInactivatedNotification(String toEmail, String bankName) {
-        try {
-            MimeMessage msg = mailSender.createMimeMessage();
-            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
-            h.setFrom(fromEmail, fromName);
-            h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai | Institution Inactivated — " + sanitize(bankName));
-            h.setText(simpleNotice("Administrator",
-                    "Institution Inactivated",
-                    "The institution <strong>" + sanitize(bankName) + "</strong> has been automatically inactivated on <strong>ReconXpert.Ai</strong>.",
-                    "All associated users have been inactivated. Please contact KalInfotech Admin to reactivate."), true);
-            mailSender.send(msg);
-        } catch (Exception e) {
-            logger.warn("[SCHEDULER] sendBankInactivatedNotification failed for {}: {}", toEmail, e.getMessage());
-        }
-    }
-
-    @Override
-    @Async
-    public void sendBankReactivatedNotification(String toEmail, String bankName) {
-        try {
-            MimeMessage msg = mailSender.createMimeMessage();
-            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
-            h.setFrom(fromEmail, fromName);
-            h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai | Institution Reactivated — " + sanitize(bankName));
-            h.setText(simpleNotice("Administrator",
-                    "Institution Reactivated",
-                    "The institution <strong>" + sanitize(bankName) + "</strong> has been reactivated on <strong>ReconXpert.Ai</strong>.",
-                    "You may now log in and resume operations."), true);
-            mailSender.send(msg);
-        } catch (Exception e) {
-            logger.warn("[SCHEDULER] sendBankReactivatedNotification failed for {}: {}", toEmail, e.getMessage());
-        }
-    }
-
-    @Override
-    @Async
-    public void sendBankBlockedNotification(String toEmail, String bankName) {
-        try {
-            MimeMessage msg = mailSender.createMimeMessage();
-            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
-            h.setFrom(fromEmail, fromName);
-            h.setTo(toEmail);
-            h.setSubject("ReconXpert.Ai | Institution Blocked — " + sanitize(bankName));
-            h.setText(simpleNotice("Administrator",
-                    "Institution Blocked",
-                    "The institution <strong>" + sanitize(bankName) + "</strong> has been permanently blocked on <strong>ReconXpert.Ai</strong>.",
-                    "All associated users have been blocked. Please contact KalInfotech Admin for resolution."), true);
-            mailSender.send(msg);
-        } catch (Exception e) {
-            logger.warn("[SCHEDULER] sendBankBlockedNotification failed for {}: {}", toEmail, e.getMessage());
-        }
-    }
-
     private String simpleNotice(String contactName, String headline, String body, String note) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
