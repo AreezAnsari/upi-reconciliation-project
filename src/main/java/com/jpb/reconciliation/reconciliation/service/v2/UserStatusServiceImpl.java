@@ -96,6 +96,11 @@ public class UserStatusServiceImpl implements UserStatusService {
         reconUserRepository.save(user);
 
         replacementService.cancelPendingReplacement(userId);
+        try {
+            delegationService.cancelDelegation(userId, undoneBy);
+        } catch (Exception e) {
+            logger.warn("cancelDelegation failed for {}: {}", userId, e.getMessage());
+        }
 
         auditLog("RCN_RECON_USER", userId, "STATUS_CHANGE", "INACTIVE_PENDING", "ACTIVE",
                 undoneBy, user.getUserType(), user.getBankId(), "Inactivation cancelled");

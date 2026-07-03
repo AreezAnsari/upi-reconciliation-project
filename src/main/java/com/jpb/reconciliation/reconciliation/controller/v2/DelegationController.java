@@ -1,7 +1,9 @@
 package com.jpb.reconciliation.reconciliation.controller.v2;
 
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditUserDelegation;
 import com.jpb.reconciliation.reconciliation.repository.v2.AuditUserDelegationRepository;
+import com.jpb.reconciliation.reconciliation.service.v2.DelegationService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -17,6 +20,28 @@ import java.util.Optional;
 public class DelegationController {
 
     @Autowired private AuditUserDelegationRepository delegationRepository;
+    @Autowired private DelegationService delegationService;
+
+    /** Admin-tooling "create delegation" action (UserManagement.jsx) */
+    @PostMapping("/delegate")
+    public ResponseEntity<RestWithStatusList> delegate(
+            @RequestBody Map<String, Object> body, Authentication authentication) {
+        Long delegatorUserId = Long.valueOf(String.valueOf(body.get("delegatorUserId")));
+        Long delegateeUserId = Long.valueOf(String.valueOf(body.get("delegateeUserId")));
+        String reason = (String) body.get("reason");
+        String actor = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        return delegationService.delegateNow(delegatorUserId, delegateeUserId, reason, actor);
+    }
+
+    /** Admin-tooling "restore" action (UserManagement.jsx) */
+    @PostMapping("/restore/{delegationId}")
+    public ResponseEntity<RestWithStatusList> restore(
+            @PathVariable Long delegationId, Authentication authentication) {
+        String actor = (authentication != null && authentication.isAuthenticated())
+                ? authentication.getName() : "UNKNOWN";
+        return delegationService.restoreDelegationById(delegationId, actor);
+    }
 
     /** Get all delegations for a specific delegator user */
     @GetMapping("/delegator/{userId}")

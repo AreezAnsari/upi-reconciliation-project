@@ -26,6 +26,7 @@ import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
+import com.jpb.reconciliation.reconciliation.service.v2.DelegationService;
 import com.jpb.reconciliation.reconciliation.service.v2.ReconUserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,6 +52,9 @@ public class ReconUserController {
 
 	@Autowired
 	ReconBankMasterRepository reconBankMasterRepository;
+
+	@Autowired
+	DelegationService delegationService;
 
 	@PostMapping(value = "/create-user", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> createUser(@RequestBody ReconUserDto reconUserDto) {
@@ -104,6 +108,18 @@ public class ReconUserController {
 	@GetMapping(value = "/getallusers", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> getAllUserDetails() {
 		return reconUserService.getAllUsers();
+	}
+
+	@Operation(summary = "Delegate a user's direct reports to an ancestor (the 'Confirm Delegation' flow) — "
+			+ "transfers children immediately and schedules the delegator's own inactivation")
+	@PostMapping(value = "/{id}/delegate", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> delegateUser(
+			@PathVariable Long id,
+			@RequestParam Long delegateeId,
+			@RequestParam(required = false) String reason,
+			@AuthenticationPrincipal UserDetails userDetails) {
+		String triggeredBy = userDetails != null ? userDetails.getUsername() : "UNKNOWN";
+		return delegationService.delegateNow(id, delegateeId, reason, triggeredBy);
 	}
 
 	@GetMapping(value = "/get-by-bank/{bankCode}", produces = CommonConstants.APPLICATION_JSON)

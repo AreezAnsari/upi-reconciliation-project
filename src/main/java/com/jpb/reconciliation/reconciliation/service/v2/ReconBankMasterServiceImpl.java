@@ -69,6 +69,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private EmailService emailService;
     @Autowired private AuditReplacementService replacementService;
+    @Autowired private DelegationService delegationService;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -1039,6 +1040,11 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                         } catch (Exception e) {
                             logger.warn("cancelPendingReplacement failed for userId {}: {}", u.getUserId(), e.getMessage());
                         }
+                        try {
+                            delegationService.cancelDelegation(u.getUserId(), updatedBy);
+                        } catch (Exception e) {
+                            logger.warn("cancelDelegation failed for userId {}: {}", u.getUserId(), e.getMessage());
+                        }
                     }
                 }
                 try {
@@ -1308,6 +1314,11 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 u.setUpdatedAt(LocalDateTime.now());
                 u.setUpdatedBy(updatedBy);
                 reconUserRepository.save(u);
+                try {
+                    delegationService.notifyDelegateeUnblocked(u.getUserId());
+                } catch (Exception e) {
+                    logger.warn("notifyDelegateeUnblocked failed for {}: {}", u.getUserId(), e.getMessage());
+                }
             }
         } catch (Exception e) {
             logger.warn("Unblock cascade failed for bankId {}: {}", bankId, e.getMessage());

@@ -15,8 +15,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -210,6 +210,8 @@ public class StatusSchedulerService {
             // never fires when this scheduler job wins the race against the per-user one.
             try { replacementService.finalizePendingReplacement(u.getUserId()); }
             catch (Exception e) { logger.warn("cascade finalizePendingReplacement failed for {}: {}", u.getUserId(), e.getMessage()); }
+            try { delegationService.delegateOnInactivate(u.getUserId(), "SCHEDULER"); }
+            catch (Exception e) { logger.warn("cascade delegateOnInactivate failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { emailService.sendInactivatedNotification(u.getEmail(), u.getFullName(), resolveEntityName(u), resolveEntityCode(u)); }
             catch (Exception e) { logger.warn("cascade inactivate email failed: {}", e.getMessage()); }
         }
@@ -227,6 +229,8 @@ public class StatusSchedulerService {
             u.setUpdatedAt(now);
             u.setUpdatedBy("SCHEDULER");
             reconUserRepository.save(u);
+            try { delegationService.restoreDelegationOnReactivate(u.getUserId(), "SCHEDULER"); }
+            catch (Exception e) { logger.warn("cascade restoreDelegationOnReactivate failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { replacementService.onOriginalReactivated(u.getUserId()); }
             catch (Exception e) { logger.warn("cascade onOriginalReactivated failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { emailService.sendReactivatedNotification(u.getEmail(), u.getFullName(), resolveEntityName(u), resolveEntityCode(u), u.getUsername(), resolveLoginUrl(u)); }
@@ -249,6 +253,8 @@ public class StatusSchedulerService {
             reconUserRepository.save(u);
             try { replacementService.onOriginalBlocked(u.getUserId()); }
             catch (Exception e) { logger.warn("cascade onOriginalBlocked failed for {}: {}", u.getUserId(), e.getMessage()); }
+            try { delegationService.notifyDelegateeBlocked(u.getUserId()); }
+            catch (Exception e) { logger.warn("cascade notifyDelegateeBlocked failed for {}: {}", u.getUserId(), e.getMessage()); }
             try { emailService.sendBlockedNotification(u.getEmail(), u.getFullName()); }
             catch (Exception e) { logger.warn("cascade block email failed: {}", e.getMessage()); }
         }
@@ -292,8 +298,8 @@ public class StatusSchedulerService {
     private String resolveLoginUrl(ReconUser user) {
         String code = resolveEntityCode(user);
         String username = user.getUsername() != null ? user.getUsername() : "";
-        String enc = URLEncoder.encode(username, StandardCharsets.UTF_8);
-        String encCode = URLEncoder.encode(code, StandardCharsets.UTF_8);
+        String enc = urlEncode(username);
+        String encCode = urlEncode(code);
         String userType = user.getUserType() != null ? user.getUserType() : "";
         switch (userType) {
             case "KAL_ADMIN":
@@ -304,6 +310,17 @@ public class StatusSchedulerService {
                 return frontendUrl + "/branch-admin-login?bankCode=" + encCode + "&username=" + enc + "&mode=login";
             default:
                 return frontendUrl + "/user-verify?bankCode=" + encCode + "&username=" + enc + "&mode=login";
+        }
+    }
+
+    // Java 8 has no URLEncoder.encode(String, Charset) overload (added in Java 10) —
+    // only the checked-exception (String, String) form. "UTF-8" is always a supported
+    // encoding per the JVM spec, so this can never actually throw.
+    private String urlEncode(String value) {
+        try {
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            return value;
         }
     }
 }

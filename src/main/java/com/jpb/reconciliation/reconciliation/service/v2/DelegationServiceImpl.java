@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.service.v2;
 
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditLog;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditUserDelegation;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
@@ -11,10 +12,13 @@ import com.jpb.reconciliation.reconciliation.service.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +31,99 @@ public class DelegationServiceImpl implements DelegationService {
     @Autowired private AuditUserDelegationRepository delegationRepository;
     @Autowired private AuditLogRepository auditLogRepository;
     @Autowired private EmailService emailService;
+
+    // ── Admin-initiated delegation (the "Confirm Delegation" modal) ──────────────
+    // Mirrors old backend's AddUserServiceImpl.delegateUser(): transfers children
+    // immediately, schedules the delegator's own inactivation (delegation is what
+    // triggers it, not the reverse), and records the delegation right away —
+    // it does NOT wait for the scheduler to finalize the inactivation.
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> delegateNow(Long delegatorUserId, Long delegateeUserId,
+                                                           String reason, String triggeredBy) {
+        Optional<ReconUser> delegatorOpt = reconUserRepository.findById(delegatorUserId);
+        if (!delegatorOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "User not found: " + delegatorUserId, null));
+        }
+        Optional<ReconUser> delegateeOpt = reconUserRepository.findById(delegateeUserId);
+        if (!delegateeOpt.isPresent()) {
+            return ResponseEntity.badRequest()
+                    .body(new RestWithStatusList("FAILURE", "Delegatee not found: " + delegateeUserId, null));
+        }
+        ReconUser delegator = delegatorOpt.get();
+        ReconUser delegatee = delegateeOpt.get();
+
+        if (!"ACTIVE".equals(delegator.getStatus())) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "User must be ACTIVE to delegate. Current: " + delegator.getStatus(), null));
+        }
+        if (!delegationRepository.findByDelegatorUserIdAndStatus(delegatorUserId, "ACTIVE").isEmpty()) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "An active delegation already exists for this user.", null));
+        }
+
+        // Transfer children immediately
+        List<ReconUser> children = reconUserRepository.findByParentUserId(delegatorUserId);
+        for (ReconUser child : children) {
+            child.setPreDelegationParentId(child.getParentUserId());
+            child.setParentUserId(delegateeUserId);
+            child.setUpdatedAt(LocalDateTime.now());
+            reconUserRepository.save(child);
+        }
+
+        // Schedule the delegator's own inactivation
+        delegator.setStatus("INACTIVE_PENDING");
+        delegator.setInactivateScheduledAt(LocalDateTime.now());
+        delegator.setInactivateScheduledBy(triggeredBy);
+        delegator.setUpdatedAt(LocalDateTime.now());
+        delegator.setUpdatedBy(triggeredBy);
+        reconUserRepository.save(delegator);
+
+        // Record delegation
+        AuditUserDelegation delegation = new AuditUserDelegation();
+        delegation.setDelegatorUserId(delegatorUserId);
+        delegation.setDelegateeUserId(delegateeUserId);
+        delegation.setBankId(delegator.getBankId());
+        delegation.setReason(reason);
+        delegation.setStatus("ACTIVE");
+        delegation.setDelegatedAt(LocalDateTime.now());
+        delegation.setDelegatedBy(triggeredBy);
+        delegation.setCreatedAt(LocalDateTime.now());
+        delegation.setCreatedBy(triggeredBy);
+        delegationRepository.save(delegation);
+
+        auditLog("AUDIT_USER_DELEGATION", delegation.getDelegationId(), "CREATE", null,
+                "delegatorUserId=" + delegatorUserId + ",delegateeUserId=" + delegateeUserId,
+                triggeredBy, delegator.getUserType(), delegator.getBankId(),
+                "Delegation: " + delegator.getUsername() + " -> " + delegatee.getUsername());
+
+        try {
+            emailService.sendDelegationToDelegate(delegator.getEmail(), delegator.getFullName(),
+                    delegatee.getFullName(), reason, resolveOrgName(delegator));
+        } catch (Exception e) {
+            logger.warn("sendDelegationToDelegate failed: {}", e.getMessage());
+        }
+        try {
+            emailService.sendDelegationToDelegatee(delegatee.getEmail(), delegatee.getFullName(),
+                    delegator.getFullName(), reason);
+        } catch (Exception e) {
+            logger.warn("sendDelegationToDelegatee failed: {}", e.getMessage());
+        }
+        try {
+            reconUserRepository.findByUsername(triggeredBy).ifPresent(actor ->
+                    emailService.sendActorActionConfirmation(actor.getEmail(), actor.getFullName(),
+                            "Delegation Initiated", delegator.getFullName(), delegator.getUsername(), null));
+        } catch (Exception e) {
+            logger.warn("Actor confirmation email failed: {}", e.getMessage());
+        }
+
+        logger.info("Delegation created (manual): {} -> {} ({} children transferred)",
+                delegator.getUsername(), delegatee.getUsername(), children.size());
+
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
+                "User delegated successfully.", Collections.singletonList(delegation)));
+    }
 
     // ── Delegate: user goes INACTIVE → transfer children to parent (delegatee) ───
     @Override
@@ -92,15 +189,73 @@ public class DelegationServiceImpl implements DelegationService {
                 delegator.getUsername(), delegatee.getUsername(), children.size());
     }
 
+    // ── Cancel: delegator's pending inactivation was undone before it finalized ──
+    // Mirrors AuditReplacementService.cancelPendingReplacement() — reverses the
+    // delegation immediately instead of leaving it dangling as ACTIVE while the
+    // delegator is actually back to ACTIVE.
+    @Override
+    @Transactional
+    public void cancelDelegation(Long delegatorUserId, String cancelledBy) {
+        Optional<AuditUserDelegation> activeOpt = delegationRepository
+                .findTopByDelegatorUserIdAndStatusOrderByCreatedAtDesc(delegatorUserId, "ACTIVE");
+        if (!activeOpt.isPresent()) return;
+
+        AuditUserDelegation delegation = activeOpt.get();
+        Long delegateeId = delegation.getDelegateeUserId();
+
+        // Move children back — same "only ones still parked here" guard as restore
+        List<ReconUser> children = reconUserRepository.findByParentUserId(delegateeId);
+        for (ReconUser child : children) {
+            if (delegatorUserId.equals(child.getPreDelegationParentId())) {
+                child.setParentUserId(delegatorUserId);
+                child.setPreDelegationParentId(null);
+                child.setUpdatedAt(LocalDateTime.now());
+                reconUserRepository.save(child);
+            }
+        }
+
+        delegation.setStatus("CANCELLED");
+        delegation.setRestoredAt(LocalDateTime.now());
+        delegation.setRestoredBy(cancelledBy);
+        delegationRepository.save(delegation);
+
+        auditLog("AUDIT_USER_DELEGATION", delegation.getDelegationId(), "UPDATE",
+                "status=ACTIVE", "status=CANCELLED", cancelledBy, null, delegation.getBankId(),
+                "Delegation cancelled (inactivation undone): delegatorUserId=" + delegatorUserId);
+
+        logger.info("Delegation cancelled for delegatorUserId={} (inactivation undone)", delegatorUserId);
+    }
+
     // ── Restore: user reactivated → children return to original parent ───────────
     @Override
     @Transactional
     public void restoreDelegationOnReactivate(Long delegatorUserId, String triggeredBy) {
         Optional<AuditUserDelegation> activeOpt = delegationRepository
                 .findTopByDelegatorUserIdAndStatusOrderByCreatedAtDesc(delegatorUserId, "ACTIVE");
-        if (!activeOpt.isPresent()) return;
+        activeOpt.ifPresent(delegation -> restoreDelegation(delegation, triggeredBy));
+    }
 
-        AuditUserDelegation delegation = activeOpt.get();
+    // ── Manual restore by delegation ID (admin-tooling override, not tied to any
+    //    status change) — same restore logic, just looked up by its own primary key. ──
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> restoreDelegationById(Long delegationId, String triggeredBy) {
+        Optional<AuditUserDelegation> opt = delegationRepository.findById(delegationId);
+        if (!opt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "Delegation not found: " + delegationId, null));
+        }
+        AuditUserDelegation delegation = opt.get();
+        if (!"ACTIVE".equals(delegation.getStatus())) {
+            return ResponseEntity.badRequest()
+                    .body(new RestWithStatusList("FAILURE", "Only ACTIVE delegations can be restored.", null));
+        }
+        restoreDelegation(delegation, triggeredBy);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Delegation restored.", null));
+    }
+
+    private void restoreDelegation(AuditUserDelegation delegation, String triggeredBy) {
+        Long delegatorUserId = delegation.getDelegatorUserId();
         Long delegateeId = delegation.getDelegateeUserId();
 
         // Restore children: those whose preDelegationParentId = delegatorUserId
