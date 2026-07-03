@@ -105,7 +105,9 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         user.setRoleId(kalAdminRoleId);
 
         user.setCreatedAt(LocalDateTime.now());
-        user.setCreatedBy("SYSTEM");
+        // Self-registration — there's no prior actor, so the new user is their own
+        // creator (matches the AuditLog entry below, which already uses `username` as actor).
+        user.setCreatedBy(username);
 
         ReconUser savedUser = reconUserRepository.save(user);
         logger.info("KalAdmin created — userId={}, username={}", savedUser.getUserId(), username);
@@ -116,7 +118,7 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         pwdManager.setUserPassword(encodedPassword);
         pwdManager.setExpirationDate(LocalDateTime.now().plusDays(90));
         pwdManager.setCreatedAt(LocalDateTime.now());
-        pwdManager.setCreatedBy("SYSTEM");
+        pwdManager.setCreatedBy(username);
 
         reconPasswordManagerRepository.save(pwdManager);
         logger.info("Password record saved in RCN_RECON_PWD_MANAGER for userId={}", savedUser.getUserId());

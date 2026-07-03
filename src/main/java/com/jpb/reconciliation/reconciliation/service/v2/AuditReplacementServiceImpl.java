@@ -258,6 +258,30 @@ public class AuditReplacementServiceImpl implements AuditReplacementService {
                 } catch (Exception e) {
                     logger.warn("sendReplacementBecamePermanent email failed: {}", e.getMessage());
                 }
+
+                // Mirror old backend (MainBank/BranchBank contact sync in BlockScheduleServiceImpl):
+                // once the replacement is permanent, the institution's own PRIMARY contact row
+                // is overwritten with the replacement's details, so RECON_BANK_MASTER reflects
+                // who is actually running the bank/branch going forward.
+                try {
+                    reconUserRepository.findById(originalUserId).ifPresent(original -> {
+                        if (original.getBankId() == null) return;
+                        reconBankMasterRepository.findById(original.getBankId()).ifPresent(bank -> {
+                            bank.setFullName(r.getPendingFullName() != null ? r.getPendingFullName() : rep.getUsername());
+                            bank.setEmail(rep.getEmail());
+                            bank.setMobileNumber(r.getPendingMobile() != null ? r.getPendingMobile() : rep.getMobileNumber());
+                            bank.setBankAdminUsername(rep.getUsername());
+                            bank.setUpdatedAt(LocalDateTime.now());
+                            bank.setUpdatedBy("SYSTEM");
+                            reconBankMasterRepository.save(bank);
+                            logger.info("[BLOCK-SYNC] RECON_BANK_MASTER {} contact updated to replacement: {}",
+                                    bank.getBankCode(), rep.getUsername());
+                        });
+                    });
+                } catch (Exception e) {
+                    logger.warn("RECON_BANK_MASTER contact sync to replacement failed for originalUserId {}: {}",
+                            originalUserId, e.getMessage());
+                }
             });
             logger.info("Replacement FINALIZED (original BLOCKED): originalUserId={}", originalUserId);
         });

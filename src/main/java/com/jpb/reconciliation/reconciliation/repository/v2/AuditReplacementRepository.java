@@ -23,6 +23,15 @@ public interface AuditReplacementRepository extends JpaRepository<AuditReplaceme
 
     Optional<AuditReplacement> findByOriginalUserIdAndStatus(Long originalUserId, String status);
 
+    // Any "live" replacement for the original — ACTIVE (reversible) or FINALIZED (permanent,
+    // after the original was blocked). Used for admin-list display so the badge/label can
+    // distinguish the two instead of only ever finding ACTIVE and mislabeling it PERMANENT.
+    List<AuditReplacement> findByOriginalUserIdAndStatusIn(Long originalUserId, List<String> statuses);
+
+    // Is this user CURRENTLY covering for someone else? (their own row must be flagged
+    // replacementAdminRow=true so the frontend can suppress their buttons while temporary)
+    List<AuditReplacement> findByReplacementUserIdAndStatusIn(Long replacementUserId, List<String> statuses);
+
     List<AuditReplacement> findByEntityType(String entityType);
 
     boolean existsByOriginalUserIdAndStatus(Long originalUserId, String status);

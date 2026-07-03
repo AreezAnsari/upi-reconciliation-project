@@ -1412,6 +1412,8 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             mapping.setValidFrom(entry != null ? entry.getValidFrom() : null);
             mapping.setValidTo(entry != null ? entry.getValidTo() : null);
             mapping.setStatus("ACTIVE");
+            mapping.setCreatedAt(LocalDateTime.now());
+            mapping.setCreatedBy(actorBy);
             bankProductMapRepository.save(mapping);
         }
         logger.info("Product mappings saved for bankId={}: {}", bankId, products);

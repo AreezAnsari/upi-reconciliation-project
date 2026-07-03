@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -269,16 +270,44 @@ public class ReconBankMasterController {
             row.put("primaryEmail", user.getEmail());
             row.put("primaryMobile", user.getMobileNumber());
             row.put("adminStatus", user.getStatus());
-            Optional<AuditReplacement> rep = auditReplacementRepository.findByOriginalUserIdAndStatus(user.getUserId(), "ACTIVE");
-            if (rep.isPresent()) {
-                ReconUser repUser = reconUserRepository.findById(rep.get().getReplacementUserId()).orElse(null);
-                row.put("replacementStatus", "PERMANENT");
-                row.put("replacedByUsername", repUser != null ? repUser.getUsername() : null);
-            } else {
-                row.put("replacementStatus", null);
+            // Is this admin a "ghost" former replacement whose cover has concluded (RESTORED,
+            // i.e. the original they covered for was reactivated)? Their ReconUser row still
+            // exists and still shares this bank's ID, but they're a distinct individual now —
+            // status actions on their row must target THEM, not the shared institution.
+            // (ACTIVE and FINALIZED replacements are already handled separately above/below:
+            // ACTIVE suppresses buttons entirely via the "Temporary" label, and FINALIZED means
+            // they're now the legitimate ongoing admin, where bank-level cascade is correct.)
+            boolean isGhostReplacementAccount = auditReplacementRepository
+                    .findByReplacementUserIdAndStatus(user.getUserId(), "RESTORED").isPresent();
+            row.put("isIndividualAccount", isGhostReplacementAccount);
+
+            // Is THIS admin currently covering for someone else? Their own row must be
+            // flagged so the frontend shows "Temporary" and suppresses their buttons
+            // while the cover is still reversible (ACTIVE), matching old-backend behavior.
+            List<AuditReplacement> asReplacementOf = auditReplacementRepository
+                    .findByReplacementUserIdAndStatusIn(user.getUserId(), Arrays.asList("ACTIVE", "FINALIZED"));
+            if (!asReplacementOf.isEmpty()) {
+                AuditReplacement asRep = asReplacementOf.get(0);
+                row.put("replacementAdminRow", true);
+                row.put("replacementStatus", "FINALIZED".equals(asRep.getStatus()) ? "PERMANENT" : "ACTIVE");
                 row.put("replacedByUsername", null);
+            } else {
+                row.put("replacementAdminRow", false);
+                // A replacement is "live" whether it's still ACTIVE (reversible — original can
+                // still be reactivated) or FINALIZED (original was blocked, now permanent) —
+                // these must be labeled differently, not both reported as PERMANENT.
+                List<AuditReplacement> reps = auditReplacementRepository
+                        .findByOriginalUserIdAndStatusIn(user.getUserId(), Arrays.asList("ACTIVE", "FINALIZED"));
+                if (!reps.isEmpty()) {
+                    AuditReplacement rep = reps.get(0);
+                    ReconUser repUser = reconUserRepository.findById(rep.getReplacementUserId()).orElse(null);
+                    row.put("replacementStatus", "FINALIZED".equals(rep.getStatus()) ? "PERMANENT" : "ACTIVE");
+                    row.put("replacedByUsername", repUser != null ? repUser.getUsername() : null);
+                } else {
+                    row.put("replacementStatus", null);
+                    row.put("replacedByUsername", null);
+                }
             }
-            row.put("replacementAdminRow", false);
             result.add(row);
         }
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank admins fetched", result));
@@ -324,6 +353,7 @@ public class ReconBankMasterController {
             row.put("inactivateScheduledAt", branch.getInactivateScheduledAt());
             row.put("reactivateScheduledAt", branch.getReactivateScheduledAt());
             row.put("preBlockStatus", branch.getPreBlockStatus());
+            AuditReplacement liveRep = null;
             if (branchAdmin != null) {
                 row.put("adminId", branchAdmin.getUserId());
                 row.put("branchAdminId", branchAdmin.getUserId());
@@ -332,10 +362,12 @@ public class ReconBankMasterController {
                 row.put("primaryEmail", branchAdmin.getEmail());
                 row.put("primaryMobile", branchAdmin.getMobileNumber());
                 row.put("adminStatus", branchAdmin.getStatus());
-                Optional<AuditReplacement> rep = auditReplacementRepository.findByOriginalUserIdAndStatus(branchAdmin.getUserId(), "ACTIVE");
-                if (rep.isPresent()) {
-                    ReconUser repUser = reconUserRepository.findById(rep.get().getReplacementUserId()).orElse(null);
-                    row.put("replacementStatus", "PERMANENT");
+                List<AuditReplacement> reps = auditReplacementRepository
+                        .findByOriginalUserIdAndStatusIn(branchAdmin.getUserId(), Arrays.asList("ACTIVE", "FINALIZED"));
+                if (!reps.isEmpty()) {
+                    liveRep = reps.get(0);
+                    ReconUser repUser = reconUserRepository.findById(liveRep.getReplacementUserId()).orElse(null);
+                    row.put("replacementStatus", "FINALIZED".equals(liveRep.getStatus()) ? "PERMANENT" : "ACTIVE");
                     row.put("replacedByUsername", repUser != null ? repUser.getUsername() : null);
                 } else {
                     row.put("replacementStatus", null);
@@ -353,7 +385,48 @@ public class ReconBankMasterController {
                 row.put("replacedByUsername", null);
             }
             row.put("replacementAdminRow", false);
+            // This row is always the original (found via contactRank=PRIMARY, which a
+            // replacement never has), so it's never an individual-replacement account.
+            row.put("isIndividualAccount", false);
             result.add(row);
+
+            // The replacement admin never has contactRank=PRIMARY (finalizePendingReplacement
+            // doesn't set one), so findByBankIdAndUserTypeAndContactRank above can never find
+            // them — surface them as their own row here instead, matching old-backend behavior.
+            if (liveRep != null) {
+                ReconUser repUser = reconUserRepository.findById(liveRep.getReplacementUserId()).orElse(null);
+                if (repUser != null) {
+                    Map<String, Object> repRow = new LinkedHashMap<>();
+                    repRow.put("branchId", branch.getBankId());
+                    repRow.put("branchCode", branch.getBankCode());
+                    repRow.put("branchNameFull", branch.getBankName());
+                    repRow.put("branchNameShort", branch.getBankNameShort());
+                    repRow.put("regCity", branch.getRegCity());
+                    repRow.put("commCity", branch.getRegCity());
+                    repRow.put("status", branch.getStatus());
+                    repRow.put("updatedAt", repUser.getUpdatedAt());
+                    repRow.put("blockReason", branch.getBlockReason());
+                    repRow.put("blockScheduledAt", branch.getBlockScheduledAt());
+                    repRow.put("inactivateScheduledAt", branch.getInactivateScheduledAt());
+                    repRow.put("reactivateScheduledAt", branch.getReactivateScheduledAt());
+                    repRow.put("preBlockStatus", branch.getPreBlockStatus());
+                    repRow.put("adminId", repUser.getUserId());
+                    repRow.put("branchAdminId", repUser.getUserId());
+                    repRow.put("adminUsername", repUser.getUsername());
+                    repRow.put("primaryFullName", repUser.getFullName());
+                    repRow.put("primaryEmail", repUser.getEmail());
+                    repRow.put("primaryMobile", repUser.getMobileNumber());
+                    repRow.put("adminStatus", repUser.getStatus());
+                    repRow.put("replacementStatus", "FINALIZED".equals(liveRep.getStatus()) ? "PERMANENT" : "ACTIVE");
+                    repRow.put("replacedByUsername", null);
+                    repRow.put("replacementAdminRow", true);
+                    // ACTIVE is already fully handled (buttons suppressed via "Temporary"), and
+                    // FINALIZED means they're now the legitimate ongoing admin — branch-level
+                    // cascade is correct for them, same as any normal admin.
+                    repRow.put("isIndividualAccount", false);
+                    result.add(repRow);
+                }
+            }
         }
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Branch admins fetched", result));
     }

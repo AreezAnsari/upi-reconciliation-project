@@ -9,11 +9,14 @@ import com.jpb.reconciliation.reconciliation.service.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,6 +31,9 @@ public class StatusSchedulerService {
     @Autowired private AuditReplacementService replacementService;
     @Autowired private DelegationService delegationService;
     @Autowired private EmailService emailService;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
 
     // ── Every 30 seconds: user transitions ──────────────────────────────────────
     @Scheduled(fixedDelay = 30000)
@@ -86,7 +92,7 @@ public class StatusSchedulerService {
             try { replacementService.onOriginalReactivated(userId); }
             catch (Exception e) { logger.warn("onOriginalReactivated failed for {}: {}", userId, e.getMessage()); }
 
-            try { emailService.sendReactivatedNotification(user.getEmail(), user.getFullName(), resolveEntityName(user), resolveEntityCode(user), user.getUsername(), ""); }
+            try { emailService.sendReactivatedNotification(user.getEmail(), user.getFullName(), resolveEntityName(user), resolveEntityCode(user), user.getUsername(), resolveLoginUrl(user)); }
             catch (Exception e) { logger.warn("sendReactivatedNotification failed: {}", e.getMessage()); }
 
             notifyActor(actor, "Reactivated", user.getFullName(), user.getUsername());
@@ -223,7 +229,7 @@ public class StatusSchedulerService {
             reconUserRepository.save(u);
             try { replacementService.onOriginalReactivated(u.getUserId()); }
             catch (Exception e) { logger.warn("cascade onOriginalReactivated failed for {}: {}", u.getUserId(), e.getMessage()); }
-            try { emailService.sendReactivatedNotification(u.getEmail(), u.getFullName(), resolveEntityName(u), resolveEntityCode(u), u.getUsername(), ""); }
+            try { emailService.sendReactivatedNotification(u.getEmail(), u.getFullName(), resolveEntityName(u), resolveEntityCode(u), u.getUsername(), resolveLoginUrl(u)); }
             catch (Exception e) { logger.warn("cascade reactivate email failed: {}", e.getMessage()); }
         }
     }
@@ -279,5 +285,25 @@ public class StatusSchedulerService {
                     .map(ReconBankMaster::getBankCode).orElse("SYSTEM");
         }
         return "SYSTEM";
+    }
+
+    // Builds a real, role-aware login link (was previously sent as an empty string,
+    // making the "Login to ReconXpert.Ai" button in the reactivation email a dead link).
+    private String resolveLoginUrl(ReconUser user) {
+        String code = resolveEntityCode(user);
+        String username = user.getUsername() != null ? user.getUsername() : "";
+        String enc = URLEncoder.encode(username, StandardCharsets.UTF_8);
+        String encCode = URLEncoder.encode(code, StandardCharsets.UTF_8);
+        String userType = user.getUserType() != null ? user.getUserType() : "";
+        switch (userType) {
+            case "KAL_ADMIN":
+                return frontendUrl + "/admin-login";
+            case "BANK_ADMIN":
+                return frontendUrl + "/bank-admin-login?bankCode=" + encCode + "&username=" + enc + "&mode=login";
+            case "BRANCH_ADMIN":
+                return frontendUrl + "/branch-admin-login?bankCode=" + encCode + "&username=" + enc + "&mode=login";
+            default:
+                return frontendUrl + "/user-verify?bankCode=" + encCode + "&username=" + enc + "&mode=login";
+        }
     }
 }
