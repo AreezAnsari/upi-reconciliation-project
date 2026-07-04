@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.entity.v2;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -42,6 +43,13 @@ public class ReconUser {
     @Column(name = "ROLE_ID")
     private Long roleId;
 
+    // Request-only: AddUser.jsx's Role dropdown sends the role's NAME (e.g. "MAKER"), not
+    // its ID — resolved to roleId in NewReconUserServiceImpl.createUser(). "DEFAULT" means
+    // no specific role. Never persisted itself.
+    @JsonAlias("role")
+    @Transient
+    private String roleName;
+
     @Column(name = "PASSWORD_HASH", length = 255)
     private String passwordHash;
 
@@ -74,8 +82,11 @@ public class ReconUser {
     @Column(name = "EXTERNAL_SUPERVISOR_PHONE", length = 20)
     private String externalSupervisorPhone;
 
+    // Default fallback if a code path creates a user without explicitly setting status.
+    // PENDING_APPROVAL — ACTIVE_PENDING is reserved exclusively for the Inactive->reactivating
+    // scheduling flow, never for a newly-created/not-yet-approved user.
     @Column(name = "STATUS", length = 20, nullable = false)
-    private String status = "ACTIVE_PENDING";
+    private String status = "PENDING_APPROVAL";
 
     @Column(name = "PRE_BLOCK_STATUS", length = 20)
     private String preBlockStatus;
@@ -127,4 +138,10 @@ public class ReconUser {
 
     @Column(name = "UPDATED_BY", length = 100)
     private String updatedBy;
+
+    // Remembers the user's STATUS immediately before a bank-wide PRODUCT_EXPIRY_HOLD
+    // was applied (all of the bank's products expired), so it can be restored exactly
+    // if a product's validity is renewed within the grace period.
+    @Column(name = "PRE_PRODUCT_HOLD_STATUS", length = 20)
+    private String preProductHoldStatus;
 }

@@ -57,6 +57,8 @@ public interface ReconBankMasterRepository extends JpaRepository<ReconBankMaster
 
     boolean existsByBankName(String bankName);
 
+    boolean existsByEmail(String email);
+
     // ── Raw access (needed for internal ops: SECONDARY row saves, etc.) ──────
 
     Optional<ReconBankMaster> findByBankCodeAndContactRank(String bankCode, String contactRank);

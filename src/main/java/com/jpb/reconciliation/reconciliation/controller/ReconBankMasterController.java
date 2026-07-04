@@ -162,10 +162,11 @@ public class ReconBankMasterController {
         return reconBankMasterService.checkBankNameExists(bankName);
     }
 
-    @Operation(summary = "Check if a primary/secondary contact email is already registered as an admin user")
+    @Operation(summary = "Check if a primary/secondary contact email is already registered as an admin user or bank/branch contact")
     @GetMapping(value = "/check-email", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> checkEmailExists(@RequestParam String email) {
-        boolean exists = reconUserRepository.existsByEmail(email.trim().toLowerCase());
+        String emailLc = email.trim().toLowerCase();
+        boolean exists = reconUserRepository.existsByEmail(emailLc) || reconBankMasterRepository.existsByEmail(emailLc);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", exists ? "EXISTS" : "AVAILABLE", null));
     }
 

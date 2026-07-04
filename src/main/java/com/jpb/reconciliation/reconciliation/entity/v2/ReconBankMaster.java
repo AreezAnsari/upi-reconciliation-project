@@ -167,6 +167,12 @@ public class ReconBankMaster {
     @Column(name = "UPDATED_BY", length = 100)
     private String updatedBy;
 
+    // Set when every one of this bank's C_BANK_PRODUCT_MAP rows has expired (VALID_TO
+    // in the past) — anchors the bank-wide grace-period countdown. Cleared as soon as
+    // any product becomes valid again (renewal).
+    @Column(name = "ALL_PRODUCTS_EXPIRED_AT")
+    private LocalDateTime allProductsExpiredAt;
+
     // Transient — not persisted; populated on read / consumed on write via C_BANK_PRODUCT_MAP
     @Transient
     private List<String> selectedProducts;

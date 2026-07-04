@@ -2184,6 +2184,172 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // MAKER-CHECKER WORKFLOW EMAILS (Role / Menu / Product Capability)
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendWorkflowSubmittedNotification(String toEmail, String recipientName,
+                                                  String itemType, String itemName, String itemCode,
+                                                  String submittedByName) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | " + sanitize(itemType) + " Awaiting Your Approval — " + sanitize(itemName));
+            helper.setText(simpleNotice(recipientName,
+                    itemType + " Submitted for Approval",
+                    "<strong>" + sanitize(submittedByName) + "</strong> has submitted the " + sanitize(itemType).toLowerCase()
+                        + " <strong>" + sanitize(itemName) + "</strong> (" + sanitize(itemCode) + ") for your review.",
+                    "Please log in to ReconXpert.Ai and review this request from your Checker Queue."), true);
+            mailSender.send(message);
+            logger.info("[WORKFLOW] Submitted-notification sent to {} for {} {}", toEmail, itemType, itemCode);
+        } catch (Exception e) {
+            logger.warn("[WORKFLOW] sendWorkflowSubmittedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendWorkflowDecisionNotification(String toEmail, String recipientName,
+                                                 String itemType, String itemName, String itemCode,
+                                                 String decision, String decidedByName) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | " + sanitize(itemType) + " " + sanitize(decision) + " — " + sanitize(itemName));
+            helper.setText(simpleNotice(recipientName,
+                    itemType + " " + decision,
+                    "Your " + sanitize(itemType).toLowerCase() + " <strong>" + sanitize(itemName) + "</strong> (" + sanitize(itemCode) + ") has been "
+                        + "<strong>" + sanitize(decision).toLowerCase() + "</strong> by <strong>" + sanitize(decidedByName) + "</strong>.",
+                    "APPROVED".equalsIgnoreCase(decision)
+                        ? "It is now active and available for assignment."
+                        : "Please review the details and resubmit if needed."), true);
+            mailSender.send(message);
+            logger.info("[WORKFLOW] Decision-notification ({}) sent to {} for {} {}", decision, toEmail, itemType, itemCode);
+        } catch (Exception e) {
+            logger.warn("[WORKFLOW] sendWorkflowDecisionNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendCapabilityGrantedNotification(String toEmail, String recipientName,
+                                                  String productName, String capabilityType,
+                                                  String actionType, String grantedByName, boolean canDelegate) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | You've Been Granted " + sanitize(capabilityType) + " Access — " + sanitize(productName));
+            helper.setText(simpleNotice(recipientName,
+                    capabilityType + " Capability Granted",
+                    "<strong>" + sanitize(grantedByName) + "</strong> has granted you <strong>" + sanitize(capabilityType) + "</strong> "
+                        + "capability for <strong>" + sanitize(productName) + "</strong> (" + sanitize(actionType) + ")"
+                        + (canDelegate ? ", including the right to grant this capability to others." : "."),
+                    "Log in to ReconXpert.Ai to start using this access."), true);
+            mailSender.send(message);
+            logger.info("[WORKFLOW] Capability-granted notification sent to {} for product {}", toEmail, productName);
+        } catch (Exception e) {
+            logger.warn("[WORKFLOW] sendCapabilityGrantedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendCapabilityRevokedNotification(String toEmail, String recipientName,
+                                                  String productName, String capabilityType,
+                                                  String actionType, String reason) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | " + sanitize(capabilityType) + " Access Revoked — " + sanitize(productName));
+            helper.setText(simpleNotice(recipientName,
+                    capabilityType + " Capability Revoked",
+                    "Your <strong>" + sanitize(capabilityType) + "</strong> capability for <strong>" + sanitize(productName) + "</strong> ("
+                        + sanitize(actionType) + ") has been revoked.",
+                    "If you believe this is a mistake, please contact your administrator."), true);
+            mailSender.send(message);
+            logger.info("[WORKFLOW] Capability-revoked notification sent to {} for product {} (reason: {})", toEmail, productName, reason);
+        } catch (Exception e) {
+            logger.warn("[WORKFLOW] sendCapabilityRevokedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PRODUCT-EXPIRY GRACE-PERIOD EMAILS
+    // ─────────────────────────────────────────────────────────────────────
+    @Override
+    @Async
+    public void sendProductExpiryHoldNotification(String toEmail, String recipientName, long gracePeriodMinutes) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | Your Access Is On Hold — Product Validity Expired");
+            helper.setText(simpleNotice(recipientName,
+                    "Account Temporarily On Hold",
+                    "All products subscribed by your institution have reached the end of their validity period, "
+                        + "so your account has been temporarily placed on hold.",
+                    "If your institution renews at least one product within the next " + gracePeriodMinutes
+                        + " minute(s), your access will be restored automatically. Otherwise, it will become "
+                        + "permanently inactive and will require an administrator to reactivate it."), true);
+            mailSender.send(message);
+            logger.info("[PRODUCT-EXPIRY] Hold notification sent to {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[PRODUCT-EXPIRY] sendProductExpiryHoldNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendProductExpiryRestoredNotification(String toEmail, String recipientName) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | Access Restored — Product Renewed");
+            helper.setText(simpleNotice(recipientName,
+                    "Account Restored",
+                    "Your institution has renewed a product within the grace period, so your account access has "
+                        + "been automatically restored to its previous state.",
+                    "You can log in to ReconXpert.Ai as usual."), true);
+            mailSender.send(message);
+            logger.info("[PRODUCT-EXPIRY] Restored notification sent to {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[PRODUCT-EXPIRY] sendProductExpiryRestoredNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    @Override
+    @Async
+    public void sendProductExpiryFinalizedNotification(String toEmail, String recipientName) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | Account Inactive — Grace Period Elapsed");
+            helper.setText(simpleNotice(recipientName,
+                    "Account Permanently Inactive",
+                    "The grace period following your institution's product expiry has elapsed without a renewal, "
+                        + "so your account has been made permanently inactive.",
+                    "Please contact your administrator to reactivate your account once a product is renewed."), true);
+            mailSender.send(message);
+            logger.info("[PRODUCT-EXPIRY] Finalized notification sent to {}", toEmail);
+        } catch (Exception e) {
+            logger.warn("[PRODUCT-EXPIRY] sendProductExpiryFinalizedNotification failed for {}: {}", toEmail, e.getMessage());
+        }
+    }
+
     private String simpleNotice(String contactName, String headline, String body, String note) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"

@@ -54,8 +54,20 @@ public class NewReconUserController {
 
     @Operation(summary = "Get users by bank code")
     @GetMapping(value = "/get-by-bank/{bankCode}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getUsersByBankId(@PathVariable String bankCode) {
+    public ResponseEntity<RestWithStatusList> getUsersByBankCode(@PathVariable String bankCode) {
         return newReconUserService.getUsersByBankCode(bankCode);
+    }
+
+    @Operation(summary = "Get users by bank/branch ID")
+    @GetMapping(value = "/get-by-bank-id/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getUsersByBankId(@PathVariable Long bankId) {
+        return newReconUserService.getUsersByBankId(bankId);
+    }
+
+    @Operation(summary = "Get users assigned to a role")
+    @GetMapping(value = "/get-by-role/{roleId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getUsersByRoleId(@PathVariable Long roleId) {
+        return newReconUserService.getUsersByRoleId(roleId);
     }
 
     @Operation(summary = "Get users by status")

@@ -23,7 +23,11 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 
     List<ReconMenuMaster> getByRoleId(Long roleId);
 
+    List<ReconMenuMaster> getByRoleIdAndStatus(Long roleId, String status);
+
     ReconMenuMaster findByMenuNameAndRoleId(String menuName, Long roleId);
 
     ReconMenuMaster findByMenuNameAndRoleIdAndParentMenuCode(String menuName, Long roleId, String parentMenuCode);
+
+    List<ReconMenuMaster> findByRoleIdIn(List<Long> roleIds);
 }

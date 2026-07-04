@@ -154,6 +154,7 @@ public class BankAuthServiceImpl implements BankAuthService {
         }
 
         String oldHash = user.getPasswordHash();
+        String oldStatus = user.getStatus();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setPasswordSet(1);
         user.setStatus("VERIFIED");
@@ -183,7 +184,7 @@ public class BankAuthServiceImpl implements BankAuthService {
         }
 
         auditLog("RCN_RECON_USER", user.getUserId(), "UPDATE",
-                "passwordSet=0,status=ACTIVE_PENDING",
+                "passwordSet=0,status=" + oldStatus,
                 "passwordSet=1,status=VERIFIED",
                 username, user.getUserType(), user.getBankId(), "Password set, status→VERIFIED");
 

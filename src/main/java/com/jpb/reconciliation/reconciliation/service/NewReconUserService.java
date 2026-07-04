@@ -21,6 +21,8 @@ public interface NewReconUserService {
 
     ResponseEntity<RestWithStatusList> getUsersByBankCode(String bankCode);
 
+    ResponseEntity<RestWithStatusList> getUsersByRoleId(Long roleId);
+
     ResponseEntity<RestWithStatusList> getUsersByStatus(String status);
 
     ResponseEntity<RestWithStatusList> getUsersByType(String userType);

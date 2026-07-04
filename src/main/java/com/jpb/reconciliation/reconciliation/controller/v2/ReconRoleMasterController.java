@@ -3,6 +3,7 @@ package com.jpb.reconciliation.reconciliation.controller.v2;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster;
 import com.jpb.reconciliation.reconciliation.service.v2.ReconRoleMasterService;
+import com.jpb.reconciliation.reconciliation.service.v2.RoleCodeGeneratorService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,12 +18,27 @@ import org.springframework.web.bind.annotation.*;
 public class ReconRoleMasterController {
 
     private final ReconRoleMasterService reconRoleMasterService;
+    private final RoleCodeGeneratorService roleCodeGeneratorService;
+
+    @GetMapping("/generate-code")
+    public ResponseEntity<RestWithStatusList> generateRoleCode(@RequestParam String roleName) {
+        String code = roleCodeGeneratorService.peekNextCode(roleName);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role code reserved.",
+                java.util.Collections.singletonList(code)));
+    }
 
     @PostMapping("/create")
     public ResponseEntity<RestWithStatusList> createRole(
             @RequestBody ReconRoleMaster role,
             @AuthenticationPrincipal UserDetails userDetails) {
         return reconRoleMasterService.createRole(role, userDetails.getUsername());
+    }
+
+    @PostMapping("/create-active")
+    public ResponseEntity<RestWithStatusList> createRoleActive(
+            @RequestBody ReconRoleMaster role,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return reconRoleMasterService.createRoleActive(role, userDetails.getUsername());
     }
 
     @GetMapping
@@ -83,5 +99,44 @@ public class ReconRoleMasterController {
     @GetMapping("/check-code")
     public ResponseEntity<RestWithStatusList> checkRoleCodeExists(@RequestParam String roleCode) {
         return reconRoleMasterService.checkRoleCodeExists(roleCode);
+    }
+
+    @GetMapping("/{roleId}/privileges")
+    public ResponseEntity<RestWithStatusList> getPrivileges(@PathVariable Long roleId) {
+        return reconRoleMasterService.getPrivileges(roleId);
+    }
+
+    @PutMapping("/{roleId}/privileges")
+    public ResponseEntity<RestWithStatusList> savePrivileges(
+            @PathVariable Long roleId,
+            @RequestBody java.util.List<Long> menuIds,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return reconRoleMasterService.savePrivileges(roleId, menuIds, userDetails.getUsername());
+    }
+
+    @GetMapping("/by-bank/{bankId}")
+    public ResponseEntity<RestWithStatusList> getRolesByBankId(@PathVariable Long bankId) {
+        return reconRoleMasterService.getRolesByBankId(bankId);
+    }
+
+    @GetMapping("/{roleId}/products")
+    public ResponseEntity<RestWithStatusList> getRoleProducts(@PathVariable Long roleId) {
+        return reconRoleMasterService.getRoleProducts(roleId);
+    }
+
+    @PutMapping("/{roleId}/products")
+    public ResponseEntity<RestWithStatusList> saveRoleProducts(
+            @PathVariable Long roleId,
+            @RequestBody java.util.List<Long> productIds,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return reconRoleMasterService.saveRoleProducts(roleId, productIds, userDetails.getUsername());
+    }
+
+    @PutMapping("/{roleId}/bank-type-scope")
+    public ResponseEntity<RestWithStatusList> saveRoleBankTypeScope(
+            @PathVariable Long roleId,
+            @RequestBody java.util.Map<String, String> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return reconRoleMasterService.saveRoleBankTypeScope(roleId, body.get("bankTypeScope"), userDetails.getUsername());
     }
 }

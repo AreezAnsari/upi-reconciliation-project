@@ -1,6 +1,8 @@
 package com.jpb.reconciliation.reconciliation.service;
 
+import com.jpb.reconciliation.reconciliation.constants.UserConstants;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconPasswordManager;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
@@ -12,12 +14,14 @@ import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +31,7 @@ import java.util.Optional;
 public class NewReconUserServiceImpl implements NewReconUserService {
 
     private static final Logger logger = LoggerFactory.getLogger(NewReconUserServiceImpl.class);
+    private static final SecureRandom RNG = new SecureRandom();
 
     @Autowired
     private ReconUserRepository reconUserRepository;
@@ -42,6 +47,12 @@ public class NewReconUserServiceImpl implements NewReconUserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
 
     @Override
     @Transactional
@@ -72,12 +83,30 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         }
         user.setUsername(user.getUsername().trim().toLowerCase());
         user.setEmail(user.getEmail().trim().toLowerCase());
+
+        // Role dropdown in AddUser.jsx sends the role's NAME (e.g. "MAKER"), not its ID —
+        // "DEFAULT" means no specific role. Resolve to ROLE_ID here (was silently dropped
+        // before since ReconUser has no matching "role" field).
+        if (user.getRoleId() == null && user.getRoleName() != null
+                && !user.getRoleName().trim().isEmpty() && !"DEFAULT".equalsIgnoreCase(user.getRoleName().trim())) {
+            reconRoleMasterRepository.findByRoleName(user.getRoleName().trim())
+                    .ifPresent(r -> user.setRoleId(r.getRoleId()));
+        }
+
+        // Links this user to whoever created them, for hierarchy display (My Organization /
+        // OrgHierarchy) — mirrors ReconBankMasterServiceImpl.buildAdminUser's parentUserId.
+        Optional<ReconUser> actorOpt = reconUserRepository.findByUsername(createdBy);
+        actorOpt.map(ReconUser::getUserId).ifPresent(user::setParentUserId);
+        boolean actorIsAdmin = actorOpt.isPresent() && UserConstants.isAdminUserType(actorOpt.get().getUserType());
+
+        String defaultPwd = null;
         if (user.getPasswordHash() != null && !user.getPasswordHash().trim().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash().trim()));
             user.setPasswordSet(1);
         } else {
             user.setPasswordSet(0);
         }
+
         if ("KAL_ADMIN".equals(user.getUserType())) {
             user.setApprovedYn("Y");
             user.setStatus("ACTIVE");
@@ -87,10 +116,30 @@ public class NewReconUserServiceImpl implements NewReconUserService {
                     user.setRoleId(kalAdminRole.get().getRoleId());
                 }
             }
+        } else if (actorIsAdmin) {
+            // Admin creates a user directly — no maker-checker approval needed. Goes straight
+            // to REQUEST (awaiting the user's own email verification / password setup), and
+            // gets emailed immediately.
+            user.setApprovedYn("Y");
+            user.setApprovedBy(createdBy);
+            user.setStatus("REQUEST");
+            if (user.getPasswordSet() == null || user.getPasswordSet() == 0) {
+                // passwordSet stays 0 — it's a DEFAULT/temporary password, not one the user
+                // chose. 1 would make verify-email misreport them as OLD_USER and skip the
+                // mandatory verify-credentials -> set-password flow (same bug fixed here also
+                // existed in approveUser below). Matches buildAdminUser's own convention.
+                defaultPwd = generatePassword();
+                user.setPasswordHash(passwordEncoder.encode(defaultPwd));
+                user.setPasswordSet(0);
+            }
         } else {
+            // A Maker created this user — goes to the Checker queue first. Password/email
+            // are deferred to approveUser(), once a Checker actually approves it.
+            // PENDING_APPROVAL — not ACTIVE_PENDING, which is reserved exclusively for the
+            // Inactive->reactivating scheduling flow (UserStatusServiceImpl/StatusSchedulerService).
             user.setApprovedYn("N");
             if (user.getStatus() == null) {
-                user.setStatus("ACTIVE_PENDING");
+                user.setStatus("PENDING_APPROVAL");
             }
         }
         user.setCreatedAt(LocalDateTime.now());
@@ -104,6 +153,10 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         pwd.setCreatedBy(createdBy);
         pwd.setExpirationDate(LocalDateTime.now().plusDays(90));
         reconPasswordManagerRepository.save(pwd);
+
+        if (defaultPwd != null) {
+            sendUserWelcomeEmail(saved, defaultPwd);
+        }
 
         logger.info("ReconUser created: {} by {}", saved.getUsername(), createdBy);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -151,6 +204,12 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         }
         List<ReconUser> users = reconUserRepository.findByBankId(bankOpt.get().getBankId());
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched by bank.", users));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getUsersByRoleId(Long roleId) {
+        List<ReconUser> users = reconUserRepository.findByRoleId(roleId);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched by role.", users));
     }
 
     @Override
@@ -215,12 +274,60 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         ReconUser existing = opt.get();
         existing.setApprovedYn("Y");
         existing.setApprovedBy(approvedBy);
-        existing.setStatus("ACTIVE");
+        // A Checker approving a Maker-created user is the moment it becomes usable — same
+        // REQUEST status (awaiting the user's own email verification) an Admin-direct-created
+        // user gets immediately. The password is generated here (not at creation) since this
+        // is the first point the user is actually meant to log in.
+        existing.setStatus("REQUEST");
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(approvedBy);
-        reconUserRepository.save(existing);
+        if (existing.getPasswordSet() == null || existing.getPasswordSet() == 0) {
+            String defaultPwd = generatePassword();
+            existing.setPasswordHash(passwordEncoder.encode(defaultPwd));
+            // Stays 0 — a temporary/default password, not one the user chose. Same fix as
+            // createUser() above: 1 would make verify-email misreport OLD_USER and skip the
+            // mandatory verify-credentials -> set-password flow.
+            existing.setPasswordSet(0);
+            ReconUser saved = reconUserRepository.save(existing);
+
+            ReconPasswordManager pwdHist = new ReconPasswordManager();
+            pwdHist.setReconUser(saved);
+            pwdHist.setUserPassword(saved.getPasswordHash());
+            pwdHist.setCreatedAt(LocalDateTime.now());
+            pwdHist.setCreatedBy(approvedBy);
+            pwdHist.setExpirationDate(LocalDateTime.now().plusDays(90));
+            reconPasswordManagerRepository.save(pwdHist);
+
+            sendUserWelcomeEmail(saved, defaultPwd);
+        } else {
+            reconUserRepository.save(existing);
+        }
         logger.info("ReconUser approved: {} by {}", userId, approvedBy);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User approved successfully.", null));
+    }
+
+    private String generatePassword() {
+        int digits = 1000 + RNG.nextInt(9000);
+        return "Recon@" + digits;
+    }
+
+    private void sendUserWelcomeEmail(ReconUser user, String defaultPwd) {
+        try {
+            if (user.getBankId() == null) return;
+            Optional<ReconBankMaster> bankOpt = reconBankMasterRepository.findPrimaryById(user.getBankId());
+            if (!bankOpt.isPresent()) return;
+            ReconBankMaster bank = bankOpt.get();
+            boolean isBranch = "BRANCH".equals(bank.getBankLevel());
+            String verifyLink = frontendUrl + "/user-verify"
+                    + "?bankCode=" + bank.getBankCode()
+                    + (isBranch ? "&branchCode=" + bank.getBankCode() : "")
+                    + "&username=" + user.getUsername();
+            emailService.sendUserWelcome(user.getEmail(), user.getFullName(),
+                    bank.getBankCode(), isBranch ? "Branch Code" : "Bank Code",
+                    user.getUsername(), defaultPwd, verifyLink);
+        } catch (Exception e) {
+            logger.error("Failed to send welcome email for user {}: {}", user.getUsername(), e.getMessage());
+        }
     }
 
     @Override
@@ -246,7 +353,9 @@ public class NewReconUserServiceImpl implements NewReconUserService {
 
     @Override
     public ResponseEntity<RestWithStatusList> checkEmailExists(String email) {
-        boolean exists = reconUserRepository.existsByEmail(email);
+        String emailLc = email == null ? null : email.trim().toLowerCase();
+        boolean exists = emailLc != null && !emailLc.isEmpty()
+                && (reconUserRepository.existsByEmail(emailLc) || reconBankMasterRepository.existsByEmail(emailLc));
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", exists ? "EXISTS" : "AVAILABLE", null));
     }
 

@@ -229,4 +229,37 @@ public interface EmailService {
 
     /** Sent when a user is automatically blocked by the scheduler (24h window elapsed). */
     void sendBlockedNotification(String toEmail, String contactName);
+
+    // ── Maker-Checker workflow emails (Role / Menu / Product Capability) ──
+
+    /** Sent to the Checker(s) when a Maker submits an item (Role or Menu) for approval. */
+    void sendWorkflowSubmittedNotification(String toEmail, String recipientName,
+                                           String itemType, String itemName, String itemCode,
+                                           String submittedByName);
+
+    /** Sent to the Maker when the Checker approves or rejects their submitted item. */
+    void sendWorkflowDecisionNotification(String toEmail, String recipientName,
+                                          String itemType, String itemName, String itemCode,
+                                          String decision, String decidedByName);
+
+    /** Sent to a user when they are granted a Maker/Checker product capability. */
+    void sendCapabilityGrantedNotification(String toEmail, String recipientName,
+                                           String productName, String capabilityType,
+                                           String actionType, String grantedByName, boolean canDelegate);
+
+    /** Sent to a user when their Maker/Checker product capability is revoked. */
+    void sendCapabilityRevokedNotification(String toEmail, String recipientName,
+                                           String productName, String capabilityType,
+                                           String actionType, String reason);
+
+    // ── Product-expiry grace-period emails ──
+
+    /** Sent to a user when all of their bank's products have expired and they're put on hold. */
+    void sendProductExpiryHoldNotification(String toEmail, String recipientName, long gracePeriodMinutes);
+
+    /** Sent to a user when their bank renews a product within the grace period and access is restored. */
+    void sendProductExpiryRestoredNotification(String toEmail, String recipientName);
+
+    /** Sent to a user when the grace period elapses without renewal and their account becomes permanently inactive. */
+    void sendProductExpiryFinalizedNotification(String toEmail, String recipientName);
 }

@@ -43,6 +43,13 @@ public class MenuController {
         return menuMasterService.addMenu(menuRequest, userDetails);
     }
 
+    @Operation(summary = "Add menu — Admin-only, activates immediately")
+    @PostMapping(value = "/addmenu-active", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> addMasterMenuActive(@RequestBody ReconMenuMasterDto menuRequest,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return menuMasterService.addMenuActive(menuRequest, userDetails);
+    }
+
     @Operation(summary = "Get menu by ID")
     @GetMapping(value = "/getmenu/{menuId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getMenu(@PathVariable Long menuId) {
@@ -88,6 +95,26 @@ public class MenuController {
     @GetMapping(value = "/getallmenu", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getAllMenus() {
         return menuMasterService.getAllMenus();
+    }
+
+    @Operation(summary = "Get menus scoped to a specific Bank/Branch")
+    @GetMapping(value = "/menu/by-bank/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getMenusByBankId(@PathVariable Long bankId) {
+        return menuMasterService.getMenusByBankId(bankId);
+    }
+
+    @Operation(summary = "Submit menu for approval")
+    @PutMapping(value = "/menu/{menuId}/submit", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> submitMenuForApproval(@PathVariable Long menuId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return menuMasterService.submitForApproval(menuId, userDetails.getUsername());
+    }
+
+    @Operation(summary = "Approve menu")
+    @PutMapping(value = "/menu/{menuId}/approve", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> approveMenu(@PathVariable Long menuId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return menuMasterService.approveMenu(menuId, userDetails.getUsername());
     }
 
     @GetMapping(value = "/current-user", produces = CommonConstants.APPLICATION_JSON)

@@ -21,9 +21,23 @@ public interface MenuMasterService {
 
     ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails);
 
+    /** Admin-only: creates a Menu and activates it immediately (status 'Y'), skipping
+     *  the DRAFT -> PENDING -> Checker-approval flow. Rejected if the caller isn't
+     *  an Admin (KAL_ADMIN / BANK_ADMIN / BRANCH_ADMIN). */
+    ResponseEntity<RestWithStatusList> addMenuActive(ReconMenuMasterDto menuRequest, UserDetails userDetails);
+
+    /** Menus belonging to a specific Bank/Branch — derived via RCN_RECON_USER's
+     *  BANK_ID + ROLE_ID (same technique as ReconRoleMasterService.getRolesByBankId),
+     *  then matched against RECON_MENU_MASTER.ROLE_ID (no BANK_ID column on Menu either). */
+    ResponseEntity<RestWithStatusList> getMenusByBankId(Long bankId);
+
     ResponseEntity<ResponseDto> removeMenu(Long menuId);
 
     ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId);
 
     Long getVerifiedRoleId(String username);
+
+    ResponseEntity<RestWithStatusList> submitForApproval(Long menuId, String submittedBy);
+
+    ResponseEntity<RestWithStatusList> approveMenu(Long menuId, String approvedBy);
 }

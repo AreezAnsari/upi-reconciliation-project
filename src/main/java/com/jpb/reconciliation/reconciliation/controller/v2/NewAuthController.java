@@ -102,7 +102,7 @@ public class NewAuthController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(new RestWithStatusList("FAILURE", "Account is INACTIVE. Please contact administrator.", null));
             }
-            if ("ACTIVE_PENDING".equals(user.getStatus())) {
+            if ("PENDING_APPROVAL".equals(user.getStatus())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(new RestWithStatusList("FAILURE", "Account is pending approval. Please wait for admin approval.", null));
             }

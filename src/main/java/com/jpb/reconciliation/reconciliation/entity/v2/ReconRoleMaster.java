@@ -50,4 +50,10 @@ public class ReconRoleMaster {
 
     @Column(name = "UPDATED_BY", length = 100)
     private String updatedBy;
+
+    // Which Bank Type(s) (Issuer/Acquirer, comma-separated) this role is scoped to — only
+    // meaningful when the owning bank/branch itself has more than one. Null/empty means
+    // no restriction (defaults to whatever the bank/branch has).
+    @Column(name = "BANK_TYPE_SCOPE", length = 50)
+    private String bankTypeScope;
 }

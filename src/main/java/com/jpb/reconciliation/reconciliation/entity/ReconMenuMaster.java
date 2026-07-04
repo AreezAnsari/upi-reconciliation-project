@@ -94,4 +94,10 @@ public class ReconMenuMaster {
 
     @Column(name = "ROLE_ID")
     private Long roleId;
+
+    @Column(name = "SUBMITTED_BY")
+    private String submittedBy;
+
+    @Column(name = "APPROVED_BY")
+    private String approvedBy;
 }

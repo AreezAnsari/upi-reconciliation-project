@@ -90,15 +90,54 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         // where the same institution name is always allowed for both banks and branches.
 
         // ── Server-side email-exists validation (mirrors /check-email) ─────────
+        // Checked against both RCN_RECON_USER (login accounts) and RECON_BANK_MASTER
+        // (contact rows for other banks/branches) — an email registered in either
+        // place must not be reused for a new onboarding.
         String primaryEmailLc = bank.getEmail() != null ? bank.getEmail().trim().toLowerCase() : null;
-        if (primaryEmailLc != null && !primaryEmailLc.isEmpty() && reconUserRepository.existsByEmail(primaryEmailLc)) {
+        if (primaryEmailLc != null && !primaryEmailLc.isEmpty()
+                && (reconUserRepository.existsByEmail(primaryEmailLc) || reconBankMasterRepository.existsByEmail(primaryEmailLc))) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "\"" + primaryEmailLc + "\" is already registered.", null));
         }
         String secondaryEmailLc = bank.getSecondaryEmail() != null ? bank.getSecondaryEmail().trim().toLowerCase() : null;
-        if (secondaryEmailLc != null && !secondaryEmailLc.isEmpty() && reconUserRepository.existsByEmail(secondaryEmailLc)) {
+        if (secondaryEmailLc != null && !secondaryEmailLc.isEmpty()
+                && (reconUserRepository.existsByEmail(secondaryEmailLc) || reconBankMasterRepository.existsByEmail(secondaryEmailLc))) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "\"" + secondaryEmailLc + "\" is already registered.", null));
+        }
+
+        // ── Primary and Secondary contact details must never be identical ──────
+        if (primaryEmailLc != null && primaryEmailLc.equals(secondaryEmailLc)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "Primary and Secondary email cannot be the same.", null));
+        }
+        String primaryMobile = bank.getMobileNumber() != null ? bank.getMobileNumber().trim() : null;
+        String secondaryMobile = bank.getSecondaryMobileNumber() != null ? bank.getSecondaryMobileNumber().trim() : null;
+        if (primaryMobile != null && !primaryMobile.isEmpty() && primaryMobile.equals(secondaryMobile)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "Primary and Secondary mobile number cannot be the same.", null));
+        }
+        String primaryAltMobile = bank.getAltMobileNumber() != null ? bank.getAltMobileNumber().trim() : null;
+        String secondaryAltMobile = bank.getSecondaryAltMobile() != null ? bank.getSecondaryAltMobile().trim() : null;
+        if (primaryAltMobile != null && !primaryAltMobile.isEmpty() && primaryAltMobile.equals(secondaryAltMobile)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "Primary and Secondary alternate mobile number cannot be the same.", null));
+        }
+        String primaryFullNameLc = bank.getFullName() != null ? bank.getFullName().trim().toLowerCase() : null;
+        String secondaryFullNameLc = bank.getSecondaryFullName() != null ? bank.getSecondaryFullName().trim().toLowerCase() : null;
+        if (primaryFullNameLc != null && !primaryFullNameLc.isEmpty() && primaryFullNameLc.equals(secondaryFullNameLc)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "Primary and Secondary contact name cannot be the same.", null));
+        }
+
+        // ── Within the same contact, Mobile and Alternate Mobile must never be identical ──
+        if (primaryMobile != null && !primaryMobile.isEmpty() && primaryMobile.equals(primaryAltMobile)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "Alternate mobile number cannot be the same as Mobile number.", null));
+        }
+        if (secondaryMobile != null && !secondaryMobile.isEmpty() && secondaryMobile.equals(secondaryAltMobile)) {
+            return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
+                    "Alternate mobile number cannot be the same as Mobile number.", null));
         }
 
         // ── Determine branch vs bank ─────────────────────────────────────────
@@ -1606,20 +1645,23 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 // Branch Admin: standalone Dashboard at top level
                 saveMenu(null, "Master", "Dashboard", prefix + "/dashboard", roleId, createdBy);
 
-                // My Organization
+                // My Organization — parentMenuCode must be the master's NAME (matches the
+                // convention every other menu-creation path uses, e.g. AddMenu.jsx), not its
+                // MENU_ID — using the ID here broke Main-menu lookups everywhere (Privileges
+                // screen, Role/User view pages) that filter children by parentMenuCode === name.
                 ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, createdBy);
-                String myOrgId = String.valueOf(myOrg.getMenuId());
+                String myOrgName = myOrg.getMenuName();
                 for (String[] item : Arrays.asList(
                     new String[]{"Overview",     prefix + "/my-organization/overview"},
                     new String[]{"My Hierarchy", prefix + "/my-organization/hierarchy"},
                     new String[]{"User Status",  prefix + "/my-organization/admin-status"}
                 )) {
-                    saveMenu(myOrgId, "Main", item[0], item[1], roleId, createdBy);
+                    saveMenu(myOrgName, "Main", item[0], item[1], roleId, createdBy);
                 }
             } else {
                 // Bank Admin: My Organization (no standalone Dashboard for Bank Admin)
                 ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, createdBy);
-                String myOrgId = String.valueOf(myOrg.getMenuId());
+                String myOrgName = myOrg.getMenuName();
                 for (String[] item : Arrays.asList(
                     new String[]{"Overview",           prefix + "/my-organization/overview"},
                     new String[]{"Branches",           prefix + "/my-organization/branches"},
@@ -1628,22 +1670,23 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                     new String[]{"User Status",        prefix + "/my-organization/user-status"},
                     new String[]{"Branch Admin Status",prefix + "/my-organization/admin-status"}
                 )) {
-                    saveMenu(myOrgId, "Main", item[0], item[1], roleId, createdBy);
+                    saveMenu(myOrgName, "Main", item[0], item[1], roleId, createdBy);
                 }
             }
 
             // Administration (same for both)
             ReconMenuMaster adminMenu = saveMenu(null, "Master", "Administration", null, roleId, createdBy);
-            String adminMenuId = String.valueOf(adminMenu.getMenuId());
+            String adminMenuName = adminMenu.getMenuName();
             for (String[] item : Arrays.asList(
                 new String[]{"Add User",  prefix + "/add-user"},
                 new String[]{"Add Role",  prefix + "/admin/add-new-role"},
                 new String[]{"Add Menu",  prefix + "/add-menu"},
                 new String[]{"User List", prefix + "/user-list"},
                 new String[]{"Role List", prefix + "/role-list"},
-                new String[]{"Menu List", prefix + "/menu-list"}
+                new String[]{"Menu List", prefix + "/menu-list"},
+                new String[]{"Checker Dashboard", prefix + "/checker-queue"}
             )) {
-                saveMenu(adminMenuId, "Main", item[0], item[1], roleId, createdBy);
+                saveMenu(adminMenuName, "Main", item[0], item[1], roleId, createdBy);
             }
 
             logger.info("Default {} menus created for: {}", isBranch ? "Branch Admin" : "Bank Admin", bankCode);

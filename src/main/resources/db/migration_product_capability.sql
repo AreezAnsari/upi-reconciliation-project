@@ -1,0 +1,41 @@
+-- ============================================================
+-- Feature: Maker-Checker for Menu + Product-scoped Maker/Checker capability pool.
+--
+-- 1. RECON_MENU_MASTER gets SUBMITTED_BY/APPROVED_BY (mirrors RECON_ROLE_MASTER,
+--    which already has these columns) so Menu can follow the same
+--    DRAFT -> PENDING -> ACTIVE flow as Role.
+--
+-- 2. RECON_PRODUCT_CAPABILITY_MAP is a new table: tracks which specific user
+--    currently holds MAKER or CHECKER capability for a given product +
+--    action-type (ROLE/MENU/USER). Pool model (many active rows per
+--    product+action+type are allowed — no uniqueness constraint on that
+--    combination, only on the row itself being active per user).
+-- ============================================================
+
+SET DEFINE OFF;
+
+ALTER TABLE KAL_RECON.RECON_MENU_MASTER ADD (SUBMITTED_BY VARCHAR2(100));
+ALTER TABLE KAL_RECON.RECON_MENU_MASTER ADD (APPROVED_BY VARCHAR2(100));
+
+CREATE TABLE KAL_RECON.RECON_PRODUCT_CAPABILITY_MAP (
+    CAPABILITY_ID     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    PRODUCT_ID        NUMBER NOT NULL,
+    USER_ID           NUMBER NOT NULL,
+    CAPABILITY_TYPE   VARCHAR2(10) NOT NULL,   -- MAKER / CHECKER
+    ACTION_TYPE       VARCHAR2(10) NOT NULL,   -- ROLE / MENU / USER
+    CAN_DELEGATE      CHAR(1) DEFAULT 'N' NOT NULL,
+    GRANTED_BY        NUMBER NOT NULL,
+    GRANTED_AT        TIMESTAMP NOT NULL,
+    STATUS            VARCHAR2(10) DEFAULT 'ACTIVE' NOT NULL,  -- ACTIVE / REVOKED
+    REVOKED_BY        NUMBER,
+    REVOKED_AT        TIMESTAMP,
+    REVOKE_REASON     VARCHAR2(30),            -- MANUAL / USER_BLOCKED / PRODUCT_DEACTIVATED
+    CONSTRAINT FK_CAP_PRODUCT FOREIGN KEY (PRODUCT_ID) REFERENCES KAL_RECON.RECON_PRODUCT_MASTER(PRODUCT_ID),
+    CONSTRAINT FK_CAP_USER    FOREIGN KEY (USER_ID)    REFERENCES KAL_RECON.RCN_RECON_USER(USER_ID),
+    CONSTRAINT FK_CAP_GRANTOR FOREIGN KEY (GRANTED_BY) REFERENCES KAL_RECON.RCN_RECON_USER(USER_ID)
+);
+
+CREATE INDEX IDX_CAP_LOOKUP ON KAL_RECON.RECON_PRODUCT_CAPABILITY_MAP (PRODUCT_ID, ACTION_TYPE, CAPABILITY_TYPE, STATUS);
+CREATE INDEX IDX_CAP_USER    ON KAL_RECON.RECON_PRODUCT_CAPABILITY_MAP (USER_ID, STATUS);
+
+COMMIT;

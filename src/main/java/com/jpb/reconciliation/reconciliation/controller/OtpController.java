@@ -108,8 +108,8 @@ public class OtpController {
                 ReconUser user = userOpt.get();
                 jwtSubject = user.getUsername();
 
-                // Activate user on first OTP login if still ACTIVE_PENDING
-                if ("ACTIVE_PENDING".equals(user.getStatus())) {
+                // Activate user on first OTP login if still PENDING_APPROVAL
+                if ("PENDING_APPROVAL".equals(user.getStatus())) {
                     user.setStatus("ACTIVE");
                     user.setApprovedYn("Y");
                     reconUserRepository.save(user);

@@ -17,7 +17,13 @@ public interface ReconRoleMasterRepository extends JpaRepository<ReconRoleMaster
 
     Optional<ReconRoleMaster> findByRoleCode(String roleCode);
 
+    Optional<ReconRoleMaster> findByRoleName(String roleName);
+
     List<ReconRoleMaster> findByStatus(String status);
 
     List<ReconRoleMaster> findByRoleType(String roleType);
+
+    List<ReconRoleMaster> findByRoleIdIn(List<Long> roleIds);
+
+    List<ReconRoleMaster> findByCreatedByIn(List<String> usernames);
 }

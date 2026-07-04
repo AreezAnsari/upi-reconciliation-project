@@ -1,6 +1,7 @@
 package com.jpb.reconciliation.reconciliation.repository.v2;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -17,4 +18,15 @@ public interface CRoleMenuMapRepository extends JpaRepository<CRoleMenuMap, CRol
 
     @Query("SELECT r FROM CRoleMenuMap r WHERE r.id.menuId = :menuId")
     List<CRoleMenuMap> findByMenuId(@Param("menuId") Long menuId);
+
+    // Scalar projections — avoid hydrating the full CRoleMenuMap entity (and its
+    // @EmbeddedId/@MapsId reflection path), which throws a PropertyAccessException
+    // on some Oracle setups where MENU_ID's numeric precision makes the JDBC driver
+    // return an Integer instead of a Long for the ManyToOne-mapped identifier.
+    @Query("SELECT r.id.menuId FROM CRoleMenuMap r WHERE r.id.roleId = :roleId")
+    List<Long> findMenuIdsByRoleId(@Param("roleId") Long roleId);
+
+    @Modifying
+    @Query("DELETE FROM CRoleMenuMap r WHERE r.id.roleId = :roleId")
+    void deleteByRoleId(@Param("roleId") Long roleId);
 }
