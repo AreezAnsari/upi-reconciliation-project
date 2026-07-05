@@ -86,18 +86,18 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
             "       SUM(TRAN_AMOUNT)  AS TOTAL_AMT, " +
             "       MAX(RESPONSE)  AS RESPONSE " +
             "FROM   REC_UPI_ADJ_DATA " +
+            "WHERE  ADJDATE = TO_DATE(?, 'YYYY-MM-DD') " + // Yahan fix kiya
             "GROUP  BY ADJTYPE " +
             "ORDER  BY ADJTYPE";
 
     @Override
-    public ResponseEntity<RestWithStatusList> getAdjSummaryByType() {
+    public ResponseEntity<RestWithStatusList> getAdjSummaryByType(String ADJ_DATE) {
         try {
-            log.info("Fetching UPI Adj Summary from REC_UPI_ADJ_DATA");
+            log.info("Fetching UPI Adj Summary from REC_UPI_ADJ_DATA for date: {}", ADJ_DATE);
 
-            List<Map<String, Object>> dbRows = jdbcTemplate.queryForList(SQL);
+            List<Map<String, Object>> dbRows = jdbcTemplate.queryForList(SQL, ADJ_DATE);
             log.info("DB rows fetched: {}", dbRows.size());
-
-            // category wise data collect karo
+            
             Map<String, List<UpiAdjItemDto>> itemsMap  = new LinkedHashMap<>();
             Map<String, Integer>             countMap  = new LinkedHashMap<>();
             Map<String, Double>              amountMap = new LinkedHashMap<>();
@@ -109,7 +109,6 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
                 String response = row.get("RESPONSE")   != null ? row.get("RESPONSE").toString().trim()         : "";
 
                 if (!CATEGORY_MAP.containsKey(adjtype)) {
-                    log.warn("Unknown ADJTYPE skipped: {}", adjtype);
                     continue;
                 }
 
@@ -117,7 +116,6 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
                 String flag       = FLAG_MAP.getOrDefault(adjtype, "??");
                 String ttumStatus = TTUM_MAP.getOrDefault(response, "Unknown");
 
-                // Sirf item level fields set ho rahe hain — totalRecords/totalAmount nahi
                 UpiAdjItemDto item = new UpiAdjItemDto();
                 item.setCategory(category);
                 item.setFlag(flag);
@@ -131,7 +129,6 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
                 amountMap.merge(category, amt, Double::sum);
             }
 
-            // Final grouped response banao
             List<Object> responseList  = new ArrayList<>();
             int    grandTotalRecords   = 0;
             double grandTotalAmount    = 0.0;
@@ -142,7 +139,6 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
                 int    totalRec = countMap.getOrDefault(cat, 0);
                 double totalAmt = amountMap.getOrDefault(cat, 0.0);
 
-                // Group DTO — sirf group level fields
                 UpiAdjGroupDto group = new UpiAdjGroupDto();
                 group.setCategory(cat);
                 group.setTotalRecords(totalRec);
@@ -150,18 +146,14 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
                 group.setItems(itemsMap.get(cat));
 
                 responseList.add(group);
-
                 grandTotalRecords += totalRec;
                 grandTotalAmount  += totalAmt;
             }
 
-            // Grand total
             Map<String, Object> grandTotal = new LinkedHashMap<>();
             grandTotal.put("grandTotalRecords", grandTotalRecords);
             grandTotal.put("grandTotalAmount",  Math.round(grandTotalAmount * 100.0) / 100.0);
             responseList.add(grandTotal);
-
-            log.info("Done — groups: {}, grandTotal: {}", CATEGORY_ORDER.size(), grandTotalRecords);
 
             RestWithStatusList response = RestWithStatusList.builder()
                     .status(CommonConstants.SUCCESS)
@@ -173,12 +165,12 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
 
         } catch (Exception e) {
             log.error("Error in getAdjSummaryByType: {}", e.getMessage());
-            RestWithStatusList errorResponse = RestWithStatusList.builder()
-                    .status(CommonConstants.FAILURE)
-                    .statusMsg("Error: " + e.getMessage())
-                    .data(Collections.emptyList())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(RestWithStatusList.builder()
+                .status(CommonConstants.FAILURE)
+                .statusMsg("Error: " + e.getMessage())
+                .data(Collections.emptyList())
+                .build());
         }
     }
 }

@@ -10,6 +10,4 @@ import java.util.Map;
 @Service
 public interface UpiAdjSummaryService {
 
-    ResponseEntity<RestWithStatusList> getAdjSummaryByType();
-
-}
+	ResponseEntity<RestWithStatusList> getAdjSummaryByType(String adjDate);}
