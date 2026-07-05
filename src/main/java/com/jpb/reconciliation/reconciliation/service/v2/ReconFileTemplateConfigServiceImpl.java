@@ -59,6 +59,14 @@ import com.jpb.reconciliation.reconciliation.repository.v2.ReconTmpltFieldDtlsRe
 import com.jpb.reconciliation.reconciliation.service.ReconFieldDtlMastService;
 import com.jpb.reconciliation.reconciliation.util.CommonUtil;
 import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 
 @Service
 @Transactional(readOnly = true)
@@ -400,7 +408,254 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     ResponseBuilder.error("Error fetching template: " + e.getMessage()));
         }
     }
+    @Override
+    public ResponseEntity<RestWithMapStatusList> autoDetectFields(MultipartFile file) {
 
+        try {
+
+            // Validate uploaded file
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure("Please upload a valid CSV file."));
+            }
+
+            // Allow only CSV files
+            String fileName = file.getOriginalFilename();
+            if (fileName == null || !fileName.toLowerCase().endsWith(".csv")) {
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure("Only CSV files are allowed."));
+            }
+
+            // Parse CSV and build response
+            List<ReconFieldConfigurationDto> fieldConfigurations = parseCsv(file);
+
+            List<Map<String, Object>> rows =
+                    ResponseBuilder.toMapList(fieldConfigurations, new ObjectMapper());
+
+            return ResponseEntity.ok(
+                    ResponseBuilder.ok(
+                            "Field detection completed successfully.",
+                            "fieldDetails",
+                            rows));
+
+        } catch (Exception e) {
+
+            logger.error("Error while reading uploaded CSV file.", e);
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error("Failed to process uploaded CSV file."));
+        }
+    }
+    private List<ReconFieldConfigurationDto> parseCsv(MultipartFile file) throws IOException {
+
+        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
+
+             CSVParser csvParser = CSVFormat.DEFAULT.builder()
+                     .setHeader()
+                     .setSkipHeaderRecord(true)
+                     .build()
+                     .parse(reader)) {
+
+            Map<String, Integer> headers = csvParser.getHeaderMap();
+            List<CSVRecord> records = csvParser.getRecords();
+
+            int sequence = 1;
+
+            for (String header : headers.keySet()) {
+
+                List<String> columnValues = new ArrayList<>();
+
+                for (CSVRecord record : records) {
+
+                    String value = record.get(header);
+
+                    if (value != null) {
+                        columnValues.add(value.trim());
+                    }
+                }
+
+                fieldConfigurations.add(
+                        buildFieldConfiguration(
+                                header,
+                                sequence++,
+                                columnValues));
+            }
+        }
+
+        return fieldConfigurations;
+    }
+    private ReconFieldConfigurationDto buildFieldConfiguration(
+            String header,
+            Integer sequence,
+            List<String> values) {
+
+        ReconFieldConfigurationDto dto = new ReconFieldConfigurationDto();
+
+        dto.setFieldName(header.trim());
+        dto.setFieldSequence(sequence);
+
+        dto.setFieldtype(detectFieldType(values));
+        dto.setFieldFormat(detectFieldFormat(values));
+        dto.setFieldLength(detectFieldLength(values));
+        dto.setFieldScale(detectFieldScale(values));
+
+        dto.setIsMandatory(isMandatory(values) ? "Y" : "N");
+        dto.setIsPrimaryKey("N");
+        dto.setIsReconKey("N");
+        dto.setTrimFlag("Y");
+
+        return dto;
+    }
+    private Integer detectFieldLength(List<String> values) {
+
+        int maxLength = 0;
+
+        for (String value : values) {
+
+            if (value != null && value.length() > maxLength) {
+                maxLength = value.length();
+            }
+        }
+
+        return maxLength;
+    }
+    private boolean isMandatory(List<String> values) {
+
+        for (String value : values) {
+
+            if (value == null || value.trim().isEmpty()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    private Integer detectFieldScale(List<String> values) {
+
+        int maxScale = 0;
+
+        for (String value : values) {
+
+            if (value != null && value.contains(".")) {
+
+                String[] parts = value.split("\\.");
+
+                if (parts.length == 2) {
+                    maxScale = Math.max(maxScale, parts[1].length());
+                }
+            }
+        }
+
+        return maxScale == 0 ? null : maxScale;
+    }
+    private String detectFieldType(List<String> values) {
+
+        boolean isNumber = true;
+        boolean isDecimal = true;
+        boolean isBoolean = true;
+        boolean isDate = true;
+
+        for (String value : values) {
+
+            if (value == null || value.trim().isEmpty()) {
+                continue;
+            }
+
+            value = value.trim();
+
+            // Number
+            if (!value.matches("\\d+")) {
+                isNumber = false;
+            }
+
+            // Decimal
+            if (!value.matches("\\d+(\\.\\d+)?")) {
+                isDecimal = false;
+            }
+
+            // Boolean
+            if (!(value.equalsIgnoreCase("true")
+                    || value.equalsIgnoreCase("false")
+                    || value.equalsIgnoreCase("yes")
+                    || value.equalsIgnoreCase("no")
+                    || value.equals("1")
+                    || value.equals("0"))) {
+
+                isBoolean = false;
+            }
+
+            // Date
+            if (!(value.matches("\\d{2}-\\d{2}-\\d{4}")
+                    || value.matches("\\d{2}/\\d{2}/\\d{4}")
+                    || value.matches("\\d{4}-\\d{2}-\\d{2}"))) {
+
+                isDate = false;
+            }
+        }
+
+        if (isBoolean) {
+            return "Boolean";
+        }
+
+        if (isDate) {
+            return "Date";
+        }
+
+        if (isNumber) {
+            return "Number";
+        }
+
+        if (isDecimal) {
+            return "Decimal";
+        }
+
+        return "String";
+    }
+    private String detectFieldFormat(List<String> values) {
+
+        String fieldType = detectFieldType(values);
+
+        switch (fieldType) {
+
+            case "Date":
+
+                for (String value : values) {
+
+                    if (value == null || value.trim().isEmpty()) {
+                        continue;
+                    }
+
+                    if (value.matches("\\d{2}-\\d{2}-\\d{4}")) {
+                        return "dd-MM-yyyy";
+                    }
+
+                    if (value.matches("\\d{2}/\\d{2}/\\d{4}")) {
+                        return "dd/MM/yyyy";
+                    }
+
+                    if (value.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                        return "yyyy-MM-dd";
+                    }
+                }
+
+                return "Date";
+
+            case "Decimal":
+                return "##.##";
+
+            case "Number":
+                return "NUMBER";
+
+            case "Boolean":
+                return "BOOLEAN";
+
+            default:
+                return "VARCHAR";
+        }
+    }
     // =========================================================================
     // INNER TRANSACTIONAL HELPERS (called via self-proxy)
     // =========================================================================

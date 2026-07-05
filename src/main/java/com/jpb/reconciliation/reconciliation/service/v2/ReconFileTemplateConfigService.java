@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import com.jpb.reconciliation.reconciliation.dto.ReconTemplateDetailsDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 import com.jpb.reconciliation.reconciliation.dto.v2.ReconTemplateConfigRequest;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface ReconFileTemplateConfigService {
 
@@ -22,4 +23,6 @@ public interface ReconFileTemplateConfigService {
     ResponseEntity<RestWithMapStatusList> searchTemplate(String name, String type, int page, int size);
 
     ResponseEntity<RestWithMapStatusList> getTemplateById(Long templateId);
+
+    ResponseEntity<RestWithMapStatusList> autoDetectFields(MultipartFile file);
 }
