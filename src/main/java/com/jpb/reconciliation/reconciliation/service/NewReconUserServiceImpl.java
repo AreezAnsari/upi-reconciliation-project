@@ -151,7 +151,11 @@ public class NewReconUserServiceImpl implements NewReconUserService {
             }
         }
         user.setCreatedAt(LocalDateTime.now());
-        user.setCreatedBy(createdBy);
+        user.setCreatedBy(
+        	    (createdBy != null && !createdBy.equals("UNKNOWN") && !createdBy.isEmpty())
+        	    ? createdBy
+        	    : (user.getCreatedBy() != null ? user.getCreatedBy() : "SYSTEM")
+        	);
         ReconUser saved = reconUserRepository.saveAndFlush(user);
 
         ReconPasswordManager pwd = new ReconPasswordManager();
