@@ -2,10 +2,17 @@ package com.jpb.reconciliation.reconciliation.service;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -29,11 +36,24 @@ import com.jpb.reconciliation.reconciliation.exception.ResourceNotFoundException
 import com.jpb.reconciliation.reconciliation.mapper.ReconMenuMasterMapper;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconFileDetailsMasterRepository;
+import com.jpb.reconciliation.reconciliation.constants.UserConstants;
+import com.jpb.reconciliation.reconciliation.repository.v2.CRoleMenuMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleProductMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 @Service
 public class MenuMasterServiceImpl implements MenuMasterService {
+
+    // Fixed Master-menu sequence for the Sidebar — same for every role, regardless of which
+    // order privileges were granted in. Anything not listed here (custom Masters an Admin
+    // creates via Add Menu) sorts after these, via the default(99) fallback.
+    private static final Map<String, Integer> MASTER_GROUP_ORDER = new HashMap<>();
+    static {
+        MASTER_GROUP_ORDER.put("Dashboard", 0);
+        MASTER_GROUP_ORDER.put("My Organization", 1);
+        MASTER_GROUP_ORDER.put("Administration", 2);
+    }
 
     @Autowired
     MenuMasterRepository menuMasterRepository;
@@ -52,6 +72,12 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
     @Autowired
     ReconRoleMasterRepository reconRoleMasterRepository;
+
+    @Autowired
+    CRoleMenuMapRepository roleMenuMapRepository;
+
+    @Autowired
+    ReconRoleProductMapRepository roleProductMapRepository;
 
     Logger logger = LoggerFactory.getLogger(MenuMasterServiceImpl.class);
 
@@ -144,7 +170,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
         } catch (Exception e) {
             logger.error("Exception while creating menu: " + e.getMessage(), e);
-            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Exception occurred while creating menu", null), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Exception occurred while creating menu: " + e.getMessage(), null), HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -183,7 +209,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
         } catch (Exception e) {
             logger.error("Exception while creating active menu: " + e.getMessage(), e);
-            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Exception occurred while creating menu", null), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Exception occurred while creating menu: " + e.getMessage(), null), HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -230,6 +256,87 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     }
 
     @Override
+    public ResponseEntity<RestWithStatusList> getMenusByRolePrivileges(Long roleId) {
+        List<Object> menuList = new ArrayList<>();
+        List<Long> menuIds = roleMenuMapRepository.findMenuIdsByRoleId(roleId);
+        if (menuIds.isEmpty()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "No privileges assigned to this role", menuList), HttpStatus.NOT_FOUND);
+        }
+        List<ReconMenuMaster> mapped = menuMasterRepository.findAllById(menuIds).stream()
+                .filter(m -> "Y".equals(m.getStatus()))
+                .collect(Collectors.toList());
+
+        // Sidebar.jsx only nests a Main-type menu under a Master it can find in this same
+        // result set — if Privileges only had the child checked (not its parent Master),
+        // the child becomes an orphaned, invisible entry. Pull the parent Master in here too,
+        // even though it was never explicitly added to C_ROLE_MENU_MAP for this role.
+        Map<Long, ReconMenuMaster> byId = new LinkedHashMap<>();
+        for (ReconMenuMaster m : mapped) byId.put(m.getMenuId(), m);
+
+        // Cache the resolved parent PER NAME, resolved once per request — Sidebar.jsx nests by
+        // NAME match only, so if two different Main items sharing a parentMenuCode name each
+        // independently resolved to a DIFFERENT physical Master row (since MENU_NAME isn't
+        // unique — Kal Admin, each Bank Admin, each Branch Admin all have their own
+        // "Administration"/"My Organization"), the Sidebar renders one section per row, each
+        // duplicating the same children by name. Resolving once and reusing prevents that.
+        Map<String, ReconMenuMaster> parentCache = new LinkedHashMap<>();
+        for (ReconMenuMaster m : mapped) {
+            if (!"Main".equals(m.getMenuType()) || m.getParentMenuCode() == null) continue;
+            String parentCode = m.getParentMenuCode();
+            ReconMenuMaster parent = parentCache.get(parentCode);
+            if (parent == null && !parentCache.containsKey(parentCode)) {
+                parent = menuMasterRepository.findAllByMenuNameAndMenuType(parentCode, "Master")
+                        .stream().filter(p -> "Y".equals(p.getStatus())).findFirst().orElse(null);
+                if (parent == null) {
+                    try {
+                        parent = menuMasterRepository.findByMenuId(Long.parseLong(parentCode)).orElse(null);
+                    } catch (NumberFormatException ignored) {
+                        // parentMenuCode isn't numeric — not a legacy ID-based row, nothing to fall back to
+                    }
+                }
+                parentCache.put(parentCode, parent);
+            }
+            if (parent != null && "Y".equals(parent.getStatus())) {
+                byId.putIfAbsent(parent.getMenuId(), parent);
+            }
+        }
+
+        // Global uniqueness guard: MENU_NAME is not unique for Master rows (Kal Admin, each
+        // Bank Admin, each Branch Admin all have their own "My Organization"/"Administration")
+        // — if TWO different physical Master rows sharing the same name ever both end up in
+        // byId (whether directly mapped in C_ROLE_MENU_MAP, e.g. via the backfill migration, or
+        // pulled in as an ancestor above), the Sidebar would render one section per row, each
+        // duplicating the same children. Collapse to one Master per name here, regardless of
+        // how the duplicate got in — this is the single place that guarantees it everywhere.
+        Map<String, Long> firstMasterIdByName = new LinkedHashMap<>();
+        for (ReconMenuMaster m : byId.values()) {
+            if (!"Master".equals(m.getMenuType())) continue;
+            firstMasterIdByName.putIfAbsent(m.getMenuName(), m.getMenuId());
+        }
+        byId.values().removeIf(m -> "Master".equals(m.getMenuType())
+                && !m.getMenuId().equals(firstMasterIdByName.get(m.getMenuName())));
+
+        // Sort into the same sequential order the Admin sees. Master-to-Master order is fixed
+        // by name (Dashboard, then My Organization, then Administration, anything else last) —
+        // NOT by MENU_ID, since the ancestor-Master lookup above can resolve "My Organization"/
+        // "Administration" to whichever same-named row it happens to find first across several
+        // bootstrap trees, so their relative MENU_ID order isn't reliable. Within each Master's
+        // group, items still sort by MENU_ID (a twin's own ID reflects when it was
+        // privilege-assigned, not its canonical position, so TWIN_OF_MENU_ID is used instead).
+        List<ReconMenuMaster> ordered = new ArrayList<>(byId.values());
+        ordered.sort(Comparator
+                .comparing((ReconMenuMaster m) -> MASTER_GROUP_ORDER.getOrDefault(
+                        "Master".equals(m.getMenuType()) ? m.getMenuName() : m.getParentMenuCode(), 99))
+                .thenComparing(m -> m.getTwinOfMenuId() != null ? m.getTwinOfMenuId() : m.getMenuId()));
+
+        for (ReconMenuMaster menu : ordered) {
+            ReconFileDetailsMaster fileData = fileDetailsMasterRepository.findByReconFileId(menu.getMenuProcessId());
+            menuList.add(ReconMenuMasterMapper.mapToMenuDtoWithFilePath(new ReconMenuMasterDto(), menu, fileData));
+        }
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menu found successfully", menuList), HttpStatus.OK);
+    }
+
+    @Override
     public ResponseEntity<RestWithStatusList> submitForApproval(Long menuId, String submittedBy) {
         Optional<ReconMenuMaster> opt = menuMasterRepository.findByMenuId(menuId);
         if (!opt.isPresent()) {
@@ -268,6 +375,43 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     }
 
     @Override
+    public ResponseEntity<RestWithStatusList> getPendingMenusForChecker(String checkerUsername) {
+        Optional<ReconUser> checkerOpt = reconUserRepository.findByUsername(checkerUsername);
+        if (!checkerOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Checker not found: " + checkerUsername, null), HttpStatus.NOT_FOUND);
+        }
+        ReconUser checker = checkerOpt.get();
+        List<ReconMenuMaster> visible = menuMasterRepository.findAll().stream()
+                .filter(m -> "PENDING".equals(m.getStatus()))
+                .filter(m -> isVisibleToChecker(checker, m.getCreatedBy(), m.getRoleId()))
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Pending menus fetched.", visible), HttpStatus.OK);
+    }
+
+    // Same scoping rule as ReconRoleMasterServiceImpl.isVisibleToChecker/getPendingRolesForChecker
+    // — duplicated here rather than shared, since the two services live in different packages
+    // (service vs service.v2) and this is a handful of lines, not worth a shared utility class for.
+    private boolean isVisibleToChecker(ReconUser checker, String submitterUsername, Long itemRoleId) {
+        if ("KAL_ADMIN".equals(checker.getUserType())) return true;
+
+        Optional<ReconUser> submitterOpt = reconUserRepository.findByUsername(submitterUsername);
+        if (!submitterOpt.isPresent() || !Objects.equals(submitterOpt.get().getBankId(), checker.getBankId())) {
+            return false;
+        }
+
+        if (UserConstants.isAdminUserType(checker.getUserType())) return true;
+
+        Set<Long> checkerScope = resolveProductScope(checker.getRoleId());
+        Set<Long> itemScope = resolveProductScope(itemRoleId);
+        return checkerScope.isEmpty() || itemScope.isEmpty() || !Collections.disjoint(checkerScope, itemScope);
+    }
+
+    private Set<Long> resolveProductScope(Long roleId) {
+        if (roleId == null) return Collections.emptySet();
+        return new HashSet<>(roleProductMapRepository.findProductIdsByRoleId(roleId));
+    }
+
+    @Override
     public ResponseEntity<RestWithStatusList> getMenusByBankId(Long bankId) {
         List<ReconUser> bankUsers = reconUserRepository.findByBankId(bankId);
 
@@ -289,7 +433,14 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         roleIdsFromCreator.forEach(id -> { if (!allRoleIds.contains(id)) allRoleIds.add(id); });
 
         List<ReconMenuMaster> menus = allRoleIds.isEmpty() ? new ArrayList<>() : menuMasterRepository.findByRoleIdIn(allRoleIds);
-        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menus fetched for bank.", new ArrayList<>(menus)), HttpStatus.OK);
+        // /user-portal twins (see ReconRoleMasterServiceImpl.getOrCreateUserTwinMenu) are an
+        // internal implementation detail resolved automatically at privilege-save time — never
+        // something an Admin selects or manages directly, so hide them from this listing (used
+        // by both the Menu Access Tree and Menu List) to avoid duplicate-looking rows.
+        List<ReconMenuMaster> visible = menus.stream()
+                .filter(m -> !"Y".equals(m.getIsPortalTwin()))
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menus fetched for bank.", new ArrayList<>(visible)), HttpStatus.OK);
     }
 
     @Override

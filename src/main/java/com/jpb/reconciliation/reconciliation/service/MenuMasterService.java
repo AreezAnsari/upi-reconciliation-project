@@ -35,9 +35,19 @@ public interface MenuMasterService {
 
     ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId);
 
+    /** Menus this role can actually SEE (Sidebar navigation) — driven by C_ROLE_MENU_MAP
+     *  (the same table PrivilegesAssign.jsx writes to), not RECON_MENU_MASTER.ROLE_ID
+     *  directly. A menu existing in the catalog (Menu List) doesn't mean any role can see
+     *  it in their Sidebar until it's explicitly attached here via Privileges. */
+    ResponseEntity<RestWithStatusList> getMenusByRolePrivileges(Long roleId);
+
     Long getVerifiedRoleId(String username);
 
     ResponseEntity<RestWithStatusList> submitForApproval(Long menuId, String submittedBy);
 
     ResponseEntity<RestWithStatusList> approveMenu(Long menuId, String approvedBy);
+
+    /** PENDING menus visible to this Checker — same bank/branch-only + product-scope
+     *  overlap rule as ReconRoleMasterService.getPendingRolesForChecker. */
+    ResponseEntity<RestWithStatusList> getPendingMenusForChecker(String checkerUsername);
 }

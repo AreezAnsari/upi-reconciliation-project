@@ -139,4 +139,9 @@ public class ReconRoleMasterController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return reconRoleMasterService.saveRoleBankTypeScope(roleId, body.get("bankTypeScope"), userDetails.getUsername());
     }
+
+    @GetMapping("/checker-queue")
+    public ResponseEntity<RestWithStatusList> getPendingRolesForChecker(@AuthenticationPrincipal UserDetails userDetails) {
+        return reconRoleMasterService.getPendingRolesForChecker(userDetails.getUsername());
+    }
 }

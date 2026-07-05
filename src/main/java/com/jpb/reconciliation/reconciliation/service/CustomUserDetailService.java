@@ -41,7 +41,7 @@ public class CustomUserDetailService implements UserDetailsService {
         if (byUsername.isPresent()) {
             ReconUser user = byUsername.get();
             logger.debug("loadUserByUsername — ReconUser found by username: {}", username);
-            return buildUserDetails(user);
+            return buildUserDetails(healLegacyUserType(user));
         }
 
         // ── Step 2: ReconUser — by email (some tokens store email as subject) ──
@@ -50,13 +50,27 @@ public class CustomUserDetailService implements UserDetailsService {
             if (byEmail.isPresent()) {
                 ReconUser user = byEmail.get();
                 logger.debug("loadUserByUsername — ReconUser found by email: {}", username);
-                return buildUserDetails(user);
+                return buildUserDetails(healLegacyUserType(user));
             }
         } catch (Exception ignored) {
             // safe to ignore if email lookup fails
         }
 
         throw new UsernameNotFoundException("User not found: " + username);
+    }
+
+    // "Super User" was renamed to "Bank Admin" everywhere in the app, but accounts created
+    // before that rename still carry the literal old USER_TYPE value in the DB — every check
+    // in the codebase now only recognizes "BANK_ADMIN", so those accounts silently stopped
+    // being treated as Admin (e.g. their own user-creations wrongly went to Checker Queue).
+    // Self-heals here, on every authenticated request, instead of a one-off manual UPDATE.
+    private ReconUser healLegacyUserType(ReconUser user) {
+        if ("SUPER_USER".equalsIgnoreCase(user.getUserType())) {
+            user.setUserType("BANK_ADMIN");
+            reconUserRepository.save(user);
+            logger.info("Auto-migrated legacy USER_TYPE 'SUPER_USER' -> 'BANK_ADMIN' for username: {}", user.getUsername());
+        }
+        return user;
     }
 
     public UserDetails loadUserByUserEmail(String email) throws UsernameNotFoundException {

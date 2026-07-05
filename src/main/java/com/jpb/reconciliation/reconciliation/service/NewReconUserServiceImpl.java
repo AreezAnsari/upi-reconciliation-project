@@ -9,6 +9,7 @@ import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconPasswordManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleMasterRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleProductMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 import org.slf4j.Logger;
@@ -24,8 +25,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class NewReconUserServiceImpl implements NewReconUserService {
@@ -44,6 +49,9 @@ public class NewReconUserServiceImpl implements NewReconUserService {
 
     @Autowired
     private ReconRoleMasterRepository reconRoleMasterRepository;
+
+    @Autowired
+    private ReconRoleProductMapRepository roleProductMapRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -508,6 +516,44 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         reconUserRepository.save(existing);
         logger.info("ReconUser {} schedule cancelled for userId={} by {}", scheduleType, userId, updatedBy);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", scheduleType + " schedule cancelled.", null));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getPendingUsersForChecker(String checkerUsername) {
+        Optional<ReconUser> checkerOpt = reconUserRepository.findByUsername(checkerUsername);
+        if (!checkerOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "Checker not found: " + checkerUsername, null));
+        }
+        ReconUser checker = checkerOpt.get();
+        List<ReconUser> pending = reconUserRepository.findByStatus("PENDING_APPROVAL");
+        List<ReconUser> visible = pending.stream()
+                .filter(u -> isVisibleToChecker(checker, u.getCreatedBy(), u.getRoleId()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Pending users fetched.", visible));
+    }
+
+    // Same scoping rule as ReconRoleMasterServiceImpl.isVisibleToChecker/getPendingRolesForChecker
+    // — duplicated here rather than shared, since the two services live in different packages
+    // (service vs service.v2) and this is a handful of lines, not worth a shared utility class for.
+    private boolean isVisibleToChecker(ReconUser checker, String submitterUsername, Long itemRoleId) {
+        if ("KAL_ADMIN".equals(checker.getUserType())) return true;
+
+        Optional<ReconUser> submitterOpt = reconUserRepository.findByUsername(submitterUsername);
+        if (!submitterOpt.isPresent() || !Objects.equals(submitterOpt.get().getBankId(), checker.getBankId())) {
+            return false;
+        }
+
+        if (UserConstants.isAdminUserType(checker.getUserType())) return true;
+
+        Set<Long> checkerScope = resolveProductScope(checker.getRoleId());
+        Set<Long> itemScope = resolveProductScope(itemRoleId);
+        return checkerScope.isEmpty() || itemScope.isEmpty() || !Collections.disjoint(checkerScope, itemScope);
+    }
+
+    private Set<Long> resolveProductScope(Long roleId) {
+        if (roleId == null) return Collections.emptySet();
+        return new HashSet<>(roleProductMapRepository.findProductIdsByRoleId(roleId));
     }
 }
 

@@ -82,6 +82,12 @@ public class NewReconUserController {
         return newReconUserService.getUsersByType(userType);
     }
 
+    @Operation(summary = "Pending users visible to this Checker (bank/branch + product scope)")
+    @GetMapping(value = "/checker-queue", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getPendingUsersForChecker(Authentication authentication) {
+        return newReconUserService.getPendingUsersForChecker(resolveUser(authentication));
+    }
+
     @Operation(summary = "Update user details")
     @PutMapping(value = "/update/{userId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> updateUser(

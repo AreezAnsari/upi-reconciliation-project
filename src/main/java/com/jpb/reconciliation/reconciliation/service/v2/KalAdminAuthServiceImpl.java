@@ -5,10 +5,12 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditLog;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconPasswordManager;
+import com.jpb.reconciliation.reconciliation.entity.v2.CRoleMenuMap;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.AuditLogRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.CRoleMenuMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconPasswordManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
@@ -47,6 +49,9 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
 
     @Autowired
     private MenuMasterRepository menuMasterRepository;
+
+    @Autowired
+    private CRoleMenuMapRepository roleMenuMapRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -187,8 +192,7 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
                 new String[]{"Bank Branches",     "/admin/my-organization/bank-branches"},
                 new String[]{"Bank Onboarding",   "/admin/bank-onboarding"},
                 new String[]{"My Hierarchy",      "/admin/my-organization/hierarchy"},
-                new String[]{"Admin Status",      "/admin/my-organization/admin-status"},
-                new String[]{"User Status",       "/admin/my-organization/user-status"}
+                new String[]{"Admin Status",      "/admin/my-organization/admin-status"}
             )) {
                 saveMenu(myOrgId, "Main", item[0], item[1], roleId, createdBy);
             }
@@ -212,6 +216,21 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());
-        return menuMasterRepository.save(m);
+        ReconMenuMaster saved = menuMasterRepository.save(m);
+
+        // Also attach via C_ROLE_MENU_MAP — the Sidebar reads privileges from there (not
+        // RECON_MENU_MASTER.ROLE_ID directly), mirroring ReconBankMasterServiceImpl.saveMenu().
+        // This copy never wrote to C_ROLE_MENU_MAP at all, so KalAdmin's sidebar had no
+        // privilege rows created for it on admin creation.
+        ReconRoleMaster roleRef = reconRoleMasterRepository.findById(roleId).orElse(null);
+        CRoleMenuMap map = new CRoleMenuMap();
+        map.setId(new CRoleMenuMap.RoleMenuMapId(roleId, saved.getMenuId()));
+        map.setRole(roleRef);
+        map.setMenu(saved);
+        map.setCreatedAt(LocalDateTime.now());
+        map.setCreatedBy(createdBy);
+        roleMenuMapRepository.save(map);
+
+        return saved;
     }
 }

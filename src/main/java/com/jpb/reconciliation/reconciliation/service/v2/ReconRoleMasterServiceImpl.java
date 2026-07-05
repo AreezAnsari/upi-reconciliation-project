@@ -22,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -249,7 +251,15 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
     @Override
     public ResponseEntity<RestWithStatusList> getPrivileges(Long roleId) {
         List<Long> menuIds = roleMenuMapRepository.findMenuIdsByRoleId(roleId);
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Privileges fetched.", menuIds));
+        // The Menu Access Tree displays the ORIGINAL Admin-portal menu rows (twins are hidden
+        // from it — see getMenusByBankId). If this role's C_ROLE_MENU_MAP points at a twin
+        // (its own MENU_ID differs from the original's), translate it back to the original's
+        // ID here, otherwise its checkbox would never show as checked even though the
+        // privilege genuinely exists.
+        List<Long> displayIds = menuMasterRepository.findAllById(menuIds).stream()
+                .map(m -> "Y".equals(m.getIsPortalTwin()) && m.getTwinOfMenuId() != null ? m.getTwinOfMenuId() : m.getMenuId())
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Privileges fetched.", displayIds));
     }
 
     @Override
@@ -283,17 +293,36 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
         roleMenuMapRepository.deleteByRoleId(roleId);
 
+        // Custom roles (RECON_USER/BANK_USER/BRANCH_USER) sign in via the /user portal — but the
+        // Menu Access Tree also offers Bank/Branch Admin's own bootstrap "My Organization"/
+        // "Administration" items, whose URLs are hardcoded to the Admin's own portal
+        // (/bank-admin/*, /branch-admin/*, /admin/*). Those routes don't exist under /user, so
+        // for this role type we map a /user-URL "twin" of the menu instead — auto-created once,
+        // then reused — leaving the Admin's own original menu row completely untouched.
+        boolean isUserPortalRole = Arrays.asList("RECON_USER", "BANK_USER", "BRANCH_USER")
+                .contains(roleOpt.get().getRoleType());
+
         if (menuIds != null) {
             for (Long menuId : menuIds) {
                 Optional<ReconMenuMaster> menuOpt = menuMasterRepository.findById(menuId);
                 if (!menuOpt.isPresent()) continue;
+                ReconMenuMaster menu = menuOpt.get();
+
+                if (isUserPortalRole && "Main".equals(menu.getMenuType())) {
+                    ReconMenuMaster twin = getOrCreateUserTwinMenu(menu, roleId, updatedBy);
+                    if (twin != null) {
+                        menu = twin;
+                        menuId = twin.getMenuId();
+                    }
+                }
+
                 CRoleMenuMap map = new CRoleMenuMap();
                 // @EmbeddedId is never auto-instantiated by Hibernate on insert in this setup —
                 // leaving it null makes CompositeNestedGeneratedValueGenerator NPE while trying to
                 // reflectively populate id.menuId from the @MapsId association. Set it explicitly.
                 map.setId(new CRoleMenuMap.RoleMenuMapId(roleId, menuId));
                 map.setRole(roleOpt.get());
-                map.setMenu(menuOpt.get());
+                map.setMenu(menu);
                 map.setCreatedAt(LocalDateTime.now());
                 map.setCreatedBy(updatedBy);
                 roleMenuMapRepository.save(map);
@@ -320,6 +349,54 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Privileges saved.", null));
     }
 
+    // Finds (or creates, once) the /user-portal equivalent of an Admin-portal menu — same
+    // name/type/parent, URL rewritten to /user/... . Returns null if the menu's URL doesn't
+    // match a known Admin-portal prefix (nothing to rewrite; caller keeps the original).
+    private ReconMenuMaster getOrCreateUserTwinMenu(ReconMenuMaster original, Long forRoleId, String createdBy) {
+        String twinUrl = rewriteToUserUrl(original.getMenuUrl());
+        if (twinUrl == null) return null;
+
+        Optional<ReconMenuMaster> existing = menuMasterRepository.findByMenuNameAndMenuUrl(original.getMenuName(), twinUrl);
+        if (existing.isPresent()) {
+            ReconMenuMaster found = existing.get();
+            // Self-heal rows created before IS_PORTAL_TWIN/TWIN_OF_MENU_ID existed, so they stop
+            // showing up as duplicate entries and sort back into their canonical position.
+            boolean dirty = false;
+            if (!"Y".equals(found.getIsPortalTwin())) { found.setIsPortalTwin("Y"); dirty = true; }
+            if (found.getTwinOfMenuId() == null) { found.setTwinOfMenuId(original.getMenuId()); dirty = true; }
+            if (dirty) menuMasterRepository.save(found);
+            return found;
+        }
+
+        ReconMenuMaster twin = new ReconMenuMaster();
+        twin.setMenuType(original.getMenuType());
+        twin.setMenuName(original.getMenuName());
+        twin.setMenuDescription(original.getMenuDescription());
+        twin.setParentMenuCode(original.getParentMenuCode());
+        twin.setSubMenu("N");
+        twin.setMenuUrl(twinUrl);
+        twin.setStatus("Y");
+        twin.setRoleId(forRoleId);
+        twin.setIsPortalTwin("Y");
+        twin.setTwinOfMenuId(original.getMenuId());
+        twin.setCreatedBy(createdBy);
+        twin.setCreatedDate(new Date());
+        twin.setInsertDate(new Date());
+        return menuMasterRepository.save(twin);
+    }
+
+    private static final List<String> ADMIN_PORTAL_PREFIXES = Arrays.asList("/bank-admin", "/branch-admin", "/admin");
+
+    private String rewriteToUserUrl(String url) {
+        if (url == null || url.startsWith("/user")) return null; // nothing to twin
+        for (String prefix : ADMIN_PORTAL_PREFIXES) {
+            if (url.startsWith(prefix)) {
+                return "/user" + url.substring(prefix.length());
+            }
+        }
+        return null; // not a recognized Admin-portal URL — leave the original mapping as-is
+    }
+
     @Override
     public ResponseEntity<RestWithStatusList> getRolesByBankId(Long bankId) {
         List<ReconUser> bankUsers = reconUserRepository.findByBankId(bankId);
@@ -344,22 +421,71 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         byUser.forEach(r -> merged.put(r.getRoleId(), r));
         byCreator.forEach(r -> merged.put(r.getRoleId(), r));
 
-        // Bootstrap admin roles (KAL_ADMIN, BANK_ADMIN_<code>, BRANCH_ADMIN_<code>) are system-level
-        // and not something a Bank/Branch Admin manages from this screen — hide them from the list.
+        // Bootstrap admin roles (KalInfotech Admin, "Bank Admin - <code>", "Branch Admin - <code>")
+        // are system-level and not something a Bank/Branch Admin manages from this screen — hide
+        // them from the list.
         List<ReconRoleMaster> visible = merged.values().stream()
-                .filter(r -> !isSystemAdminRoleCode(r.getRoleCode()))
+                .filter(r -> !isSystemAdminRole(r))
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Roles fetched for bank.", visible));
     }
 
-    // KAL_ADMIN (exact) and BANK_ADMIN_<code>/BRANCH_ADMIN_<code> (bootstrap prefix from
-    // ReconBankMasterServiceImpl.createDefaultAdminMenus) are system roles, never user-created.
-    private boolean isSystemAdminRoleCode(String roleCode) {
-        if (roleCode == null) return false;
-        return roleCode.equals("KAL_ADMIN")
-                || roleCode.startsWith("BANK_ADMIN_")
-                || roleCode.startsWith("BRANCH_ADMIN_");
+    @Override
+    public ResponseEntity<RestWithStatusList> getPendingRolesForChecker(String checkerUsername) {
+        Optional<ReconUser> checkerOpt = reconUserRepository.findByUsername(checkerUsername);
+        if (!checkerOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "Checker not found: " + checkerUsername, null));
+        }
+        ReconUser checker = checkerOpt.get();
+        List<ReconRoleMaster> pending = reconRoleMasterRepository.findByStatus("PENDING");
+        List<ReconRoleMaster> visible = pending.stream()
+                .filter(r -> isVisibleToChecker(checker, r.getCreatedBy(), r.getRoleId()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Pending roles fetched.", visible));
+    }
+
+    // Shared scoping rule for the Checker Queue (Roles / Users / Menus all use this):
+    //   - KAL_ADMIN sees everything platform-wide.
+    //   - Everyone else only sees submissions from their OWN bank/branch (BANK_ID match) —
+    //     a Bank-level submission never reaches a Branch checker and vice versa, since a
+    //     branch has its own distinct BANK_ID row, never the parent bank's.
+    //   - A Bank/Branch Admin sees everything at their own level, unfiltered by product.
+    //   - A plain Checker additionally only sees items whose EFFECTIVE product scope
+    //     (itemRoleId's own C_ROLE_PRODUCT_MAP) overlaps their own — an unrestricted scope
+    //     on either side (no C_ROLE_PRODUCT_MAP rows) counts as visible to everyone.
+    private boolean isVisibleToChecker(ReconUser checker, String submitterUsername, Long itemRoleId) {
+        if ("KAL_ADMIN".equals(checker.getUserType())) return true;
+
+        Optional<ReconUser> submitterOpt = reconUserRepository.findByUsername(submitterUsername);
+        if (!submitterOpt.isPresent() || !Objects.equals(submitterOpt.get().getBankId(), checker.getBankId())) {
+            return false;
+        }
+
+        boolean isAdmin = com.jpb.reconciliation.reconciliation.constants.UserConstants.isAdminUserType(checker.getUserType());
+        if (isAdmin) return true;
+
+        Set<Long> checkerScope = resolveProductScope(checker.getRoleId());
+        Set<Long> itemScope = resolveProductScope(itemRoleId);
+        return checkerScope.isEmpty() || itemScope.isEmpty() || !Collections.disjoint(checkerScope, itemScope);
+    }
+
+    private Set<Long> resolveProductScope(Long roleId) {
+        if (roleId == null) return Collections.emptySet();
+        return new java.util.HashSet<>(roleProductMapRepository.findProductIdsByRoleId(roleId));
+    }
+
+    // ROLE_CODE is now a flat sequential number (same generator as Add Role) so it can no
+    // longer be used to spot bootstrap roles — matches by ROLE_NAME instead, which
+    // ReconBankMasterServiceImpl.createDefaultAdminMenus / KalAdminAuthServiceImpl always set
+    // to a fixed, recognizable pattern for these system-created roles.
+    private boolean isSystemAdminRole(ReconRoleMaster r) {
+        if (r == null || r.getRoleName() == null) return false;
+        String name = r.getRoleName();
+        return name.equals("KalInfotech Admin")
+                || name.startsWith("Bank Admin - ")
+                || name.startsWith("Branch Admin - ");
     }
 
     // Reuses the code the Add Role form already reserved (via /generate-code) and displayed to
@@ -376,30 +502,44 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
     @Override
     public ResponseEntity<RestWithStatusList> getRoleProducts(Long roleId) {
-        List<Long> productIds = roleProductMapRepository.findProductIdsByRoleId(roleId);
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role products fetched.", productIds));
+        try {
+            List<Long> productIds = roleProductMapRepository.findProductIdsByRoleId(roleId);
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role products fetched.", productIds));
+        } catch (Exception e) {
+            // Most likely cause: C_ROLE_PRODUCT_MAP table missing — migration_role_product_map.sql
+            // hasn't been run against this DB yet. Surface the real reason instead of a bare 500.
+            logger.error("Failed to fetch role products for roleId={}: {}", roleId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new RestWithStatusList("FAILURE", "Failed to fetch role products: " + e.getMessage(), null));
+        }
     }
 
     @Override
     @Transactional
     public ResponseEntity<RestWithStatusList> saveRoleProducts(Long roleId, List<Long> productIds, String updatedBy) {
-        if (!reconRoleMasterRepository.existsById(roleId)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new RestWithStatusList("FAILURE", "Role not found with ID: " + roleId, null));
-        }
-        roleProductMapRepository.deleteByRoleId(roleId);
-        if (productIds != null) {
-            for (Long productId : productIds) {
-                ReconRoleProductMap map = new ReconRoleProductMap();
-                map.setRoleId(roleId);
-                map.setProductId(productId);
-                map.setCreatedAt(LocalDateTime.now());
-                map.setCreatedBy(updatedBy);
-                roleProductMapRepository.save(map);
+        try {
+            if (!reconRoleMasterRepository.existsById(roleId)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new RestWithStatusList("FAILURE", "Role not found with ID: " + roleId, null));
             }
+            roleProductMapRepository.deleteByRoleId(roleId);
+            if (productIds != null) {
+                for (Long productId : productIds) {
+                    ReconRoleProductMap map = new ReconRoleProductMap();
+                    map.setRoleId(roleId);
+                    map.setProductId(productId);
+                    map.setCreatedAt(LocalDateTime.now());
+                    map.setCreatedBy(updatedBy);
+                    roleProductMapRepository.save(map);
+                }
+            }
+            logger.info("Products saved for roleId={}: {} product(s) by {}", roleId, productIds == null ? 0 : productIds.size(), updatedBy);
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Products saved.", null));
+        } catch (Exception e) {
+            logger.error("Failed to save role products for roleId={}: {}", roleId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new RestWithStatusList("FAILURE", "Failed to save role products: " + e.getMessage(), null));
         }
-        logger.info("Products saved for roleId={}: {} product(s) by {}", roleId, productIds == null ? 0 : productIds.size(), updatedBy);
-        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Products saved.", null));
     }
 
     @Override

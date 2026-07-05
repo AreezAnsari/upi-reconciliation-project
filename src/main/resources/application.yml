@@ -34,6 +34,11 @@ jasypt:
         leakDetectionThreshold: 600000
         validationTimeout: 5000
         connection-test-query: SELECT 1 FROM DUAL
+        # Every pooled connection starts with parallel DML disabled — without this, a session
+        # that reused a connection after ANY parallel-eligible DML on a table can throw
+        # ORA-12838 ("cannot read/modify an object after modifying it in parallel") on a later,
+        # completely unrelated query against that same table.
+        connection-init-sql: ALTER SESSION DISABLE PARALLEL DML
         dataSourceProperties:
           oracle:
             jdbc:
@@ -59,7 +64,7 @@ jasypt:
     database-platform: org.hibernate.dialect.Oracle12cDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
 
   servlet:
     multipart:
@@ -92,14 +97,14 @@ logging:
     org.springframework: INFO
     org.springframework.boot: INFO
     org.springdoc: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql: TRACE
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN
     org.hibernate: INFO
     org.hibernate.tool.schema.internal.ExceptionHandlerLoggedImpl: ERROR
-    com.zaxxer.hikari: DEBUG
+    com.zaxxer.hikari: WARN
     org.springframework.orm.jpa: INFO
     org.springframework.jdbc: INFO
-    org.springframework.transaction: DEBUG
+    org.springframework.transaction: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"
   file:

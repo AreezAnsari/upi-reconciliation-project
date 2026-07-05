@@ -73,6 +73,19 @@ public class MenuController {
         return menuMasterService.getMenuByRole(verifiedRoleId);
     }
 
+    @Operation(summary = "Get menus this role can actually see (Sidebar) — via C_ROLE_MENU_MAP, not RECON_MENU_MASTER.ROLE_ID directly")
+    @GetMapping(value = "/getMenuBy-RolePrivileges/{roleId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getMenusByRolePrivileges(@PathVariable Long roleId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long verifiedRoleId = menuMasterService.getVerifiedRoleId(userDetails.getUsername());
+        if (!roleId.equals(verifiedRoleId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new RestWithStatusList("UNAUTHORIZED_ACCESS",
+                            "Requested menu role does not match user's verified role.", null));
+        }
+        return menuMasterService.getMenusByRolePrivileges(verifiedRoleId);
+    }
+
     @Operation(summary = "Delete menu")
     @DeleteMapping(value = "/removemenu/{menuId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<ResponseDto> removeMenu(@PathVariable Long menuId) {
@@ -115,6 +128,12 @@ public class MenuController {
     public ResponseEntity<RestWithStatusList> approveMenu(@PathVariable Long menuId,
             @AuthenticationPrincipal UserDetails userDetails) {
         return menuMasterService.approveMenu(menuId, userDetails.getUsername());
+    }
+
+    @Operation(summary = "Pending menus visible to this Checker (bank/branch + product scope)")
+    @GetMapping(value = "/menu/checker-queue", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getPendingMenusForChecker(@AuthenticationPrincipal UserDetails userDetails) {
+        return menuMasterService.getPendingMenusForChecker(userDetails.getUsername());
     }
 
     @GetMapping(value = "/current-user", produces = CommonConstants.APPLICATION_JSON)

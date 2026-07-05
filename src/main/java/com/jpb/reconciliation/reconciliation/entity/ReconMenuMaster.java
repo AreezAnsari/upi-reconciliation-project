@@ -100,4 +100,17 @@ public class ReconMenuMaster {
 
     @Column(name = "APPROVED_BY")
     private String approvedBy;
+
+    // "Y" for a /user-portal twin auto-created by ReconRoleMasterServiceImpl.savePrivileges()
+    // (see getOrCreateUserTwinMenu) — an internal implementation detail, never something an
+    // Admin selects directly, so it's excluded from the Menu Access Tree / Menu List.
+    @Column(name = "IS_PORTAL_TWIN")
+    private String isPortalTwin;
+
+    // For a twin row only — the MENU_ID of the original Admin-portal menu it was cloned from.
+    // A twin's own MENU_ID reflects when it happened to be created (privilege-assignment time),
+    // not the original's canonical bootstrap position — this lets the Sidebar sort a twin back
+    // into that same canonical position instead of wherever it landed chronologically.
+    @Column(name = "TWIN_OF_MENU_ID")
+    private Long twinOfMenuId;
 }

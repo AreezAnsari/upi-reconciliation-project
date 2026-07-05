@@ -21,9 +21,10 @@ spring:
         connection-timeout: 60000
         minimumIdle: 5
         poolName: HikariCP
-        leakDetectionThreshold: 600000  
-        validationTimeout: 5000 
+        leakDetectionThreshold: 600000
+        validationTimeout: 5000
         connection-test-query: SELECT 1 FROM DUAL
+        connection-init-sql: ALTER SESSION DISABLE PARALLEL DML
         dataSourceProperties:
           oracle:
             jdbc:

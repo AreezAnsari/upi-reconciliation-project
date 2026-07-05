@@ -57,4 +57,9 @@ public interface ReconRoleMasterService {
 
     /** Sets which Bank Type(s) (Issuer/Acquirer, comma-separated) this role is scoped to. */
     ResponseEntity<RestWithStatusList> saveRoleBankTypeScope(Long roleId, String bankTypeScope, String updatedBy);
+
+    /** PENDING roles visible to this Checker — scoped to their own bank/branch (never a
+     *  different one), and for a plain Checker (not an Admin) further scoped to only roles
+     *  whose own product restriction overlaps their own. KAL_ADMIN sees everything. */
+    ResponseEntity<RestWithStatusList> getPendingRolesForChecker(String checkerUsername);
 }

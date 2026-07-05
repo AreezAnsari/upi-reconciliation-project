@@ -5,6 +5,7 @@ import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconProductMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditLog;
 import com.jpb.reconciliation.reconciliation.entity.v2.CBankProductMap;
+import com.jpb.reconciliation.reconciliation.entity.v2.CRoleMenuMap;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconPasswordManager;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster;
@@ -12,6 +13,7 @@ import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.AuditLogRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.CBankProductMapRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.CRoleMenuMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconPasswordManagerRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconProductMasterRepository;
@@ -61,6 +63,8 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Autowired private ReconBankMasterRepository reconBankMasterRepository;
     @Autowired private ReconRoleMasterRepository reconRoleMasterRepository;
     @Autowired private MenuMasterRepository menuMasterRepository;
+    @Autowired private CRoleMenuMapRepository roleMenuMapRepository;
+    @Autowired private RoleCodeGeneratorService roleCodeGeneratorService;
     @Autowired private ReconUserRepository reconUserRepository;
     @Autowired private ReconPasswordManagerRepository reconPasswordManagerRepository;
     @Autowired private AuditLogRepository auditLogRepository;
@@ -143,7 +147,6 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         // ── Determine branch vs bank ─────────────────────────────────────────
         boolean isBranch     = bank.getParentBankId() != null;
         String adminUserType = isBranch ? "BRANCH_ADMIN" : "BANK_ADMIN";
-        String roleName      = isBranch ? "BRANCH_ADMIN_" : "BANK_ADMIN_";
         bank.setBankLevel(isBranch ? "BRANCH" : "BANK");
 
         // ── Resolve / generate BANK_CODE ─────────────────────────────────────
@@ -179,8 +182,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         ReconBankMaster savedPrimaryBank = reconBankMasterRepository.save(bank);
         saveProductMappings(savedPrimaryBank.getBankId(), bank, createdBy);
 
-        String roleCode = roleName + generatedCode;
-        createDefaultAdminMenus(generatedCode, roleCode, isBranch, createdBy);
+        Long adminRoleId = createDefaultAdminMenus(generatedCode, isBranch, createdBy);
 
         saveAuditLog("RECON_BANK_MASTER", savedPrimaryBank.getBankId(), "CREATE", null, null,
                 createdBy, adminUserType, savedPrimaryBank.getBankId(),
@@ -217,8 +219,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                         defaultPwd, "REQUEST", createdBy);
                 primaryUser.setParentUserId(kalAdminUserId);
 
-                Optional<ReconRoleMaster> roleOpt = reconRoleMasterRepository.findByRoleCode(roleCode);
-                roleOpt.ifPresent(r -> primaryUser.setRoleId(r.getRoleId()));
+                primaryUser.setRoleId(adminRoleId);
 
                 ReconUser savedPrimaryUser = reconUserRepository.saveAndFlush(primaryUser);
                 savePasswordHistory(savedPrimaryUser, createdBy);
@@ -251,7 +252,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                             bank.getSecondaryMobileNumber(), secUsername, adminUserType, "SECONDARY",
                             secDefaultPwd, "INACTIVE", createdBy);
                     secondaryUser.setParentUserId(kalAdminUserId);
-                    roleOpt.ifPresent(r -> secondaryUser.setRoleId(r.getRoleId()));
+                    secondaryUser.setRoleId(adminRoleId);
 
                     ReconUser savedSecondaryUser = reconUserRepository.saveAndFlush(secondaryUser);
                     savePasswordHistory(savedSecondaryUser, createdBy);
@@ -1620,17 +1621,20 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         return candidate;
     }
 
-    private void createDefaultAdminMenus(String bankCode, String roleCode, boolean isBranch, String createdBy) {
+    private Long createDefaultAdminMenus(String bankCode, boolean isBranch, String createdBy) {
         try {
 
-            // Role already exists? Skip
-            Optional<ReconRoleMaster> existingRole = reconRoleMasterRepository.findByRoleCode(roleCode);
-            if (existingRole.isPresent()) return;
+            // Role already exists? Skip — bankCode is unique, so the display name doubles
+            // as the uniqueness key now that ROLE_CODE is a flat 4-digit sequence (same
+            // generator as Add Role) rather than a bankCode-derived string.
+            String roleDisplayName = (isBranch ? "Branch Admin - " : "Bank Admin - ") + bankCode;
+            Optional<ReconRoleMaster> existingRole = reconRoleMasterRepository.findByRoleName(roleDisplayName);
+            if (existingRole.isPresent()) return existingRole.get().getRoleId();
 
             // Create role for this bank's admin
             ReconRoleMaster role = new ReconRoleMaster();
-            role.setRoleCode(roleCode);
-            role.setRoleName((isBranch ? "Branch Admin - " : "Bank Admin - ") + bankCode);
+            role.setRoleCode(roleCodeGeneratorService.generateNextCode(roleDisplayName));
+            role.setRoleName(roleDisplayName);
             role.setRoleType("EXTERNAL");
             role.setRoleDesc("Default " + (isBranch ? "Branch" : "Bank") + " Admin role for " + bankCode);
             role.setStatus("ACTIVE");
@@ -1690,8 +1694,10 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             }
 
             logger.info("Default {} menus created for: {}", isBranch ? "Branch Admin" : "Bank Admin", bankCode);
+            return roleId;
         } catch (Exception e) {
             logger.error("Failed to create default menus for bank {}: {}", bankCode, e.getMessage());
+            return null;
         }
     }
 
@@ -1708,7 +1714,24 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());
-        return menuMasterRepository.save(m);
+        ReconMenuMaster saved = menuMasterRepository.save(m);
+
+        // Also attach via C_ROLE_MENU_MAP — the Sidebar reads privileges from there (not
+        // RECON_MENU_MASTER.ROLE_ID directly) so this bootstrap menu actually shows up.
+        // Both setId(...) AND setRole()/setMenu() must be set — ROLE_ID/MENU_ID are shared
+        // columns between the @EmbeddedId and the @MapsId associations, and leaving the
+        // associations null caused the insert to fail silently (see ReconRoleMasterServiceImpl
+        // .savePrivileges() for the same pattern).
+        ReconRoleMaster roleRef = reconRoleMasterRepository.findById(roleId).orElse(null);
+        CRoleMenuMap map = new CRoleMenuMap();
+        map.setId(new CRoleMenuMap.RoleMenuMapId(roleId, saved.getMenuId()));
+        map.setRole(roleRef);
+        map.setMenu(saved);
+        map.setCreatedAt(LocalDateTime.now());
+        map.setCreatedBy(createdBy);
+        roleMenuMapRepository.save(map);
+
+        return saved;
     }
 }
 

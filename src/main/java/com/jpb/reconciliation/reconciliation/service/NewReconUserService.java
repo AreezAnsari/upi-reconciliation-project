@@ -50,4 +50,8 @@ public interface NewReconUserService {
     ResponseEntity<RestWithStatusList> scheduleBlock(Long userId, LocalDateTime scheduledAt, String scheduledBy, String reason);
 
     ResponseEntity<RestWithStatusList> cancelSchedule(Long userId, String scheduleType, String updatedBy);
+
+    /** PENDING_APPROVAL users visible to this Checker — same bank/branch-only + product-scope
+     *  overlap rule as ReconRoleMasterService.getPendingRolesForChecker. */
+    ResponseEntity<RestWithStatusList> getPendingUsersForChecker(String checkerUsername);
 }
