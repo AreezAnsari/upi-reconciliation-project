@@ -448,6 +448,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     .body(ResponseBuilder.error("Failed to process uploaded CSV file."));
         }
     }
+    // =========================================================================
+    // PARSE CSV FILE
+    // =========================================================================
     private List<ReconFieldConfigurationDto> parseCsv(MultipartFile file) throws IOException {
 
         List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
@@ -487,6 +490,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
         return fieldConfigurations;
     }
+    // =========================================================================
+    // BUILD FIELD CONFIGURATION
+    // =========================================================================
     private ReconFieldConfigurationDto buildFieldConfiguration(
             String header,
             Integer sequence,
@@ -551,6 +557,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
         return maxScale == 0 ? null : maxScale;
     }
+    // =========================================================================
+    // DETECT FIELD TYPE
+    // =========================================================================
     private String detectFieldType(List<String> values) {
 
         // Filter out null and empty values first
@@ -612,6 +621,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
         return "String";
     }
+    // =========================================================================
+    // DETECT FIELD FORMAT
+    // =========================================================================
     private String detectFieldFormat(List<String> values) {
 
         String fieldType = detectFieldType(values);
