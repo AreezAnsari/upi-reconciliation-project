@@ -10,10 +10,10 @@ spring:
 #      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
       url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/OracleDatabase/Wallet_RECONDB1
       driver-class-name: oracle.jdbc.OracleDriver
-      username: kal_recon
-#      username: jpb_recon
-      password: Finrecon1234567
-#      password: Jpbrecon2026
+#      username: kal_recon
+      username: jpb_recon
+#      password: Finrecon1234567
+      password: Jpbrecon2026
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000

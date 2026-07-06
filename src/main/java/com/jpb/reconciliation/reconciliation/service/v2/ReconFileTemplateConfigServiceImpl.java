@@ -408,6 +408,8 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     ResponseBuilder.error("Error fetching template: " + e.getMessage()));
         }
     }
+    
+    
     @Override
     public ResponseEntity<RestWithMapStatusList> autoDetectFields(MultipartFile file) {
 
@@ -430,7 +432,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             List<ReconFieldConfigurationDto> fieldConfigurations = parseCsv(file);
 
             List<Map<String, Object>> rows =
-                    ResponseBuilder.toMapList(fieldConfigurations, new ObjectMapper());
+            		ResponseBuilder.toMapList(fieldConfigurations, objectMapper);
 
             return ResponseEntity.ok(
                     ResponseBuilder.ok(
@@ -469,10 +471,8 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                 List<String> columnValues = new ArrayList<>();
 
                 for (CSVRecord record : records) {
-
                     String value = record.get(header);
-
-                    if (value != null) {
+                    if (value != null && !value.trim().isEmpty()) {
                         columnValues.add(value.trim());
                     }
                 }
@@ -497,7 +497,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         dto.setFieldName(header.trim());
         dto.setFieldSequence(sequence);
 
-        dto.setFieldtype(detectFieldType(values));
+        dto.setFieldType(detectFieldType(values));
         dto.setFieldFormat(detectFieldFormat(values));
         dto.setFieldLength(detectFieldLength(values));
         dto.setFieldScale(detectFieldScale(values));
@@ -553,64 +553,62 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
     }
     private String detectFieldType(List<String> values) {
 
-        boolean isNumber = true;
+        // Filter out null and empty values first
+        List<String> nonEmpty = new ArrayList<>();
+        for (String v : values) {
+            if (v != null && !v.trim().isEmpty()) {
+                nonEmpty.add(v.trim());
+            }
+        }
+
+        // If all values are empty — default to String
+        if (nonEmpty.isEmpty()) {
+            return "String";
+        }
+
+        boolean isNumber  = true;
         boolean isDecimal = true;
         boolean isBoolean = true;
-        boolean isDate = true;
+        boolean isDate    = true;
 
-        for (String value : values) {
+        for (String value : nonEmpty) {
 
-            if (value == null || value.trim().isEmpty()) {
-                continue;
-            }
-
-            value = value.trim();
-
-            // Number
+            // Number — only digits, no decimal point
             if (!value.matches("\\d+")) {
                 isNumber = false;
             }
 
-            // Decimal
+            // Decimal — digits with optional decimal point
             if (!value.matches("\\d+(\\.\\d+)?")) {
                 isDecimal = false;
             }
 
-            // Boolean
+            // Boolean — true/false/yes/no/1/0
             if (!(value.equalsIgnoreCase("true")
                     || value.equalsIgnoreCase("false")
                     || value.equalsIgnoreCase("yes")
                     || value.equalsIgnoreCase("no")
                     || value.equals("1")
                     || value.equals("0"))) {
-
                 isBoolean = false;
             }
 
-            // Date
+            // Date — dd-MM-yyyy / dd/MM/yyyy / yyyy-MM-dd
             if (!(value.matches("\\d{2}-\\d{2}-\\d{4}")
                     || value.matches("\\d{2}/\\d{2}/\\d{4}")
                     || value.matches("\\d{4}-\\d{2}-\\d{2}"))) {
-
                 isDate = false;
             }
         }
 
-        if (isBoolean) {
-            return "Boolean";
-        }
-
-        if (isDate) {
-            return "Date";
-        }
-
-        if (isNumber) {
-            return "Number";
-        }
-
-        if (isDecimal) {
-            return "Decimal";
-        }
+        // Priority order matters:
+        // Boolean before Number (1/0 matches both)
+        // Date before String
+        // Number before Decimal (123 matches both)
+        if (isBoolean) return "Boolean";
+        if (isDate)    return "Date";
+        if (isNumber)  return "Number";
+        if (isDecimal) return "Decimal";
 
         return "String";
     }
@@ -1083,13 +1081,13 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         for (ReconFieldConfigurationDto dto : dtos) {
             // fieldType  → always uppercase (DB stores STRING, DATE, NUMBER, DECIMAL, BOOLEAN)
             // fieldFormat → keep as-is  (DB stores mixed-case: "dd-MM-yyyy", "yyyy-MM-dd" etc.)
-            String fieldTypeInput   = null != dto.getFieldtype() ? dto.getFieldtype().trim().toUpperCase() : null;
+            String fieldTypeInput   = null != dto.getFieldType() ? dto.getFieldType().trim().toUpperCase() : null;
             String fieldFormatInput = null != dto.getFieldFormat() ? dto.getFieldFormat().trim()             : null;
 
             ReconFieldTypeMast type = fieldTypeRepository
                     .findByFieldTypeDes(fieldTypeInput)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Invalid Field Type: " + dto.getFieldtype()
+                            "Invalid Field Type: " + dto.getFieldType()
                             + ". Valid values: STRING, NUMBER, DATE, DECIMAL, BOOLEAN"));
             ReconFieldFormatMast format = fieldFormatRepository
                     .findByReconFieldFormatDesc(fieldFormatInput)

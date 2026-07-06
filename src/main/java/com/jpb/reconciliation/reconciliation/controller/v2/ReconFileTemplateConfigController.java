@@ -117,11 +117,17 @@ public class ReconFileTemplateConfigController {
             @PathVariable Long templateId) {
         return templateConfigService.deleteTemplate(templateId);
     }
-    @PostMapping(value = "/auto-detect-fields", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    
+    
+    @PostMapping(
+    	    value = "/auto-detect-fields",
+    	    consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+    	    produces = CommonConstants.APPLICATION_JSON
+    	)
     @Operation(summary = "Read uploaded CSV file and auto detect field configuration")
     public ResponseEntity<RestWithMapStatusList> autoDetectFields(
-            @RequestParam("file") MultipartFile file) {
-
+    	    @RequestParam("file") MultipartFile file,
+    	    @AuthenticationPrincipal UserDetails userDetails) {
         return templateConfigService.autoDetectFields(file);
     }
 }
