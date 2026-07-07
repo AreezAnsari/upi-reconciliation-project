@@ -8,7 +8,7 @@ spring:
   datasource:
 #    primary:
 #      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/OracleDatabase/Wallet_RECONDB1
+      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=D:/Oracle_db/Wallet_RECONDB1
       driver-class-name: oracle.jdbc.OracleDriver
 #      username: kal_recon
       username: jpb_recon
@@ -21,19 +21,19 @@ spring:
         connection-timeout: 60000
         minimumIdle: 5
         poolName: HikariCP
-        leakDetectionThreshold: 600000  
-        validationTimeout: 5000 
+        leakDetectionThreshold: 600000
+        validationTimeout: 5000
         connection-test-query: SELECT 1 FROM DUAL
         dataSourceProperties:
           oracle:
             jdbc:
-              ReadTimeout: 900000 
+              ReadTimeout: 900000
 #      secondary:
-##      datasource: 
+##      datasource:
 #        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
 #        driver-class-name: oracle.jdbc.OracleDriver
 #        username: recon_sit
-#        password: 
+#        password:
 #        hikari:
 #          maximum-pool-size: 100
 #          max-lifetime: 1800000
@@ -44,9 +44,9 @@ spring:
 #        url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
 #        driver-class-name: oracle.jdbc.OracleDriver
 #        username: recon_sit
-#        password:    
+#        password:
   jpa:
-    database-platform: org.hibernate.dialect.Oracle12cDialect 
+    database-platform: org.hibernate.dialect.Oracle12cDialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -74,7 +74,7 @@ spring:
       max-history: 30
   servlet:
     multipart:
-      max-file-size: -1 #Max file upload limit set 
+      max-file-size: -1 #Max file upload limit set
       max-request-size: -1 #Max file upload limit request
   security:
     oauth2:
@@ -119,3 +119,118 @@ sqlldr:
   secondUrl: '@//localhost:1521/orcl.lan'
 
 
+
+#jasypt:
+#  encryptor:
+#    password: jpbrecon@123
+#
+#spring:
+#  application:
+#    name: "JPB J-Recon Platform"
+#  datasource:
+#    url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=D:/Oracle_db/Wallet_RECONDB1
+#    driver-class-name: oracle.jdbc.OracleDriver
+#    username: kal_recon
+#    password: Finrecon1234567
+#    hikari:
+#      maximum-pool-size: 100
+#      max-lifetime: 1800000
+#      idle-timeout: 300000
+#      connection-timeout: 60000
+#      minimumIdle: 5
+#      poolName: HikariCP
+#      leakDetectionThreshold: 600000
+#      validationTimeout: 5000
+#      connection-test-query: SELECT 1 FROM DUAL
+#      dataSourceProperties:
+#        oracle:
+#          jdbc:
+#            ReadTimeout: 900000
+#  jpa:
+#    database-platform: org.hibernate.dialect.Oracle12cDialect
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#  logging:
+#    console:
+#      enabled: false
+#    level:
+#      org.springframework: INFO
+#      org.springframework.boot: INFO
+#      org.springdoc: INFO
+#      org.hibernate.SQL: DEBUG
+#      org.hibernate.type.descriptor.sql: TRACE
+#      org.hibernate: INFO
+#      com.zaxxer.hikari: DEBUG
+#      org.springframework.orm.jpa: INFO
+#      org.springframework.jdbc: INFO
+#      org.springframework.transaction: DEBUG
+#      root: INFO
+#    pattern:
+#      console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+#    file:
+#      name: logs/springboot-app.log
+#      max-size: 10MB
+#      max-history: 30
+#  servlet:
+#    multipart:
+#      max-file-size: -1
+#      max-request-size: -1
+#  security:
+#    oauth2:
+#      client:
+#        registration:
+#          google:
+#            client-name: google
+#            client-id: 483747385924-ficq1hvsiuepo2u33csp9l2vs4r63ff5.apps.googleusercontent.com
+#            client-secret: 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
+#  mail:
+#    host: smtp.gmail.com
+#    port: 587
+#    username: raquib8shaikh@gmail.com
+#    password: jzkc gjrh gibg prbw
+#    properties:
+#      mail:
+#        smtp:
+#          auth: true
+#          starttls:
+#            enable: true
+#            required: true
+#          connectiontimeout: 5000
+#          timeout: 5000
+#          writetimeout: 5000
+#
+#oracle:
+#  jdbc:
+#    query-timeout-seconds: 900
+#
+#app:
+#  uDrive: 'C:/ReconFiles/Utility/'
+#  ttumFile: 'C:/ReconFiles/TTUMReport/'
+#  transactionFile: 'C:/ReconFiles/TransactionReport/'
+#  targetFilePath: 'C:/ReconFiles/DCRFILES_COMPLETED/'
+#  aepsDataFile: 'C:/ReconFiles/AEPSDataReport/'
+#  reconReport: 'C:/ReconFiles/ReconReport/'
+#  uploadFileDir: 'C:/ReconFiles/UploadFiles/'
+#  accountSplitPath: 'C:/ReconFiles/Account_split_files/'
+#  mail:
+#    from: areezansari9322@gmail.com
+#    from-name: ReconXpert.Ai
+#    otp-expiry-minutes: 5
+#    support-email: support@kalinfotech.com
+#    institution-verification-url: http://localhost:5173/verify-email
+#  frontend:
+#    url: http://localhost:5173
+#
+#server:
+#  port: 8081
+#
+#AUTH:
+#  CLIENT_ID: "117a286526a56107636793104f1eccdc"
+#  SECRET_CODE: "7f90b261964fa26698c86bd881bd22f4c0c004e1b89c74dc0cdf9ea1383b3cfc"
+#  TOKEN_API_URL: "http://10.147.77.13:9001/jpb/v1/app/authenticate"
+#  PUBLIC_KEY: 'C:\Akshay_Ramani\Jio_Bank_Projects\JIOBANK_RECON_APPLICATION\jpb-recon-system-application\src\main\resources\publickey\publicKey.key'
+#
+#sqlldr:
+#  url: '@//localhost:1521/orcl.lan'
+#  secondUrl: '@//localhost:1521/orcl.lan'

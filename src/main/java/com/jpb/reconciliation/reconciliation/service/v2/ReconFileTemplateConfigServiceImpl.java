@@ -13,7 +13,10 @@ import java.util.Optional;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,9 +67,15 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
+
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 @Service
 @Transactional(readOnly = true)
@@ -421,15 +430,58 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                         .body(ResponseBuilder.failure("Please upload a valid CSV file."));
             }
 
-            // Allow only CSV files
+            //// Validate supported file types
+            // Validate supported file types
             String fileName = file.getOriginalFilename();
-            if (fileName == null || !fileName.toLowerCase().endsWith(".csv")) {
+
+            if (fileName == null) {
                 return ResponseEntity.badRequest()
-                        .body(ResponseBuilder.failure("Only CSV files are allowed."));
+                        .body(ResponseBuilder.failure("Invalid file."));
+            }
+
+            fileName = fileName.toLowerCase();
+
+            if (!(fileName.endsWith(".csv")
+                    || fileName.endsWith(".xlsx")
+                    || fileName.endsWith(".xls")
+                    || fileName.endsWith(".xml")
+//                    || fileName.endsWith(".txt")
+//                    || fileName.endsWith(".dat")
+                    )) {
+
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure(
+                                "Unsupported file type. Allowed: CSV, Excel, XML, Fixed Width."));
             }
 
             // Parse CSV and build response
-            List<ReconFieldConfigurationDto> fieldConfigurations = parseCsv(file);
+            List<ReconFieldConfigurationDto> fieldConfigurations;
+
+            if (fileName.endsWith(".csv")) {
+
+                fieldConfigurations = parseCsv(file);
+
+            } else if (fileName.endsWith(".xlsx")
+                    || fileName.endsWith(".xls")) {
+
+                fieldConfigurations = parseExcel(file);
+
+            } else if (fileName.endsWith(".xml")) {
+
+                fieldConfigurations = parseXml(file);
+
+            }
+//              else if (fileName.endsWith(".txt")
+//                    || fileName.endsWith(".dat")) {
+//
+//                fieldConfigurations = parseFixedWidth(file);
+//          }
+               else {
+
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure(
+                                "Unsupported file type. Allowed: CSV, Excel, XML, Fixed Width."));
+            }
 
             List<Map<String, Object>> rows =
             		ResponseBuilder.toMapList(fieldConfigurations, objectMapper);
@@ -491,6 +543,165 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         return fieldConfigurations;
     }
     // =========================================================================
+    // PARSE EXCEL FILE
+    // =========================================================================
+    private List<ReconFieldConfigurationDto> parseExcel(MultipartFile file) throws IOException {
+
+        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
+                return fieldConfigurations;
+            }
+
+            Row headerRow = sheet.getRow(0);
+
+            int totalColumns = headerRow.getLastCellNum();
+
+            int sequence = 1;
+
+            for (int columnIndex = 0; columnIndex < totalColumns; columnIndex++) {
+
+                Cell headerCell = headerRow.getCell(columnIndex);
+
+                if (headerCell == null) {
+                    continue;
+                }
+
+                String header = headerCell.toString().trim();
+
+                List<String> columnValues = new ArrayList<>();
+
+                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+
+                    Row row = sheet.getRow(rowIndex);
+
+                    if (row == null) {
+                        continue;
+                    }
+
+                    Cell cell = row.getCell(columnIndex);
+
+                    columnValues.add(cell == null ? "" : cell.toString().trim());
+                }
+
+                fieldConfigurations.add(
+                        buildFieldConfiguration(
+                                header,
+                                sequence++,
+                                columnValues));
+            }
+        }
+
+        return fieldConfigurations;
+    }
+    // =========================================================================
+// PARSE XML FILE
+// =========================================================================
+    private List<ReconFieldConfigurationDto> parseXml(MultipartFile file) throws Exception {
+
+        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+
+        Document document = builder.parse(file.getInputStream());
+
+        document.getDocumentElement().normalize();
+
+        NodeList nodeList = document.getDocumentElement().getChildNodes();
+
+        Map<String, List<String>> fieldMap = new LinkedHashMap<>();
+
+        for (int i = 0; i < nodeList.getLength(); i++) {
+
+            Node node = nodeList.item(i);
+
+            if (node.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+
+            Element element = (Element) node;
+
+            NodeList childNodes = element.getChildNodes();
+
+            for (int j = 0; j < childNodes.getLength(); j++) {
+
+                Node child = childNodes.item(j);
+
+                if (child.getNodeType() != Node.ELEMENT_NODE) {
+                    continue;
+                }
+
+                String fieldName = child.getNodeName();
+                String value = child.getTextContent();
+
+                fieldMap.computeIfAbsent(fieldName, key -> new ArrayList<>())
+                        .add(value == null ? "" : value.trim());
+            }
+        }
+
+        int sequence = 1;
+
+        for (Map.Entry<String, List<String>> entry : fieldMap.entrySet()) {
+
+            fieldConfigurations.add(
+                    buildFieldConfiguration(
+                            entry.getKey(),
+                            sequence++,
+                            entry.getValue()));
+        }
+
+        return fieldConfigurations;
+    }
+    // =========================================================================
+    // PARSE FIXED WIDTH FILE
+    // =========================================================================
+//    private List<ReconFieldConfigurationDto> parseFixedWidth(MultipartFile file) throws IOException {
+//
+//        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+//
+//        try (BufferedReader reader = new BufferedReader(
+//                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+//
+//            List<String> lines = reader.lines().collect(Collectors.toList());
+//
+//            if (lines.isEmpty()) {
+//                return fieldConfigurations;
+//            }
+//
+//            // First line contains field names separated by '|'
+//            String[] headers = lines.get(0).split("\\|");
+//
+//            int sequence = 1;
+//
+//            for (int columnIndex = 0; columnIndex < headers.length; columnIndex++) {
+//
+//                List<String> columnValues = new ArrayList<>();
+//
+//                for (int rowIndex = 1; rowIndex < lines.size(); rowIndex++) {
+//
+//                    String[] values = lines.get(rowIndex).split("\\|", -1);
+//
+//                    if (columnIndex < values.length) {
+//                        columnValues.add(values[columnIndex].trim());
+//                    }
+//                }
+//
+//                fieldConfigurations.add(
+//                        buildFieldConfiguration(
+//                                headers[columnIndex].trim(),
+//                                sequence++,
+//                                columnValues));
+//            }
+//        }
+//
+//        return fieldConfigurations;
+//    }
+    // =========================================================================
     // BUILD FIELD CONFIGURATION
     // =========================================================================
     private ReconFieldConfigurationDto buildFieldConfiguration(
@@ -508,7 +719,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         dto.setFieldLength(detectFieldLength(values));
         dto.setFieldScale(detectFieldScale(values));
 
-        dto.setIsMandatory(isMandatory(values) ? "Y" : "N");
+        dto.setIsMandatory("N");
         dto.setIsPrimaryKey("N");
         dto.setIsReconKey("N");
         dto.setTrimFlag("Y");
@@ -527,17 +738,6 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         }
 
         return maxLength;
-    }
-    private boolean isMandatory(List<String> values) {
-
-        for (String value : values) {
-
-            if (value == null || value.trim().isEmpty()) {
-                return false;
-            }
-        }
-
-        return true;
     }
     private Integer detectFieldScale(List<String> values) {
 
