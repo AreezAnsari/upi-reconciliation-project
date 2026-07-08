@@ -592,15 +592,16 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                         buildFieldConfiguration(
                                 header,
                                 sequence++,
-                                columnValues));
+                                columnValues,
+                                columnIndex));
             }
         }
 
         return fieldConfigurations;
     }
     // =========================================================================
-// PARSE XML FILE
-// =========================================================================
+    // PARSE XML FILE
+    // =========================================================================
     private List<ReconFieldConfigurationDto> parseXml(MultipartFile file) throws Exception {
 
         List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
@@ -708,6 +709,14 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             String header,
             Integer sequence,
             List<String> values) {
+        return buildFieldConfiguration(header, sequence, values, null);
+    }
+
+    private ReconFieldConfigurationDto buildFieldConfiguration(
+            String header,
+            Integer sequence,
+            List<String> values,
+            Integer excelColIndex) {
 
         ReconFieldConfigurationDto dto = new ReconFieldConfigurationDto();
 
@@ -724,6 +733,8 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         dto.setIsReconKey("N");
         dto.setTrimFlag("Y");
 
+        dto.setExcelColIndex(excelColIndex);
+
         return dto;
     }
     private Integer detectFieldLength(List<String> values) {
@@ -737,7 +748,9 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             }
         }
 
-        return maxLength;
+        // Guard against zero-length columns (Oracle ORA-01723) when the sampled
+        // values are all null/blank — fall back to a safe generic default.
+        return maxLength == 0 ? 255 : maxLength;
     }
     private Integer detectFieldScale(List<String> values) {
 
@@ -857,13 +870,13 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                 return "##.##";
 
             case "Number":
-                return "NUMBER";
+                return "INTEGER";
 
             case "Boolean":
-                return "BOOLEAN";
+                return "TRUE/FALSE";
 
             default:
-                return "VARCHAR";
+                return "N/A";
         }
     }
     // =========================================================================

@@ -89,9 +89,11 @@ public class ReconFieldDetailsMapper {
         // Legacy: shortName = field label
         field.setShortName(dto.getFieldName());
 
-        // Legacy: max length
-        field.setFieldLength(null != dto.getFieldLength()
-                ? Long.valueOf(dto.getFieldLength()) : null);
+        // Legacy: max length — guard against 0/negative as well as null,
+        // since a 0-length column crashes SP_STAGE_TAB_CREATION (ORA-01723).
+        Integer rawLength = dto.getFieldLength();
+        field.setFieldLength(
+                (rawLength != null && rawLength > 0) ? Long.valueOf(rawLength) : 255L);
 
         // Field scale — decimal precision (e.g. 2 for ##.##)
         field.setFieldScale(dto.getFieldScale());
