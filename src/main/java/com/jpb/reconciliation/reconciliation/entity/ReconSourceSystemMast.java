@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.Set;
 import javax.persistence.*;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconFileTmpltMast;
 
 import lombok.*;
@@ -42,6 +43,7 @@ public class ReconSourceSystemMast {
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "sourceSystem", fetch = FetchType.LAZY)
+    @JsonIgnore
     private Set<ReconFileTmpltMast> templates;
 
 }
