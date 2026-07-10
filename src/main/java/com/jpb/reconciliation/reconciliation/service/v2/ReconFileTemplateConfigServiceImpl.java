@@ -565,8 +565,8 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             }
 
             int totalColumns = headerRow.getLastCellNum();
-
             int sequence = 1;
+            DataFormatter formatter = new DataFormatter();
 
             for (int columnIndex = 0; columnIndex < totalColumns; columnIndex++) {
 
@@ -576,10 +576,12 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     continue;
                 }
 
-              String header = headerCell.toString().trim();
-                System.out.println("Column " + columnIndex + " Header = [" + header + "]");
-            //    String header = formatter.formatCellValue(headerCell).trim();
-               // DataFormatter formatter = new DataFormatter();
+                String header = formatter.formatCellValue(headerCell).trim();
+                
+                // Skip processing if the header itself is blank
+                if (header.isEmpty()) {
+                    continue;
+                }
 
                 List<String> columnValues = new ArrayList<>();
 
@@ -592,9 +594,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     }
 
                     Cell cell = row.getCell(columnIndex);
-
-                   columnValues.add(cell == null ? "" : cell.toString().trim());
-                 //   columnValues.add(cell == null ? "" : formatter.formatCellValue(cell).trim());
+                    columnValues.add(cell == null ? "" : formatter.formatCellValue(cell).trim());
                 }
 
                 fieldConfigurations.add(
@@ -613,26 +613,44 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 // =========================================================================
     private Row findHeaderRow(Sheet sheet) {
 
-        for (Row row : sheet) {
+        Row bestRow = null;
+        int maxNonEmptyCells = 0;
+
+        // Scan up to a reasonable number of rows (e.g., first 100 rows) 
+        // to find the table header. The header row is almost always the row 
+        // with the maximum number of populated cells.
+        final int HEADER_SCAN_LIMIT = 100;
+        int rowLimit = Math.min(sheet.getLastRowNum(), HEADER_SCAN_LIMIT);
+
+        for (int i = 0; i <= rowLimit; i++) {
+            Row row = sheet.getRow(i);
+
+            if (row == null) {
+                continue;
+            }
 
             int nonEmptyCells = 0;
+            DataFormatter formatter = new DataFormatter();
 
             for (Cell cell : row) {
-
-                if (cell != null
-                        && !cell.toString().trim().isEmpty()) {
-
-                    nonEmptyCells++;
+                if (cell != null) {
+                    String value = formatter.formatCellValue(cell).trim();
+                    if (!value.isEmpty()) {
+                        nonEmptyCells++;
+                    }
                 }
             }
 
-            // Header should contain multiple populated columns
-            if (nonEmptyCells >= 4) {
-                return row;
+            // The first row that reaches a new maximum of populated columns 
+            // is selected. This ignores metadata/title rows above the table 
+            // because they typically have fewer populated columns.
+            if (nonEmptyCells > maxNonEmptyCells) {
+                maxNonEmptyCells = nonEmptyCells;
+                bestRow = row;
             }
         }
 
-        return null;
+        return bestRow;
     }
     
     // =========================================================================
