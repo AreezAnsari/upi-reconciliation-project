@@ -45,6 +45,12 @@ public class NewReconUserServiceImpl implements NewReconUserService {
     private ReconPasswordManagerRepository reconPasswordManagerRepository;
 
     @Autowired
+    private com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder approvalAuditRecorder;
+
+    @Autowired
+    private com.jpb.reconciliation.reconciliation.service.v2.WorkflowNotifier workflowNotifier;
+
+    @Autowired
     private ReconBankMasterRepository reconBankMasterRepository;
 
     @Autowired
@@ -157,6 +163,18 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         	    : (user.getCreatedBy() != null ? user.getCreatedBy() : "SYSTEM")
         	);
         ReconUser saved = reconUserRepository.saveAndFlush(user);
+
+        // Only a Maker-created user enters the Checker queue; an Admin-created one is already
+        // usable and never has a decision to record.
+        if ("PENDING_APPROVAL".equals(saved.getStatus())) {
+            approvalAuditRecorder.recordSubmission(
+                    com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ENTITY_USER,
+                    saved.getUserId(),
+                    com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ACTION_CREATE,
+                    createdBy);
+            workflowNotifier.notifySubmission("User", saved.getFullName(), saved.getUsername(), createdBy,
+                    checker -> isVisibleToChecker(checker, saved.getCreatedBy(), saved.getRoleId()));
+        }
 
         ReconPasswordManager pwd = new ReconPasswordManager();
         pwd.setReconUser(saved);
@@ -271,6 +289,14 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(updatedBy);
         reconUserRepository.save(existing);
+        // The Checker Queue rejects a user via update-status?status=REJECTED — there is no
+        // separate reject endpoint, so that is where the decision has to be captured.
+        if ("REJECTED".equalsIgnoreCase(status)) {
+            approvalAuditRecorder.recordDecision(
+                    com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ENTITY_USER,
+                    userId, updatedBy, "REJECTED", null);
+            notifyMakerOfUserDecision(existing, "Rejected", updatedBy);
+        }
         logger.info("ReconUser status updated to {} for ID: {} by {}", status, userId, updatedBy);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User status updated.", null));
     }
@@ -314,8 +340,26 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         } else {
             reconUserRepository.save(existing);
         }
+        approvalAuditRecorder.recordDecision(
+                com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ENTITY_USER,
+                userId, approvedBy, "APPROVED", null);
+        notifyMakerOfUserDecision(existing, "Approved", approvedBy);
         logger.info("ReconUser approved: {} by {}", userId, approvedBy);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User approved successfully.", null));
+    }
+
+    /**
+     * Tells the Maker what the Checker decided about the user they created — the same courtesy
+     * a Role submission already got. CREATED_BY is the Maker: a user record has no SUBMITTED_BY
+     * column, because creating one *is* the submission (it lands straight in PENDING_APPROVAL).
+     */
+    private void notifyMakerOfUserDecision(ReconUser subject, String decision, String decidedBy) {
+        if (subject == null || subject.getCreatedBy() == null) return;
+        Optional<ReconUser> maker = reconUserRepository.findByUsername(subject.getCreatedBy());
+        if (!maker.isPresent() || maker.get().getEmail() == null) return;
+        emailService.sendWorkflowDecisionNotification(
+                maker.get().getEmail(), maker.get().getFullName(),
+                "User", subject.getFullName(), subject.getUsername(), decision, decidedBy);
     }
 
     private String generatePassword() {

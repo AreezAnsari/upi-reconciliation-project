@@ -45,6 +45,12 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
     private CRoleMenuMapRepository roleMenuMapRepository;
 
     @Autowired
+    private ApprovalAuditRecorder approvalAuditRecorder;
+
+    @Autowired
+    private WorkflowNotifier workflowNotifier;
+
+    @Autowired
     private MenuMasterRepository menuMasterRepository;
 
     @Autowired
@@ -186,6 +192,10 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(submittedBy);
         reconRoleMasterRepository.save(existing);
+        approvalAuditRecorder.recordSubmission(ApprovalAuditRecorder.ENTITY_ROLE, roleId,
+                ApprovalAuditRecorder.ACTION_CREATE, submittedBy);
+        workflowNotifier.notifySubmission("Role", existing.getRoleName(), existing.getRoleCode(), submittedBy,
+                checker -> isVisibleToChecker(checker, existing.getCreatedBy(), existing.getRoleId()));
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role submitted for approval.", null));
     }
 
@@ -203,6 +213,7 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(approvedBy);
         reconRoleMasterRepository.save(existing);
+        approvalAuditRecorder.recordDecision(ApprovalAuditRecorder.ENTITY_ROLE, roleId, approvedBy, "APPROVED", null);
         notifyMakerOfDecision(existing.getSubmittedBy(), existing.getRoleName(), existing.getRoleCode(), "Approved", approvedBy);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role approved and activated.", null));
     }
@@ -222,6 +233,7 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         existing.setUpdatedBy(updatedBy);
         reconRoleMasterRepository.save(existing);
         if ("REJECTED".equalsIgnoreCase(status)) {
+            approvalAuditRecorder.recordDecision(ApprovalAuditRecorder.ENTITY_ROLE, roleId, updatedBy, "REJECTED", null);
             notifyMakerOfDecision(submittedBy, existing.getRoleName(), existing.getRoleCode(), "Rejected", updatedBy);
         }
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role status updated.", null));
@@ -376,7 +388,10 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         twin.setSubMenu("N");
         twin.setMenuUrl(twinUrl);
         twin.setStatus("Y");
-        twin.setRoleId(forRoleId);
+        // A twin is the same menu on another portal, so it inherits the original's owner and
+        // product scope. Leaving either null would leak it across banks/products.
+        twin.setBankId(original.getBankId());
+        twin.setProductId(original.getProductId());
         twin.setIsPortalTwin("Y");
         twin.setTwinOfMenuId(original.getMenuId());
         twin.setCreatedBy(createdBy);

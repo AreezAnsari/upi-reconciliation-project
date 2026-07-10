@@ -161,8 +161,10 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         Optional<ReconRoleMaster> existingRole = reconRoleMasterRepository.findByRoleCode(KAL_ADMIN_ROLE_CODE);
         if (existingRole.isPresent()) {
             Long roleId = existingRole.get().getRoleId();
-            // Role exists but menus may have been wiped separately — recreate if empty.
-            if (menuMasterRepository.getByRoleId(roleId).isEmpty()) {
+            // Role exists but menus may have been wiped separately — recreate if empty. Keyed on
+            // grants, not ownership: KAL_ADMIN has no bank (setBankId(null)), so its menu rows
+            // carry a NULL BANK_ID and cannot be found by owner.
+            if (roleMenuMapRepository.findMenuIdsByRoleId(roleId).isEmpty()) {
                 createDefaultKalAdminMenus(roleId, createdBy);
             }
             return roleId;
@@ -212,7 +214,9 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         m.setParentMenuCode(parentMenuCode);
         m.setSubMenu("N");
         m.setStatus("Y");
-        m.setRoleId(roleId);
+        // KAL_ADMIN belongs to no institution, so these rows have no owner. They are reachable
+        // only through the C_ROLE_MENU_MAP grant written below.
+        m.setBankId(null);
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());

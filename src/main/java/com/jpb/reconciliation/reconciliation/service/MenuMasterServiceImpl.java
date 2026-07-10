@@ -62,6 +62,12 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     AuditLogManagerService auditLogManagerService;
 
     @Autowired
+    com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder approvalAuditRecorder;
+
+    @Autowired
+    com.jpb.reconciliation.reconciliation.service.v2.WorkflowNotifier workflowNotifier;
+
+    @Autowired
     ReconUserRepository reconUserRepository;
 
     @Autowired
@@ -142,22 +148,24 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     @Override
     public ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails) {
         try {
-            ReconMenuMaster menuWithName = menuMasterRepository.findByMenuNameAndRoleIdAndParentMenuCode(
-                    menuRequest.getMenuName(), menuRequest.getRoleId(), menuRequest.getParentMenuCode());
-
             Optional<ReconUser> userOpt = reconUserRepository.findByUsername(userDetails.getUsername());
             if (!userOpt.isPresent()) {
                 return new ResponseEntity<>(new RestWithStatusList("FAILURE", "User not found", null), HttpStatus.BAD_REQUEST);
             }
             ReconUser userData = userOpt.get();
 
+            // Scoped to the caller's own bank, taken from their account rather than the request:
+            // the client must not be able to name the institution a menu is created under.
+            ReconMenuMaster menuWithName = menuMasterRepository.findByMenuNameAndBankIdAndParentMenuCode(
+                    menuRequest.getMenuName(), userData.getBankId(), menuRequest.getParentMenuCode());
+
             if (menuWithName != null &&
                 (menuWithName.getParentMenuCode() != null && menuWithName.getParentMenuCode().equalsIgnoreCase(menuRequest.getParentMenuCode())
                 || menuWithName.getMenuName().equalsIgnoreCase(menuRequest.getMenuName()))) {
-                return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Menu already exists for this role", null), HttpStatus.BAD_REQUEST);
+                return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Menu already exists for this bank", null), HttpStatus.BAD_REQUEST);
             }
 
-            ReconMenuMaster createdMenu = createMenu(menuRequest, userData.getUsername());
+            ReconMenuMaster createdMenu = createMenu(menuRequest, userData.getUsername(), userData.getBankId());
 
             ReconFileDetailsMaster getFileData = fileDetailsMasterRepository.findByReconFileId(menuRequest.getMenuProcessId());
             if (getFileData != null) {
@@ -187,16 +195,16 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                         "Only a Bank/Branch/KAL Admin can create a Menu that activates immediately.", null), HttpStatus.FORBIDDEN);
             }
 
-            ReconMenuMaster menuWithName = menuMasterRepository.findByMenuNameAndRoleIdAndParentMenuCode(
-                    menuRequest.getMenuName(), menuRequest.getRoleId(), menuRequest.getParentMenuCode());
+            ReconMenuMaster menuWithName = menuMasterRepository.findByMenuNameAndBankIdAndParentMenuCode(
+                    menuRequest.getMenuName(), userData.getBankId(), menuRequest.getParentMenuCode());
             if (menuWithName != null &&
                 (menuWithName.getParentMenuCode() != null && menuWithName.getParentMenuCode().equalsIgnoreCase(menuRequest.getParentMenuCode())
                 || menuWithName.getMenuName().equalsIgnoreCase(menuRequest.getMenuName()))) {
-                return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Menu already exists for this role", null), HttpStatus.BAD_REQUEST);
+                return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Menu already exists for this bank", null), HttpStatus.BAD_REQUEST);
             }
 
             String actor = userDetails.getUsername();
-            ReconMenuMaster createdMenu = createMenu(menuRequest, "Y", actor, actor, actor);
+            ReconMenuMaster createdMenu = createMenu(menuRequest, "Y", actor, actor, actor, userData.getBankId());
 
             ReconFileDetailsMaster getFileData = fileDetailsMasterRepository.findByReconFileId(menuRequest.getMenuProcessId());
             if (getFileData != null) {
@@ -213,11 +221,12 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         }
     }
 
-    private ReconMenuMaster createMenu(ReconMenuMasterDto req, String createdBy) {
-        return createMenu(req, "DRAFT", null, null, createdBy);
+    private ReconMenuMaster createMenu(ReconMenuMasterDto req, String createdBy, Long bankId) {
+        return createMenu(req, "DRAFT", null, null, createdBy, bankId);
     }
 
-    private ReconMenuMaster createMenu(ReconMenuMasterDto req, String status, String submittedBy, String approvedBy, String createdBy) {
+    private ReconMenuMaster createMenu(ReconMenuMasterDto req, String status, String submittedBy, String approvedBy,
+                                       String createdBy, Long bankId) {
         ReconMenuMaster m = new ReconMenuMaster();
         m.setMenuType(req.getMenuType());
         m.setMenuName(req.getMenuName());
@@ -232,7 +241,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setStatus(status);
         m.setSubmittedBy(submittedBy);
         m.setApprovedBy(approvedBy);
-        m.setRoleId(req.getRoleId());
+        // Owner. Taken from the authenticated caller, never from the request body.
+        m.setBankId(bankId);
+        // Product the mapping belongs to. NULL = platform menu, visible to every product.
+        m.setProductId(req.getProductId());
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());
@@ -243,7 +255,16 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     @Override
     public ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId) {
         List<Object> menuList = new ArrayList<>();
-        List<ReconMenuMaster> menuByRole = menuMasterRepository.getByRoleIdAndStatus(roleId, "Y");
+        // A role's menus are the ones granted to it in C_ROLE_MENU_MAP. This used to read
+        // RECON_MENU_MASTER.ROLE_ID, which held ownership, not grants — the two agreed only
+        // because saveMenu() (bootstrap) and savePrivileges() (portal twins) happened to write
+        // both. Grants are the real answer to "what may this role see".
+        List<Long> menuIds = roleMenuMapRepository.findMenuIdsByRoleId(roleId);
+        List<ReconMenuMaster> menuByRole = menuIds.isEmpty()
+                ? new ArrayList<>()
+                : menuMasterRepository.findAllById(menuIds).stream()
+                        .filter(m -> "Y".equals(m.getStatus()))
+                        .collect(Collectors.toList());
         logger.info("Menu data by role: " + menuByRole);
         if (menuByRole.isEmpty()) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Menu not found for this role", menuList), HttpStatus.NOT_FOUND);
@@ -348,6 +369,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         existing.setModifiedBy(submittedBy);
         existing.setModifiedDate(new Timestamp(System.currentTimeMillis()));
         menuMasterRepository.save(existing);
+        approvalAuditRecorder.recordSubmission(
+                com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ENTITY_MENU, menuId,
+                com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ACTION_CREATE, submittedBy);
+        workflowNotifier.notifySubmission("Menu", existing.getMenuName(), String.valueOf(existing.getMenuId()), submittedBy,
+                checker -> isVisibleToChecker(checker, existing.getCreatedBy(), existing.getProductId()));
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menu submitted for approval.", null), HttpStatus.OK);
     }
 
@@ -363,6 +389,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         existing.setModifiedBy(approvedBy);
         existing.setModifiedDate(new Timestamp(System.currentTimeMillis()));
         menuMasterRepository.save(existing);
+        approvalAuditRecorder.recordDecision(
+                com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ENTITY_MENU, menuId,
+                approvedBy, "APPROVED", null);
         if (existing.getSubmittedBy() != null) {
             Optional<ReconUser> maker = reconUserRepository.findByUsername(existing.getSubmittedBy());
             if (maker.isPresent()) {
@@ -383,7 +412,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         ReconUser checker = checkerOpt.get();
         List<ReconMenuMaster> visible = menuMasterRepository.findAll().stream()
                 .filter(m -> "PENDING".equals(m.getStatus()))
-                .filter(m -> isVisibleToChecker(checker, m.getCreatedBy(), m.getRoleId()))
+                .filter(m -> isVisibleToChecker(checker, m.getCreatedBy(), m.getProductId()))
                 .collect(Collectors.toList());
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Pending menus fetched.", visible), HttpStatus.OK);
     }
@@ -391,7 +420,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     // Same scoping rule as ReconRoleMasterServiceImpl.isVisibleToChecker/getPendingRolesForChecker
     // — duplicated here rather than shared, since the two services live in different packages
     // (service vs service.v2) and this is a handful of lines, not worth a shared utility class for.
-    private boolean isVisibleToChecker(ReconUser checker, String submitterUsername, Long itemRoleId) {
+    // itemProductId is the menu's own PRODUCT_ID. It used to be the owning role's id, from which
+    // the product set was looked up in C_ROLE_PRODUCT_MAP — one indirection that now resolves to
+    // the same answer, since a menu carries its product directly. NULL still means "unrestricted".
+    private boolean isVisibleToChecker(ReconUser checker, String submitterUsername, Long itemProductId) {
         if ("KAL_ADMIN".equals(checker.getUserType())) return true;
 
         Optional<ReconUser> submitterOpt = reconUserRepository.findByUsername(submitterUsername);
@@ -402,7 +434,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         if (UserConstants.isAdminUserType(checker.getUserType())) return true;
 
         Set<Long> checkerScope = resolveProductScope(checker.getRoleId());
-        Set<Long> itemScope = resolveProductScope(itemRoleId);
+        Set<Long> itemScope = itemProductId == null
+                ? Collections.emptySet()
+                : Collections.singleton(itemProductId);
         return checkerScope.isEmpty() || itemScope.isEmpty() || !Collections.disjoint(checkerScope, itemScope);
     }
 
@@ -413,26 +447,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
     @Override
     public ResponseEntity<RestWithStatusList> getMenusByBankId(Long bankId) {
-        List<ReconUser> bankUsers = reconUserRepository.findByBankId(bankId);
-
-        List<Long> roleIdsFromUsers = bankUsers.stream()
-                .map(ReconUser::getRoleId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
-        List<String> usernames = bankUsers.stream()
-                .map(ReconUser::getUsername).filter(Objects::nonNull).distinct().collect(Collectors.toList());
-
-        List<Long> roleIdsFromCreator = usernames.isEmpty() ? new ArrayList<>()
-                : reconRoleMasterRepository.findByCreatedByIn(usernames).stream()
-                        // A role an admin created can already be assigned to users of a DIFFERENT
-                        // bank/branch (e.g. Bank Admin creates a role while onboarding a Branch).
-                        // Such roles' menus belong to that branch's view, not this bank's.
-                        .filter(r -> reconUserRepository.findByRoleId(r.getRoleId()).stream()
-                                .allMatch(u -> bankId.equals(u.getBankId())))
-                        .map(ReconRoleMaster::getRoleId).collect(Collectors.toList());
-
-        List<Long> allRoleIds = new ArrayList<>(roleIdsFromUsers);
-        roleIdsFromCreator.forEach(id -> { if (!allRoleIds.contains(id)) allRoleIds.add(id); });
-
-        List<ReconMenuMaster> menus = allRoleIds.isEmpty() ? new ArrayList<>() : menuMasterRepository.findByRoleIdIn(allRoleIds);
+        // Direct now that a menu row names its owner. This used to walk bank -> users -> roleIds
+        // (plus roles those users created, minus roles already lent to another branch) purely to
+        // reach the bank a menu belonged to. BANK_ID answers that in one hop, and a branch is its
+        // own RECON_BANK_MASTER row so branches are covered too.
+        List<ReconMenuMaster> menus = menuMasterRepository.findByBankId(bankId);
         // /user-portal twins (see ReconRoleMasterServiceImpl.getOrCreateUserTwinMenu) are an
         // internal implementation detail resolved automatically at privilege-save time — never
         // something an Admin selects or manages directly, so hide them from this listing (used

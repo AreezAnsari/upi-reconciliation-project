@@ -18,7 +18,7 @@ public class ReconMenuMasterMapper {
         menuDto.setUserId(menu.getInsertUserId());
         menuDto.setMenuProcessId(menu.getMenuProcessId());
         menuDto.setMasterMenuParent(menu.getMasterMenuParent());
-        menuDto.setRoleId(menu.getRoleId());
+        menuDto.setProductId(menu.getProductId());
         return menuDto;
     }
 
@@ -33,6 +33,7 @@ public class ReconMenuMasterMapper {
         menu.setSubMenu(menuDto.getSubMenuReq());
         menu.setInsertUserId(menuDto.getUserId());
         menu.setMenuProcessId(menuDto.getMenuProcessId());
+        menu.setProductId(menuDto.getProductId());
         return menu;
     }
 
@@ -49,7 +50,7 @@ public class ReconMenuMasterMapper {
         reconMenuMasterDto.setUserId(menu.getInsertUserId());
         reconMenuMasterDto.setMenuProcessId(menu.getMenuProcessId());
         reconMenuMasterDto.setMasterMenuParent(menu.getMasterMenuParent());
-        reconMenuMasterDto.setRoleId(menu.getRoleId());
+        reconMenuMasterDto.setProductId(menu.getProductId());
         if (fileData == null) {
             reconMenuMasterDto.setReconFilePath(null);
         } else {

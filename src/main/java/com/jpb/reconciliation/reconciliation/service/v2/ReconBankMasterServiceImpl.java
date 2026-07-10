@@ -182,7 +182,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         ReconBankMaster savedPrimaryBank = reconBankMasterRepository.save(bank);
         saveProductMappings(savedPrimaryBank.getBankId(), bank, createdBy);
 
-        Long adminRoleId = createDefaultAdminMenus(generatedCode, isBranch, createdBy);
+        Long adminRoleId = createDefaultAdminMenus(generatedCode, savedPrimaryBank.getBankId(), isBranch, createdBy);
 
         saveAuditLog("RECON_BANK_MASTER", savedPrimaryBank.getBankId(), "CREATE", null, null,
                 createdBy, adminUserType, savedPrimaryBank.getBankId(),
@@ -1621,7 +1621,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         return candidate;
     }
 
-    private Long createDefaultAdminMenus(String bankCode, boolean isBranch, String createdBy) {
+    private Long createDefaultAdminMenus(String bankCode, Long bankId, boolean isBranch, String createdBy) {
         try {
 
             // Role already exists? Skip — bankCode is unique, so the display name doubles
@@ -1629,7 +1629,12 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             // generator as Add Role) rather than a bankCode-derived string.
             String roleDisplayName = (isBranch ? "Branch Admin - " : "Bank Admin - ") + bankCode;
             Optional<ReconRoleMaster> existingRole = reconRoleMasterRepository.findByRoleName(roleDisplayName);
-            if (existingRole.isPresent()) return existingRole.get().getRoleId();
+            if (existingRole.isPresent()) {
+                // Banks onboarded before a menu was added to the default set would never receive
+                // it, since this method returns early for them. Backfill anything missing.
+                ensureAdminMenus(existingRole.get().getRoleId(), bankId, isBranch ? "/branch-admin" : "/bank-admin", createdBy);
+                return existingRole.get().getRoleId();
+            }
 
             // Create role for this bank's admin
             ReconRoleMaster role = new ReconRoleMaster();
@@ -1647,24 +1652,24 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
 
             if (isBranch) {
                 // Branch Admin: standalone Dashboard at top level
-                saveMenu(null, "Master", "Dashboard", prefix + "/dashboard", roleId, createdBy);
+                saveMenu(null, "Master", "Dashboard", prefix + "/dashboard", roleId, bankId, createdBy);
 
                 // My Organization — parentMenuCode must be the master's NAME (matches the
                 // convention every other menu-creation path uses, e.g. AddMenu.jsx), not its
                 // MENU_ID — using the ID here broke Main-menu lookups everywhere (Privileges
                 // screen, Role/User view pages) that filter children by parentMenuCode === name.
-                ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, createdBy);
+                ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, bankId, createdBy);
                 String myOrgName = myOrg.getMenuName();
                 for (String[] item : Arrays.asList(
                     new String[]{"Overview",     prefix + "/my-organization/overview"},
                     new String[]{"My Hierarchy", prefix + "/my-organization/hierarchy"},
                     new String[]{"User Status",  prefix + "/my-organization/admin-status"}
                 )) {
-                    saveMenu(myOrgName, "Main", item[0], item[1], roleId, createdBy);
+                    saveMenu(myOrgName, "Main", item[0], item[1], roleId, bankId, createdBy);
                 }
             } else {
                 // Bank Admin: My Organization (no standalone Dashboard for Bank Admin)
-                ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, createdBy);
+                ReconMenuMaster myOrg = saveMenu(null, "Master", "My Organization", null, roleId, bankId, createdBy);
                 String myOrgName = myOrg.getMenuName();
                 for (String[] item : Arrays.asList(
                     new String[]{"Overview",           prefix + "/my-organization/overview"},
@@ -1674,12 +1679,12 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                     new String[]{"User Status",        prefix + "/my-organization/user-status"},
                     new String[]{"Branch Admin Status",prefix + "/my-organization/admin-status"}
                 )) {
-                    saveMenu(myOrgName, "Main", item[0], item[1], roleId, createdBy);
+                    saveMenu(myOrgName, "Main", item[0], item[1], roleId, bankId, createdBy);
                 }
             }
 
             // Administration (same for both)
-            ReconMenuMaster adminMenu = saveMenu(null, "Master", "Administration", null, roleId, createdBy);
+            ReconMenuMaster adminMenu = saveMenu(null, "Master", "Administration", null, roleId, bankId, createdBy);
             String adminMenuName = adminMenu.getMenuName();
             for (String[] item : Arrays.asList(
                 new String[]{"Add User",  prefix + "/add-user"},
@@ -1688,9 +1693,10 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 new String[]{"User List", prefix + "/user-list"},
                 new String[]{"Role List", prefix + "/role-list"},
                 new String[]{"Menu List", prefix + "/menu-list"},
+                new String[]{"User Management", prefix + "/user-management"},
                 new String[]{"Checker Dashboard", prefix + "/checker-queue"}
             )) {
-                saveMenu(adminMenuName, "Main", item[0], item[1], roleId, createdBy);
+                saveMenu(adminMenuName, "Main", item[0], item[1], roleId, bankId, createdBy);
             }
 
             logger.info("Default {} menus created for: {}", isBranch ? "Branch Admin" : "Bank Admin", bankCode);
@@ -1701,8 +1707,34 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         }
     }
 
+    /**
+     * Adds any Administration menu this admin role is missing.
+     *
+     * createDefaultAdminMenus() returns early once the role exists, so a menu added to the
+     * default set later would never reach a bank that was already onboarded. Each name is
+     * checked against RECON_MENU_MASTER for this bank before inserting, which makes the method
+     * idempotent and safe to call on every onboarding attempt.
+     */
+    private void ensureAdminMenus(Long roleId, Long bankId, String prefix, String createdBy) {
+        if (roleId == null || bankId == null) return;
+        ReconMenuMaster adminMaster = menuMasterRepository.findByMenuNameAndBankId("Administration", bankId);
+        if (adminMaster == null) return; // no Administration tree for this bank — nothing to extend
+
+        // Arrays.<String[]>asList, not Arrays.asList: with a single String[] the varargs form
+        // would spread the array into a List<String> instead of wrapping it.
+        for (String[] item : Arrays.<String[]>asList(
+            new String[]{"User Management", prefix + "/user-management"}
+        )) {
+            if (menuMasterRepository.findByMenuNameAndBankId(item[0], bankId) == null) {
+                saveMenu(adminMaster.getMenuName(), "Main", item[0], item[1], roleId, bankId, createdBy);
+                logger.info("Backfilled Administration menu '{}' for bankId={}", item[0], bankId);
+            }
+        }
+    }
+
+    // roleId is only used for the C_ROLE_MENU_MAP grant below; bankId is the menu's owner.
     private ReconMenuMaster saveMenu(String parentMenuCode, String menuType, String menuName,
-                                     String menuUrl, Long roleId, String createdBy) {
+                                     String menuUrl, Long roleId, Long bankId, String createdBy) {
         ReconMenuMaster m = new ReconMenuMaster();
         m.setMenuType(menuType);
         m.setMenuName(menuName);
@@ -1710,7 +1742,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         m.setParentMenuCode(parentMenuCode);
         m.setSubMenu("N");
         m.setStatus("Y");
-        m.setRoleId(roleId);
+        m.setBankId(bankId);
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());

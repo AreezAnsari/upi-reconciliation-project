@@ -387,9 +387,24 @@ public class AuditReplacementServiceImpl implements AuditReplacementService {
             u.setStatus("ACTIVE"); u.setUpdatedAt(LocalDateTime.now()); u.setUpdatedBy(restoredBy);
             reconUserRepository.save(u);
         });
-        reconUserRepository.findById(r.getReplacementUserId()).ifPresent(u -> {
-            u.setStatus("INACTIVE"); u.setUpdatedAt(LocalDateTime.now()); u.setUpdatedBy(restoredBy);
-            reconUserRepository.save(u);
+        reconUserRepository.findById(r.getReplacementUserId()).ifPresent(rep -> {
+            // finalizePendingReplacement() moved the original's team under the replacement.
+            // Undoing the replacement has to move it back, or the whole team keeps reporting to
+            // an INACTIVE user. onOriginalReactivated() — the other way out of an ACTIVE
+            // replacement — already does this; this path did not.
+            for (ReconUser child : reconUserRepository.findByParentUserId(rep.getUserId())) {
+                child.setParentUserId(r.getOriginalUserId());
+                child.setUpdatedAt(LocalDateTime.now());
+                reconUserRepository.save(child);
+            }
+            rep.setStatus("INACTIVE"); rep.setUpdatedAt(LocalDateTime.now()); rep.setUpdatedBy(restoredBy);
+            reconUserRepository.save(rep);
+
+            try {
+                emailService.sendReplacementTenureEnded(rep.getEmail(), rep.getFullName());
+            } catch (Exception e) {
+                logger.warn("sendReplacementTenureEnded email failed: {}", e.getMessage());
+            }
         });
 
         r.setStatus("RESTORED"); r.setRestoredAt(LocalDateTime.now()); r.setRestoredBy(restoredBy);

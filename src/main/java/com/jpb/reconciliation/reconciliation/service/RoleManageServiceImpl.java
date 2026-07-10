@@ -32,6 +32,9 @@ public class RoleManageServiceImpl implements RoleManageService {
 	@Autowired
 	MenuMasterRepository menuMasterRepository;
 
+	@Autowired
+	com.jpb.reconciliation.reconciliation.repository.v2.CRoleMenuMapRepository roleMenuMapRepository;
+
 	@Override
 	public ResponseEntity<RestWithStatusList> getAllRoleDetails() {
 		RestWithStatusList restWithStatusList;
@@ -39,16 +42,15 @@ public class RoleManageServiceImpl implements RoleManageService {
 		List<Object> roleWithMenuList = new ArrayList<>();
 		List<Role> getAllRole = roleManageRepository.findAll();
 
-		List<ReconMenuMaster> getAllMenu = menuMasterRepository.findAll();
 		if (!getAllRole.isEmpty()) {
 //			getAllRole.stream().map(role -> (Object) role).forEach(roleList::add);
 			for (Role role : getAllRole) {
-				List<ReconMenuMaster> menuWithRoleList = new ArrayList<>();
-				for (ReconMenuMaster menu : getAllMenu) {
-					if (menu.getRoleId().equals(role.getRoleId())) {
-						menuWithRoleList.add(menu);
-					}
-				}
+				// Menus a role can see now come from C_ROLE_MENU_MAP. RECON_MENU_MASTER.ROLE_ID
+				// held ownership, not grants, and no longer exists.
+				List<Long> menuIds = roleMenuMapRepository.findMenuIdsByRoleId(role.getRoleId());
+				List<ReconMenuMaster> menuWithRoleList = menuIds.isEmpty()
+						? new ArrayList<>()
+						: menuMasterRepository.findAllById(menuIds);
 				RoleMasterDto roleMenu = RoleMenuMapper.mapRoleWithMenu(role, menuWithRoleList, new RoleMasterDto());
 				roleWithMenuList.add(roleMenu);
 			}

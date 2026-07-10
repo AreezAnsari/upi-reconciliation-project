@@ -132,6 +132,16 @@ public class DelegationServiceImpl implements DelegationService {
         Optional<ReconUser> delegatorOpt = reconUserRepository.findById(delegatorUserId);
         if (!delegatorOpt.isPresent()) return;
 
+        // An explicit delegation (delegateNow) already transferred this user's children and
+        // emailed both parties, leaving the account INACTIVE_PENDING. When the scheduler later
+        // inactivates it, this auto-delegation must not run again: it would insert a second
+        // ACTIVE row, resend both delegation emails, and overwrite PRE_DELEGATION_PARENT_ID on
+        // every child — permanently breaking restore. delegateNow guards on the same condition.
+        if (!delegationRepository.findByDelegatorUserIdAndStatus(delegatorUserId, "ACTIVE").isEmpty()) {
+            logger.debug("delegateOnInactivate: delegatorUserId={} already has an ACTIVE delegation — skip", delegatorUserId);
+            return;
+        }
+
         ReconUser delegator = delegatorOpt.get();
         Long parentId = delegator.getParentUserId();
         if (parentId == null) {

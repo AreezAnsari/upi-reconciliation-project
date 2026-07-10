@@ -24,6 +24,7 @@ public class ReconMenuMasterDto {
     private String operations;
     private Long userId;
     private Long roleId;
+    private Long productId;
     private Long menuProcessId;
     private String processType;
     private String reconFilePath;

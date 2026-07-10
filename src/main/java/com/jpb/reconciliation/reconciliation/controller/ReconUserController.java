@@ -189,6 +189,71 @@ public class ReconUserController {
 		return row;
 	}
 
+	/*
+	 * ── Caller-scoped endpoints (My Organization for a plain USER) ──────────────────
+	 *
+	 * A Bank/Branch Admin may grant Overview / Hierarchy / User Status to a child user via
+	 * Privileges. Those pages must then show ONLY that user's own team — never bank or branch
+	 * admin data. Hiding it in the UI is not enough: a child user could call the bank-wide
+	 * endpoints directly. So the scope is derived from the JWT here, exactly like the old
+	 * backend did (AddUserServiceImpl.getUsersByCreator / getUserHierarchy, which resolved the
+	 * caller and keyed on their own id). No path/query parameter can widen it.
+	 */
+
+	@Operation(summary = "Users directly under the authenticated caller (their own team)")
+	@GetMapping(value = "/my-team", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> getMyTeam(@AuthenticationPrincipal UserDetails userDetails) {
+		Optional<ReconUser> meOpt = resolveCaller(userDetails);
+		if (!meOpt.isPresent()) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+					.body(new RestWithStatusList("FAILURE", "Caller not found", null));
+		}
+		ReconUser me = meOpt.get();
+		String code = resolveEntityCode(me.getBankId());
+		List<Map<String, Object>> result = new ArrayList<>();
+		for (ReconUser child : reconUserRepository.findByParentUserId(me.getUserId())) {
+			result.add(buildUserRow(child, code));
+		}
+		return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Team fetched", result));
+	}
+
+	@Operation(summary = "Reporting-hierarchy subtree rooted at the authenticated caller")
+	@GetMapping(value = "/hierarchy", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> getMyHierarchy(@AuthenticationPrincipal UserDetails userDetails) {
+		Optional<ReconUser> meOpt = resolveCaller(userDetails);
+		if (!meOpt.isPresent()) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+					.body(new RestWithStatusList("FAILURE", "Caller not found", null));
+		}
+		ReconUser me = meOpt.get();
+		String code = resolveEntityCode(me.getBankId());
+
+		// Nest by parentUserId across the caller's own bank, then keep only the subtree hanging
+		// off the caller. Building the map once avoids a query per level.
+		Map<Long, List<ReconUser>> byParent = new java.util.HashMap<>();
+		for (ReconUser u : reconUserRepository.findByBankId(me.getBankId())) {
+			if (u.getParentUserId() == null) continue;
+			byParent.computeIfAbsent(u.getParentUserId(), k -> new ArrayList<>()).add(u);
+		}
+
+		List<Map<String, Object>> tree = new ArrayList<>();
+		for (ReconUser child : byParent.getOrDefault(me.getUserId(), Collections.emptyList())) {
+			tree.add(buildUserNode(child, byParent, code));
+		}
+		return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User hierarchy fetched successfully", tree));
+	}
+
+	private Optional<ReconUser> resolveCaller(UserDetails userDetails) {
+		if (userDetails == null) return Optional.empty();
+		return reconUserRepository.findByUsername(userDetails.getUsername());
+	}
+
+	// A branch is its own RECON_BANK_MASTER row, so one lookup covers bank and branch users.
+	private String resolveEntityCode(Long bankId) {
+		if (bankId == null) return null;
+		return reconBankMasterRepository.findById(bankId).map(ReconBankMaster::getBankCode).orElse(null);
+	}
+
 	@Operation(summary = "Get reporting-hierarchy tree of users under a branch (nested by parentUserId)")
 	@GetMapping(value = "/hierarchy/branch/{branchCode}", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> getUserHierarchyByBranch(@PathVariable String branchCode) {

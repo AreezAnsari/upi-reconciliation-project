@@ -92,8 +92,29 @@ public class ReconMenuMaster {
     @Column(name = "PROCESS_TYPE")
     private String processType;
 
-    @Column(name = "ROLE_ID")
-    private Long roleId;
+    // ── Ownership and scope ──────────────────────────────────────────────────────
+    // These answer two different questions, and C_ROLE_MENU_MAP answers a third:
+    //     BANK_ID    : which institution this row belongs to
+    //     PRODUCT_ID : which product it belongs to
+    //     C_ROLE_MENU_MAP : which roles may see it
+    //
+    // A branch is its own RECON_BANK_MASTER row, so one BANK_ID covers banks and branches.
+    // Replaces ROLE_ID, whose only real job was reaching the bank (bank -> users -> roles ->
+    // menus). PRODUCT_ID cannot do this: RECON_PRODUCT_MASTER.PRODUCT_NAME is unique, so one
+    // product row is shared by every bank that bought it — it identifies the product, never
+    // the owner.
+    //
+    // NULL on both = a catalog (reference) row: registered for validation, owned by nobody,
+    // never granted, so it never reaches a sidebar. Kal Admin's bootstrap menus also carry a
+    // NULL BANK_ID (KAL_ADMIN has no bank) but are granted, which is what tells them apart.
+    @Column(name = "BANK_ID")
+    private Long bankId;
+
+    // NULL means "no product restriction" — platform menus (Dashboard / My Organization /
+    // Administration) that every product sees. Same "empty scope = unrestricted" convention
+    // resolveProductScope()/isVisibleToChecker() already apply to C_ROLE_PRODUCT_MAP.
+    @Column(name = "PRODUCT_ID")
+    private Long productId;
 
     @Column(name = "SUBMITTED_BY")
     private String submittedBy;

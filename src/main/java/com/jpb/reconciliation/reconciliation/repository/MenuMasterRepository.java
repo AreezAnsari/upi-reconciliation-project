@@ -21,15 +21,15 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 
     ReconMenuMaster findByMenuNameAndInsertUserId(String menuName, Long userId);
 
-    List<ReconMenuMaster> getByRoleId(Long roleId);
+    // Bank scoping. A branch is its own RECON_BANK_MASTER row, so this serves both.
+    // Replaces findByRoleIdIn(bank -> users -> roleIds), which needed two extra hops.
+    List<ReconMenuMaster> findByBankId(Long bankId);
 
-    List<ReconMenuMaster> getByRoleIdAndStatus(Long roleId, String status);
+    ReconMenuMaster findByMenuNameAndBankId(String menuName, Long bankId);
 
-    ReconMenuMaster findByMenuNameAndRoleId(String menuName, Long roleId);
-
-    ReconMenuMaster findByMenuNameAndRoleIdAndParentMenuCode(String menuName, Long roleId, String parentMenuCode);
-
-    List<ReconMenuMaster> findByRoleIdIn(List<Long> roleIds);
+    // Duplicate guard for Add Menu: the same menu name may exist under the same parent in a
+    // DIFFERENT bank, but never twice within one.
+    ReconMenuMaster findByMenuNameAndBankIdAndParentMenuCode(String menuName, Long bankId, String parentMenuCode);
 
     // Identifies a /user-portal "twin" of an Admin-portal menu regardless of which role first
     // created it, so it can be reused across multiple custom roles instead of duplicated.
