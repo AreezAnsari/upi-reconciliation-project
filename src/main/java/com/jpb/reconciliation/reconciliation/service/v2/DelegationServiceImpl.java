@@ -29,6 +29,7 @@ public class DelegationServiceImpl implements DelegationService {
 
     @Autowired private ReconUserRepository reconUserRepository;
     @Autowired private AuditUserDelegationRepository delegationRepository;
+    @Autowired private com.jpb.reconciliation.reconciliation.repository.v2.AuditReplacementRepository auditReplacementRepository;
     @Autowired private AuditLogRepository auditLogRepository;
     @Autowired private EmailService emailService;
 
@@ -139,6 +140,16 @@ public class DelegationServiceImpl implements DelegationService {
         // every child — permanently breaking restore. delegateNow guards on the same condition.
         if (!delegationRepository.findByDelegatorUserIdAndStatus(delegatorUserId, "ACTIVE").isEmpty()) {
             logger.debug("delegateOnInactivate: delegatorUserId={} already has an ACTIVE delegation — skip", delegatorUserId);
+            return;
+        }
+
+        // A replacement supersedes delegation: the successor inherits the team, not the parent.
+        // Both run from the same scheduler tick (finalizePendingReplacement then this), and
+        // whichever moves the children first wins. Without this guard the team ended up under
+        // the parent and the freshly created replacement had nobody reporting to it.
+        if (auditReplacementRepository.existsByOriginalUserIdAndStatus(delegatorUserId, "PENDING")
+                || auditReplacementRepository.existsByOriginalUserIdAndStatus(delegatorUserId, "ACTIVE")) {
+            logger.info("delegateOnInactivate: delegatorUserId={} has a replacement — the successor keeps the team, skipping delegation", delegatorUserId);
             return;
         }
 

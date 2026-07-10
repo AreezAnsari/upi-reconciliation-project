@@ -368,7 +368,11 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         String twinUrl = rewriteToUserUrl(original.getMenuUrl());
         if (twinUrl == null) return null;
 
-        Optional<ReconMenuMaster> existing = menuMasterRepository.findByMenuNameAndMenuUrl(original.getMenuName(), twinUrl);
+        // Scoped to the original's own bank. /user/add-user is the same URL for every institution,
+        // so a name+url lookup returned whichever bank happened to twin it first — a Branch's role
+        // then got granted the parent Bank's menu row.
+        Optional<ReconMenuMaster> existing = menuMasterRepository
+                .findByMenuNameAndMenuUrlAndBankId(original.getMenuName(), twinUrl, original.getBankId());
         if (existing.isPresent()) {
             ReconMenuMaster found = existing.get();
             // Self-heal rows created before IS_PORTAL_TWIN/TWIN_OF_MENU_ID existed, so they stop

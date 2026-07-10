@@ -71,7 +71,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/h2-console")
 
                 // User APIs
-                || path.startsWith("/api/v2/user/create")
+                //
+                // NOT /api/v2/user/create: it is an authenticated admin/maker action. Skipping the
+                // filter there left SecurityContext empty, so the controller's `Authentication`
+                // argument was null and every user was created by "UNKNOWN" — no parentUserId, no
+                // maker-checker audit row, and an Admin's own user landed in PENDING_APPROVAL
+                // instead of REQUEST. It also let anyone create a user with no token at all.
                 || path.startsWith("/api/v2/user/auth/")
 
                 // Bank APIs

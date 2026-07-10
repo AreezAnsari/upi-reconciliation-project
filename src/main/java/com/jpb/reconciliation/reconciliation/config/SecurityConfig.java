@@ -54,8 +54,10 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/api/v2/auth/**")).permitAll()
 
                 // User APIs
+                // /api/v2/user/create is NOT public: only an Admin or a Maker creates users, and the
+                // service keys parentUserId, the REQUEST-vs-PENDING_APPROVAL decision and the
+                // maker-checker audit row off the authenticated caller.
                 .requestMatchers(new AntPathRequestMatcher("/api/v2/user/create-user")).permitAll()
-                .requestMatchers(new AntPathRequestMatcher("/api/v2/user/create")).permitAll()
 
                 // User Auth (onboarding + login flow — no JWT required)
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/user/auth/**")).permitAll()
