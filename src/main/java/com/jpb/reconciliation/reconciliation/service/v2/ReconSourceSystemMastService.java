@@ -1,11 +1,11 @@
 package com.jpb.reconciliation.reconciliation.service.v2;
 
-import java.util.List;
+import org.springframework.http.ResponseEntity;
 
-import com.jpb.reconciliation.reconciliation.entity.ReconSourceSystemMast;
+import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 
 public interface ReconSourceSystemMastService {
 
-    List<ReconSourceSystemMast> getActiveSources();
+    ResponseEntity<RestWithStatusList> getActiveSources();
 
 }
