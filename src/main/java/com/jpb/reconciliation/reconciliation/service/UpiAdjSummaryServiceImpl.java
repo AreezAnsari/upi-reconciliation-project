@@ -80,41 +80,95 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
     private static final List<String> CATEGORY_ORDER =
             Arrays.asList("Refund", "Chargeback", "True Credit/Debit", "Re-presentment", "GL Adjustment");
 
-    private static final String SQL =
+    // ── Main SQL — adjtype, count, amount, response ─────────────────────────
+    private static final String SQL_MAIN =
             "SELECT ADJTYPE, " +
-            "       COUNT(*)       AS CNT, " +
+            "       COUNT(*)          AS CNT, " +
             "       SUM(TRAN_AMOUNT)  AS TOTAL_AMT, " +
-            "       MAX(RESPONSE)  AS RESPONSE " +
+            "       MAX(RESPONSE)     AS RESPONSE " +
             "FROM   REC_UPI_ADJ_DATA " +
-            "WHERE  ADJDATE = TO_DATE(?, 'YYYY-MM-DD') " + // Yahan fix kiya
+            "WHERE  ADJDATE = TO_DATE(?, 'DD-MM-YYYY') " +
             "GROUP  BY ADJTYPE " +
             "ORDER  BY ADJTYPE";
+
+    // ── REM JIO Count SQL — REMITTER = JIO wale records ─────────────────────
+    private static final String SQL_REM_JIO =
+            "SELECT ADJTYPE, COUNT(*) AS JIO_CNT " +
+            "FROM   REC_UPI_ADJ_DATA " +
+            "WHERE  ADJDATE   = TO_DATE(?, 'DD-MM-YYYY') " +
+            "AND    REMITTER  = 'JIO' " +
+            "GROUP  BY ADJTYPE";
+
+    // ── BEN JIO Count SQL — BENEFICIERY = JIO wale records ──────────────────
+    private static final String SQL_BEN_JIO =
+            "SELECT ADJTYPE, COUNT(*) AS JIO_CNT " +
+            "FROM   REC_UPI_ADJ_DATA " +
+            "WHERE  ADJDATE     = TO_DATE(?, 'DD-MM-YYYY') " +
+            "AND    BENEFICIERY = 'JIO' " +
+            "GROUP  BY ADJTYPE";
 
     @Override
     public ResponseEntity<RestWithStatusList> getAdjSummaryByType(String ADJ_DATE) {
         try {
             log.info("Fetching UPI Adj Summary from REC_UPI_ADJ_DATA for date: {}", ADJ_DATE);
 
-            List<Map<String, Object>> dbRows = jdbcTemplate.queryForList(SQL, ADJ_DATE);
+            // Step 1: Main data fetch
+            List<Map<String, Object>> dbRows = jdbcTemplate.queryForList(SQL_MAIN, ADJ_DATE);
             log.info("DB rows fetched: {}", dbRows.size());
-            
+
+            if (dbRows.isEmpty()) {
+                return ResponseEntity.ok(
+                    RestWithStatusList.builder()
+                        .status(CommonConstants.FAILURE)
+                        .statusMsg("No adjustment data found for date: " + ADJ_DATE)
+                        .data(Collections.emptyList())
+                        .build()
+                );
+            }
+
+            // Step 2: REM JIO counts fetch — Map<ADJTYPE, count>
+            List<Map<String, Object>> remJioRows = jdbcTemplate.queryForList(SQL_REM_JIO, ADJ_DATE);
+            Map<String, Integer> remJioMap = new HashMap<>();
+            for (Map<String, Object> row : remJioRows) {
+                String adjtype = row.get("ADJTYPE") != null ? row.get("ADJTYPE").toString().trim() : "";
+                int    cnt     = row.get("JIO_CNT") != null ? ((Number) row.get("JIO_CNT")).intValue() : 0;
+                remJioMap.put(adjtype, cnt);
+            }
+            log.info("REM JIO rows fetched: {}", remJioRows.size());
+
+            // Step 3: BEN JIO counts fetch — Map<ADJTYPE, count>
+            List<Map<String, Object>> benJioRows = jdbcTemplate.queryForList(SQL_BEN_JIO, ADJ_DATE);
+            Map<String, Integer> benJioMap = new HashMap<>();
+            for (Map<String, Object> row : benJioRows) {
+                String adjtype = row.get("ADJTYPE") != null ? row.get("ADJTYPE").toString().trim() : "";
+                int    cnt     = row.get("JIO_CNT") != null ? ((Number) row.get("JIO_CNT")).intValue() : 0;
+                benJioMap.put(adjtype, cnt);
+            }
+            log.info("BEN JIO rows fetched: {}", benJioRows.size());
+
+            // Step 4: Build items with JIO counts
             Map<String, List<UpiAdjItemDto>> itemsMap  = new LinkedHashMap<>();
             Map<String, Integer>             countMap  = new LinkedHashMap<>();
             Map<String, Double>              amountMap = new LinkedHashMap<>();
 
             for (Map<String, Object> row : dbRows) {
-                String adjtype  = row.get("ADJTYPE")   != null ? row.get("ADJTYPE").toString().trim()          : "";
-                int    cnt      = row.get("CNT")        != null ? ((Number) row.get("CNT")).intValue()          : 0;
-                double amt      = row.get("TOTAL_AMT")  != null ? ((Number) row.get("TOTAL_AMT")).doubleValue() : 0.0;
-                String response = row.get("RESPONSE")   != null ? row.get("RESPONSE").toString().trim()         : "";
+                String adjtype  = row.get("ADJTYPE")   != null ? row.get("ADJTYPE").toString().trim()           : "";
+                int    cnt      = row.get("CNT")        != null ? ((Number) row.get("CNT")).intValue()           : 0;
+                double amt      = row.get("TOTAL_AMT")  != null ? ((Number) row.get("TOTAL_AMT")).doubleValue()  : 0.0;
+                String response = row.get("RESPONSE")   != null ? row.get("RESPONSE").toString().trim()          : "";
 
                 if (!CATEGORY_MAP.containsKey(adjtype)) {
+                    log.warn("Unknown ADJTYPE skipped: {}", adjtype);
                     continue;
                 }
 
                 String category   = CATEGORY_MAP.get(adjtype);
                 String flag       = FLAG_MAP.getOrDefault(adjtype, "??");
                 String ttumStatus = TTUM_MAP.getOrDefault(response, "Unknown");
+
+                // JIO counts — 0 if not found
+                int remJio = remJioMap.getOrDefault(adjtype, 0);
+                int benJio = benJioMap.getOrDefault(adjtype, 0);
 
                 UpiAdjItemDto item = new UpiAdjItemDto();
                 item.setCategory(category);
@@ -123,12 +177,15 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
                 item.setCount(cnt);
                 item.setAmount(Math.round(amt * 100.0) / 100.0);
                 item.setTtumStatus(ttumStatus);
+                item.setRemJioCount(remJio);  // ← NEW
+                item.setBenJioCount(benJio);  // ← NEW
 
                 itemsMap.computeIfAbsent(category, k -> new ArrayList<>()).add(item);
                 countMap.merge(category,  cnt, Integer::sum);
                 amountMap.merge(category, amt, Double::sum);
             }
 
+            // Step 5: Build final grouped response
             List<Object> responseList  = new ArrayList<>();
             int    grandTotalRecords   = 0;
             double grandTotalAmount    = 0.0;
@@ -155,22 +212,22 @@ public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
             grandTotal.put("grandTotalAmount",  Math.round(grandTotalAmount * 100.0) / 100.0);
             responseList.add(grandTotal);
 
-            RestWithStatusList response = RestWithStatusList.builder()
+            return ResponseEntity.ok(
+                RestWithStatusList.builder()
                     .status(CommonConstants.SUCCESS)
                     .statusMsg("Request executed successfully")
                     .data(responseList)
-                    .build();
-
-            return ResponseEntity.ok(response);
+                    .build()
+            );
 
         } catch (Exception e) {
             log.error("Error in getAdjSummaryByType: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(RestWithStatusList.builder()
-                .status(CommonConstants.FAILURE)
-                .statusMsg("Error: " + e.getMessage())
-                .data(Collections.emptyList())
-                .build());
+                    .status(CommonConstants.FAILURE)
+                    .statusMsg("Error: " + e.getMessage())
+                    .data(Collections.emptyList())
+                    .build());
         }
     }
 }
