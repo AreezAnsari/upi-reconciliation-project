@@ -40,6 +40,9 @@ public class ReconApprovalRequestServiceImpl implements ReconApprovalRequestServ
     @Autowired
     private com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository menuMasterRepository;
 
+    @Autowired
+    private com.jpb.reconciliation.reconciliation.service.EmailService emailService;
+
     private static final String ACTION_UPDATE = "UPDATE";
     private static final String STATUS_PENDING = "PENDING";
 
@@ -251,6 +254,7 @@ public class ReconApprovalRequestServiceImpl implements ReconApprovalRequestServ
         if (changes == null || changes.isEmpty()) return;
         if (ApprovalAuditRecorder.ENTITY_USER.equals(entityType)) {
             reconUserRepository.findById(entityId).ifPresent(u -> {
+                Long previousRoleId = u.getRoleId();
                 if (changes.containsKey("fullName")) u.setFullName(asString(changes.get("fullName")));
                 if (changes.containsKey("mobileNumber")) u.setMobileNumber(asString(changes.get("mobileNumber")));
                 if (changes.containsKey("designation")) u.setDesignation(asString(changes.get("designation")));
@@ -260,6 +264,9 @@ public class ReconApprovalRequestServiceImpl implements ReconApprovalRequestServ
                 u.setUpdatedAt(LocalDateTime.now());
                 u.setUpdatedBy(by);
                 reconUserRepository.save(u);
+                // The role only really changes at approval time on this path, so this is where the
+                // user gets told about it.
+                notifyRoleChanged(u, previousRoleId, by);
             });
         } else if (ApprovalAuditRecorder.ENTITY_ROLE.equals(entityType)) {
             reconRoleMasterRepository.findById(entityId).ifPresent(r -> {
@@ -277,6 +284,29 @@ public class ReconApprovalRequestServiceImpl implements ReconApprovalRequestServ
                 if (changes.containsKey("menuUrl")) mn.setMenuUrl(asString(changes.get("menuUrl")));
                 menuMasterRepository.save(mn);
             });
+        }
+    }
+
+    /** Best-effort: tells a user their role changed. A mail failure never rolls back the approval. */
+    private void notifyRoleChanged(ReconUser user, Long previousRoleId, String changedBy) {
+        try {
+            Long newRoleId = user.getRoleId();
+            if (newRoleId == null || newRoleId.equals(previousRoleId)) return;
+            if (user.getEmail() == null || user.getEmail().trim().isEmpty()) return;
+
+            String oldName = previousRoleId == null ? null
+                    : reconRoleMasterRepository.findById(previousRoleId)
+                        .map(com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster::getRoleName).orElse(null);
+            String newName = reconRoleMasterRepository.findById(newRoleId)
+                    .map(com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster::getRoleName)
+                    .orElse("Role #" + newRoleId);
+            String actor = reconUserRepository.findByUsername(changedBy).map(ReconUser::getFullName).orElse(changedBy);
+
+            emailService.sendRoleChangedNotification(user.getEmail(),
+                    user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                    oldName, newName, actor);
+        } catch (RuntimeException e) {
+            logger.warn("Role-changed email failed for user {}: {}", user.getUserId(), e.getMessage());
         }
     }
 

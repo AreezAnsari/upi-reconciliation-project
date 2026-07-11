@@ -22,10 +22,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +48,9 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
     @Autowired
     private ApprovalAuditRecorder approvalAuditRecorder;
+
+    @Autowired
+    private HierarchyScopeService hierarchyScopeService;
 
     @Autowired
     private WorkflowNotifier workflowNotifier;
@@ -421,6 +426,8 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         }
 
         ReconMenuMaster twin = new ReconMenuMaster();
+        // A twin is the same logical menu, so it carries the same permanent identity.
+        twin.setSystemMenuCode(original.getSystemMenuCode());
         twin.setMenuType(original.getMenuType());
         twin.setMenuName(original.getMenuName());
         twin.setMenuDescription(original.getMenuDescription());
@@ -450,6 +457,41 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
             }
         }
         return null; // not a recognized Admin-portal URL — leave the original mapping as-is
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getRolesVisibleTo(String username) {
+        Optional<ReconUser> callerOpt = hierarchyScopeService.caller(username);
+        if (!callerOpt.isPresent()) {
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Roles fetched.", Collections.emptyList()));
+        }
+        ReconUser caller = callerOpt.get();
+
+        // An Admin owns the institution and must be able to manage Checker roles too.
+        if (hierarchyScopeService.isAdmin(caller)) {
+            return caller.getBankId() == null ? getAllRoles() : getRolesByBankId(caller.getBankId());
+        }
+
+        // Everyone else sees only their own subtree. Never a parent's or an Admin's role — the
+        // Administration screens can replace/re-assign users, so exposing an ancestor's role would
+        // let a child swap themselves into it.
+        Set<Long> descendants = hierarchyScopeService.descendantUserIds(caller.getUserId());
+        Set<Long> roleIds = descendants.isEmpty() ? new LinkedHashSet<>()
+                : reconUserRepository.findAllById(descendants).stream()
+                        .map(ReconUser::getRoleId).filter(Objects::nonNull)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // Plus the roles they created themselves but haven't assigned to anyone yet.
+        reconRoleMasterRepository.findByCreatedByIn(Collections.singletonList(username))
+                .forEach(r -> roleIds.add(r.getRoleId()));
+
+        List<ReconRoleMaster> roles = roleIds.isEmpty() ? Collections.emptyList()
+                : reconRoleMasterRepository.findByRoleIdIn(new ArrayList<>(roleIds)).stream()
+                        .filter(r -> !isSystemAdminRole(r))                          // never the bootstrap admin roles
+                        .filter(r -> !hierarchyScopeService.isCheckerRole(r.getRoleId())) // a Maker never even sees a Checker role
+                        .collect(Collectors.toList());
+
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Roles fetched.", roles));
     }
 
     @Override

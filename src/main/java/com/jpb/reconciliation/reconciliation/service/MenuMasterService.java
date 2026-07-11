@@ -21,17 +21,22 @@ public interface MenuMasterService {
 
     ResponseEntity<RestWithStatusList> getMenuByUserId(Long userId);
 
-    ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails);
+    /** force=true means the user saw (and accepted) the duplicate / reactivate prompt. */
+    ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails, boolean force);
 
     /** Admin-only: creates a Menu and activates it immediately (status 'Y'), skipping
      *  the DRAFT -> PENDING -> Checker-approval flow. Rejected if the caller isn't
      *  an Admin (KAL_ADMIN / BANK_ADMIN / BRANCH_ADMIN). */
-    ResponseEntity<RestWithStatusList> addMenuActive(ReconMenuMasterDto menuRequest, UserDetails userDetails);
+    ResponseEntity<RestWithStatusList> addMenuActive(ReconMenuMasterDto menuRequest, UserDetails userDetails, boolean force);
 
     /** Menus belonging to a specific Bank/Branch — derived via RCN_RECON_USER's
      *  BANK_ID + ROLE_ID (same technique as ReconRoleMasterService.getRolesByBankId),
      *  then matched against RECON_MENU_MASTER.ROLE_ID (no BANK_ID column on Menu either). */
     ResponseEntity<RestWithStatusList> getMenusByBankId(Long bankId);
+
+    /** Menus the caller may see in Menu List. Admin → their institution; anyone else → only the
+     *  menus they or their own subtree created (never a parent's). Scope comes from the JWT. */
+    ResponseEntity<RestWithStatusList> getMenusVisibleTo(String username);
 
     ResponseEntity<ResponseDto> removeMenu(Long menuId);
 

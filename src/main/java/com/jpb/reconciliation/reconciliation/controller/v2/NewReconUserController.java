@@ -40,6 +40,12 @@ public class NewReconUserController {
         return newReconUserService.getAllUsers();
     }
 
+    @Operation(summary = "Users visible to the caller (Admin → institution; otherwise → own subtree only)")
+    @GetMapping(value = "/visible", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getUsersVisibleTo(Authentication authentication) {
+        return newReconUserService.getUsersVisibleTo(resolveUser(authentication));
+    }
+
     @Operation(summary = "Get user by ID")
     @GetMapping(value = "/get/{userId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getUserById(@PathVariable Long userId) {

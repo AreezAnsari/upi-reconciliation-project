@@ -2,6 +2,8 @@ package com.jpb.reconciliation.reconciliation.service.v2;
 
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.CBankProductMap;
+import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
+import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.CBankProductMapRepository;
 
 import org.slf4j.Logger;
@@ -24,6 +26,9 @@ public class CBankProductMapServiceImpl implements CBankProductMapService {
 
     @Autowired
     private CBankProductMapRepository cBankProductMapRepository;
+
+    @Autowired
+    private MenuMasterRepository menuMasterRepository;
 
     @Override
     @Transactional
@@ -79,7 +84,42 @@ public class CBankProductMapServiceImpl implements CBankProductMapService {
         CBankProductMap existing = opt.get();
         existing.setStatus(status);
         cBankProductMapRepository.save(existing);
+
+        // B8 — a product's menus may not outlive the product. When the subscription stops being
+        // ACTIVE, every menu mapping this bank holds for it is inactivated along with the role
+        // grants pointing at those rows, so no orphan access survives. Re-activating the product
+        // brings the same rows back (the grants were left in place on purpose — see below).
+        cascadeMenuMappings(existing.getBankId(), existing.getProductId(), "ACTIVE".equalsIgnoreCase(status));
+
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Mapping status updated.", null));
+    }
+
+    /**
+     * Flips this bank's menu mappings for one product between live ('Y') and inactive ('N').
+     *
+     * Only the appended, bank-owned rows are touched — the catalog is never modified. The role
+     * grants in C_ROLE_MENU_MAP are deliberately left alone: the sidebar already refuses to serve
+     * an inactive menu (getMenusByRolePrivileges filters on status 'Y' and on the bank's active
+     * product scope), so reactivating the product restores exactly the access that existed before
+     * without an admin having to re-assign every privilege.
+     */
+    private void cascadeMenuMappings(Long bankId, Long productId, boolean activate) {
+        if (bankId == null || productId == null) return;
+        List<ReconMenuMaster> mappings = menuMasterRepository.findByBankIdAndProductId(bankId, productId);
+        for (ReconMenuMaster m : mappings) {
+            // Never resurrect something a Checker rejected, and never touch a draft/pending row.
+            String current = m.getStatus();
+            if (activate) {
+                if (!"N".equals(current)) continue;
+                m.setStatus("Y");
+            } else {
+                if (!"Y".equals(current)) continue;
+                m.setStatus("N");
+            }
+            menuMasterRepository.save(m);
+        }
+        logger.info("Product {} for bank {} {} — {} menu mapping(s) cascaded.",
+                productId, bankId, activate ? "reactivated" : "deactivated", mappings.size());
     }
 }
 

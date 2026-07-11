@@ -30,4 +30,11 @@ public interface AuditReplacementService {
     void onOriginalBlocked(Long originalUserId);
 
     void onOriginalReactivated(Long originalUserId);
+
+    /** The original's reactivation was SCHEDULED — put their replacement into INACTIVE_PENDING so
+     *  both accounts show their pending state at the same time. */
+    void onOriginalReactivateScheduled(Long originalUserId);
+
+    /** The scheduled reactivation was cancelled — put the replacement back to ACTIVE. */
+    void onOriginalReactivateCancelled(Long originalUserId);
 }

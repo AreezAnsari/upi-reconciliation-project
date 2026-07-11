@@ -119,6 +119,14 @@ public class ReconRoleMasterController {
         return reconRoleMasterService.savePrivileges(roleId, menuIds, userDetails.getUsername());
     }
 
+    /** Roles the caller may see. Admin → their institution; anyone else → only their own subtree,
+     *  never an ancestor's role and never a Checker role. Scope is taken from the JWT, so a client
+     *  cannot widen it by passing a different bank. */
+    @GetMapping("/visible")
+    public ResponseEntity<RestWithStatusList> getRolesVisibleTo(@AuthenticationPrincipal UserDetails userDetails) {
+        return reconRoleMasterService.getRolesVisibleTo(userDetails.getUsername());
+    }
+
     @GetMapping("/by-bank/{bankId}")
     public ResponseEntity<RestWithStatusList> getRolesByBankId(@PathVariable Long bankId) {
         return reconRoleMasterService.getRolesByBankId(bankId);

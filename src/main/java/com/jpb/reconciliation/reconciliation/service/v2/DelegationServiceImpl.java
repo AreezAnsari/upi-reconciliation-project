@@ -290,6 +290,24 @@ public class DelegationServiceImpl implements DelegationService {
             }
         }
 
+        // Bringing the delegation back means the delegator is back — so the inactivation that
+        // triggered the hand-over has to be called off with it. Without this the scheduler still
+        // fires ~30s later, marks the delegator INACTIVE and delegateOnInactivate hands the very
+        // same children straight back out again, silently undoing this restore.
+        //
+        // Only a still-PENDING inactivation is cancelled. On the reactivate path the delegator is
+        // already ACTIVE by the time we get here, so there is nothing to undo.
+        reconUserRepository.findById(delegatorUserId).ifPresent(delegator -> {
+            if (!"INACTIVE_PENDING".equals(delegator.getStatus())) return;
+            delegator.setStatus("ACTIVE");
+            delegator.setInactivateScheduledAt(null);
+            delegator.setInactivateScheduledBy(null);
+            delegator.setUpdatedAt(LocalDateTime.now());
+            delegator.setUpdatedBy(triggeredBy);
+            reconUserRepository.save(delegator);
+            logger.info("Delegation restore cancelled the pending inactivation of delegator {}", delegatorUserId);
+        });
+
         delegation.setStatus("RESTORED");
         delegation.setRestoredAt(LocalDateTime.now());
         delegation.setRestoredBy(triggeredBy);

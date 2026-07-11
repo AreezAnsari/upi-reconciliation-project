@@ -48,6 +48,11 @@ public interface ReconRoleMasterService {
      *  bank's users but not yet assigned to anyone. */
     ResponseEntity<RestWithStatusList> getRolesByBankId(Long bankId);
 
+    /** Roles the caller is allowed to see. An Admin sees their institution's roles; anyone else
+     *  sees only the roles of their own subtree (never a parent's or an Admin's), and never a
+     *  Checker role. Scope comes from the JWT, so it cannot be widened by the client. */
+    ResponseEntity<RestWithStatusList> getRolesVisibleTo(String username);
+
     /** Product IDs this role is restricted to (C_ROLE_PRODUCT_MAP). Empty means
      *  no restriction has been configured yet. */
     ResponseEntity<RestWithStatusList> getRoleProducts(Long roleId);

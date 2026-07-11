@@ -143,6 +143,12 @@ public class UserStatusServiceImpl implements UserStatusService {
         auditLog("RCN_RECON_USER", userId, "STATUS_CHANGE", old, "ACTIVE_PENDING",
                 scheduledBy, user.getUserType(), user.getBankId(), "Reactivation scheduled");
 
+        // The person standing in for them is on the way out — move them to INACTIVE_PENDING now, so
+        // both accounts show their pending state together rather than the replacement flipping only
+        // at the last moment.
+        try { replacementService.onOriginalReactivateScheduled(userId); }
+        catch (Exception e) { logger.warn("onOriginalReactivateScheduled failed for {}: {}", userId, e.getMessage()); }
+
         String reactivateAt = LocalDateTime.now().plusSeconds(30).format(FMT);
         try {
             String[] orgInfo = resolveOrgInfo(user);
@@ -179,6 +185,10 @@ public class UserStatusServiceImpl implements UserStatusService {
 
         auditLog("RCN_RECON_USER", userId, "STATUS_CHANGE", "ACTIVE_PENDING", "INACTIVE",
                 undoneBy, user.getUserType(), user.getBankId(), "Reactivation cancelled");
+
+        // The original is staying away, so their replacement is staying — undo the pending exit.
+        try { replacementService.onOriginalReactivateCancelled(userId); }
+        catch (Exception e) { logger.warn("onOriginalReactivateCancelled failed for {}: {}", userId, e.getMessage()); }
 
         try {
             String[] orgInfo = resolveOrgInfo(user);

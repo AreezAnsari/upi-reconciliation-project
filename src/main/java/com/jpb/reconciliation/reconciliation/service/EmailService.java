@@ -230,6 +230,10 @@ public interface EmailService {
     /** Sent when a user is automatically blocked by the scheduler (24h window elapsed). */
     void sendBlockedNotification(String toEmail, String contactName);
 
+    /** Tells a user their role — and therefore what they can do in the platform — has changed. */
+    void sendRoleChangedNotification(String toEmail, String contactName,
+                                     String oldRoleName, String newRoleName, String changedByName);
+
     // ── Maker-Checker workflow emails (Role / Menu / Product Capability) ──
 
     /** Sent to the Checker(s) when a Maker submits an item (Role or Menu) for approval. */

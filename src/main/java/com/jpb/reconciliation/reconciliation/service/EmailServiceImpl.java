@@ -2355,6 +2355,32 @@ public class EmailServiceImpl implements EmailService {
     // carries the same professional look: gold-on-navy header with the "Powered by KalInfotech"
     // subtitle, a prominent headline, a generously spaced body, the closing note in a highlighted
     // callout box, and a two-line footer. OTP mails intentionally use their own bespoke builders.
+    @Override
+    @Async
+    public void sendRoleChangedNotification(String toEmail, String contactName,
+                                            String oldRoleName, String newRoleName, String changedByName) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject("ReconXpert.Ai | Your Role Has Been Updated");
+            String from = (oldRoleName == null || oldRoleName.trim().isEmpty()) ? "not previously set" : sanitize(oldRoleName);
+            helper.setText(simpleNotice(contactName,
+                    "Role Updated",
+                    "Your role on <strong>ReconXpert.Ai</strong> has been changed from <strong>" + from
+                        + "</strong> to <strong>" + sanitize(newRoleName) + "</strong> by <strong>"
+                        + sanitize(changedByName) + "</strong>. Your access to the platform now follows the "
+                        + "privileges attached to this new role, so the menus available to you may look different "
+                        + "the next time you sign in.",
+                    "If you were not expecting this change, please contact your administrator immediately."), true);
+            mailSender.send(message);
+            logger.info("[EMAIL-OK] Role-changed notification sent to: {} ({} -> {})", toEmail, oldRoleName, newRoleName);
+        } catch (Exception e) {
+            logger.warn("[EMAIL-FAIL] Role-changed notification — recipient: {} | reason: {}", toEmail, e.getMessage());
+        }
+    }
+
     private String simpleNotice(String contactName, String headline, String body, String note) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"

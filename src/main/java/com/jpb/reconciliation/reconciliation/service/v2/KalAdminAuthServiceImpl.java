@@ -208,6 +208,8 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
     private ReconMenuMaster saveMenu(String parentMenuCode, String menuType, String menuName,
                                      String menuUrl, Long roleId, String createdBy) {
         ReconMenuMaster m = new ReconMenuMaster();
+        // Permanent identity — display names may be renamed, this must not be derived from them.
+        m.setSystemMenuCode(com.jpb.reconciliation.reconciliation.constants.SystemMenuCodes.of(menuName));
         m.setMenuType(menuType);
         m.setMenuName(menuName);
         m.setMenuUrl(menuUrl);

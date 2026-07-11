@@ -19,6 +19,10 @@ public interface NewReconUserService {
 
     ResponseEntity<RestWithStatusList> getUsersByBankId(Long bankId);
 
+    /** Users the caller may see. Admin → their institution; anyone else → only their own subtree
+     *  (never an ancestor or a sibling). Scope comes from the JWT and cannot be widened. */
+    ResponseEntity<RestWithStatusList> getUsersVisibleTo(String username);
+
     ResponseEntity<RestWithStatusList> getUsersByBankCode(String bankCode);
 
     ResponseEntity<RestWithStatusList> getUsersByRoleId(Long roleId);

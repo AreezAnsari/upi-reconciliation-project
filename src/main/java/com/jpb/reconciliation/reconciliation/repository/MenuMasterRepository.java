@@ -67,4 +67,17 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
     @Query("SELECT DISTINCT m.parentMenuCode FROM ReconMenuMaster m "
          + "WHERE m.bankId IS NULL AND m.menuType = 'Submenu'")
     List<String> findCatalogMainsWithSubmenus();
+
+    /** The catalog entry for a permanent identity code. The authoritative lookup — display names
+     *  are renameable, the code is not. */
+    @Query("SELECT m FROM ReconMenuMaster m WHERE m.bankId IS NULL AND m.systemMenuCode = :code")
+    Optional<ReconMenuMaster> findCatalogByCode(@Param("code") String code);
+
+    /** Every bank-owned mapping this bank already holds for one logical (catalog) menu. Drives the
+     *  duplicate / reactivate check — the caller narrows further by product and process. */
+    @Query("SELECT m FROM ReconMenuMaster m WHERE m.bankId = :bankId AND m.systemMenuCode = :code")
+    List<ReconMenuMaster> findBankMappingsByCode(@Param("bankId") Long bankId, @Param("code") String code);
+
+    /** Appended rows a bank holds for one product — used to cascade when a product is deactivated. */
+    List<ReconMenuMaster> findByBankIdAndProductId(Long bankId, Long productId);
 }

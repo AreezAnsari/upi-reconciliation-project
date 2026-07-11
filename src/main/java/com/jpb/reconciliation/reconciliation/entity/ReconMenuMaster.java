@@ -32,6 +32,14 @@ public class ReconMenuMaster {
     @Column(name = "MENU_ID")
     private Long menuId;
 
+    // Permanent business identity of a menu. MENU_NAME is a display label and may be renamed at
+    // any time, so no logic may key on it — validation, hierarchy resolution and duplicate
+    // detection all key on this code instead. A catalog row defines the code; every bank-owned
+    // row appended from that catalog row inherits it (so the same code repeats across banks and
+    // products, and is unique only among catalog rows — see index UX_MENU_CATALOG_CODE).
+    @Column(name = "SYSTEM_MENU_CODE")
+    private String systemMenuCode;
+
     @Column(name = "MENU_TYPE")
     private String menuType;
 

@@ -8,7 +8,9 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import com.jpb.reconciliation.reconciliation.entity.OtpManager;
 import com.jpb.reconciliation.reconciliation.exception.EmailDeliveryException;
+import com.jpb.reconciliation.reconciliation.repository.OtpManagerRepository;
 
 import javax.mail.internet.MimeMessage;
 import java.security.SecureRandom;
@@ -28,7 +30,11 @@ public class OtpService {
     @Value("${app.mail.from}")
     private String fromAddress;
 
-    // Temporary in-memory store — no DB table needed
+    @Autowired
+    private OtpManagerRepository otpManagerRepository;
+
+    // Verification runs off this in-memory map — it holds the attempt counter and makes an OTP
+    // one-time-use without a DB round trip on every keystroke.
     // Key = email (lowercase), Value = OtpEntry
     private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
 
@@ -46,13 +52,15 @@ public class OtpService {
 
         // Store OTP tentatively
         otpStore.put(key, new OtpEntry(otp, expiry, 0));
+        record(key, otp, expiry);
 
         try {
             sendOtpEmail(email, otp);
             logger.info("[OTP-OK] OTP generated and delivered to: {}", key);
         } catch (Exception e) {
-            // ── Rollback: remove undelivered OTP from memory ──────────────────
+            // ── Rollback: an OTP that never reached the user must not stay usable ──
             otpStore.remove(key);
+            markUsed(key); // closes the audit row too — it can never be redeemed
             logger.error("[OTP-ROLLBACK] OTP removed for {} after email delivery failure: {}", key, e.getMessage());
             throw new EmailDeliveryException(
                 "OTP could not be delivered to " + email + ". Please verify the email address and try again.",
@@ -62,10 +70,45 @@ public class OtpService {
 
     // Generates + stores OTP but returns the code so caller can send via EmailService
     public String generateOtpForEmail(String email) {
+        String key = email.toLowerCase();
         String otp = generateOtp();
         LocalDateTime expiry = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
-        otpStore.put(email.toLowerCase(), new OtpEntry(otp, expiry, 0));
+        otpStore.put(key, new OtpEntry(otp, expiry, 0));
+        record(key, otp, expiry);
         return otp;
+    }
+
+    /**
+     * Writes the OTP to RECON_OTP_MANAGER so there is a durable record of what was issued, to whom
+     * and when — the in-memory map alone leaves no trail and is gone on restart.
+     *
+     * Any still-open OTP for this address is closed first: only one OTP may ever be redeemable at a
+     * time, so issuing a new one must retire the old.
+     *
+     * Best-effort — a failure to write history must never stop a user from logging in.
+     */
+    private void record(String emailKey, String otp, LocalDateTime expiry) {
+        try {
+            otpManagerRepository.invalidatePreviousOtps(emailKey);
+            OtpManager row = new OtpManager();
+            row.setEmailId(emailKey);
+            row.setOtpCode(otp);
+            row.setExpiryTime(expiry);
+            row.setIsUsed("N");
+            row.setCreatedAt(LocalDateTime.now());
+            otpManagerRepository.save(row);
+        } catch (RuntimeException e) {
+            logger.warn("[OTP-HISTORY] Could not record OTP for {}: {}", emailKey, e.getMessage());
+        }
+    }
+
+    /** Closes the open OTP row for this address — redeemed, expired, or never delivered. */
+    private void markUsed(String emailKey) {
+        try {
+            otpManagerRepository.invalidatePreviousOtps(emailKey);
+        } catch (RuntimeException e) {
+            logger.warn("[OTP-HISTORY] Could not close OTP row for {}: {}", emailKey, e.getMessage());
+        }
     }
 
     public int getOtpExpiryMinutes() {
@@ -83,10 +126,12 @@ public class OtpService {
         }
         if (LocalDateTime.now().isAfter(entry.expiry)) {
             otpStore.remove(key);
+            markUsed(key);
             return OtpVerifyResult.EXPIRED;
         }
         if (entry.attempts >= MAX_ATTEMPTS) {
             otpStore.remove(key);
+            markUsed(key);
             return OtpVerifyResult.MAX_ATTEMPTS_EXCEEDED;
         }
         if (!entry.otp.equals(submittedOtp)) {
@@ -95,6 +140,7 @@ public class OtpService {
         }
 
         otpStore.remove(key); // one-time use — remove after success
+        markUsed(key);        // and mark it redeemed in the history table
         return OtpVerifyResult.SUCCESS;
     }
 
@@ -128,7 +174,9 @@ public class OtpService {
     // ─── Invalidate OTP (call when email delivery fails) ─────────────────────
     // Removes the OTP from memory so an undelivered OTP cannot be used later.
     public void invalidateOtp(String email) {
-        otpStore.remove(email.toLowerCase());
+        String key = email.toLowerCase();
+        otpStore.remove(key);
+        markUsed(key);
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────────────

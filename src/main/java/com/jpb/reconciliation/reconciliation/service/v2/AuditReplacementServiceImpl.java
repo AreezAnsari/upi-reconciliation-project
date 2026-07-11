@@ -288,6 +288,48 @@ public class AuditReplacementServiceImpl implements AuditReplacementService {
     }
 
     // ── On Original Reactivated — replacement tenure ends ───────────────────────
+    /**
+     * The original's reactivation has been SCHEDULED (they are ACTIVE_PENDING). Their replacement is
+     * on the way out, so it is moved to INACTIVE_PENDING right now — the two countdowns then run in
+     * parallel and both accounts read as pending, instead of the replacement staying ACTIVE until the
+     * moment the original lands.
+     *
+     * Deliberately NO inactivateScheduledAt: the per-user scheduler skips rows without one, so it
+     * won't treat this as an ordinary inactivation and fire replacement/delegation handling on the
+     * replacement itself. The final flip to INACTIVE stays with onOriginalReactivated(), which runs
+     * when the original actually becomes ACTIVE.
+     */
+    @Override
+    @Transactional
+    public void onOriginalReactivateScheduled(Long originalUserId) {
+        auditReplacementRepository.findByOriginalUserIdAndStatus(originalUserId, "ACTIVE")
+            .ifPresent(r -> reconUserRepository.findById(r.getReplacementUserId()).ifPresent(rep -> {
+                if (!"ACTIVE".equals(rep.getStatus())) return;
+                rep.setStatus("INACTIVE_PENDING");
+                rep.setUpdatedAt(LocalDateTime.now());
+                reconUserRepository.save(rep);
+                logger.info("Original {} reactivation scheduled — replacement {} moved to INACTIVE_PENDING",
+                        originalUserId, rep.getUserId());
+            }));
+    }
+
+    /** The scheduled reactivation was cancelled, so the replacement is staying — put them back. */
+    @Override
+    @Transactional
+    public void onOriginalReactivateCancelled(Long originalUserId) {
+        auditReplacementRepository.findByOriginalUserIdAndStatus(originalUserId, "ACTIVE")
+            .ifPresent(r -> reconUserRepository.findById(r.getReplacementUserId()).ifPresent(rep -> {
+                if (!"INACTIVE_PENDING".equals(rep.getStatus())) return;
+                rep.setStatus("ACTIVE");
+                rep.setInactivateScheduledAt(null);
+                rep.setInactivateScheduledBy(null);
+                rep.setUpdatedAt(LocalDateTime.now());
+                reconUserRepository.save(rep);
+                logger.info("Original {} reactivation cancelled — replacement {} restored to ACTIVE",
+                        originalUserId, rep.getUserId());
+            }));
+    }
+
     @Override
     @Transactional
     public void onOriginalReactivated(Long originalUserId) {

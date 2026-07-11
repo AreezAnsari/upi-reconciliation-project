@@ -14,6 +14,9 @@ import lombok.ToString;
 public class ReconMenuMasterDto {
 
     private Long menuId;
+    /** Permanent catalog identity of the menu being mapped. Authoritative — the backend validates
+     *  and resolves against this, not against the (renameable) display name. */
+    private String systemMenuCode;
     private String menuType;
     private String menuName;
     private String menuDescription;

@@ -50,6 +50,9 @@ public class NewReconUserServiceImpl implements NewReconUserService {
     private com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder approvalAuditRecorder;
 
     @Autowired
+    private com.jpb.reconciliation.reconciliation.service.v2.HierarchyScopeService hierarchyScopeService;
+
+    @Autowired
     private com.jpb.reconciliation.reconciliation.service.v2.WorkflowNotifier workflowNotifier;
 
     @Autowired
@@ -227,6 +230,43 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched by bank.", users));
     }
 
+    /**
+     * Emails a user when their role actually changed — no email when the role was left alone, and
+     * none when we can't resolve an address. Best-effort: a mail failure must never roll back the
+     * update that triggered it.
+     */
+    private void notifyRoleChanged(ReconUser user, Long previousRoleId, String changedBy) {
+        try {
+            Long newRoleId = user.getRoleId();
+            if (newRoleId == null || newRoleId.equals(previousRoleId)) return;
+            if (user.getEmail() == null || user.getEmail().trim().isEmpty()) return;
+
+            String oldName = previousRoleId == null ? null
+                    : reconRoleMasterRepository.findById(previousRoleId).map(ReconRoleMaster::getRoleName).orElse(null);
+            String newName = reconRoleMasterRepository.findById(newRoleId)
+                    .map(ReconRoleMaster::getRoleName).orElse("Role #" + newRoleId);
+            String actor = reconUserRepository.findByUsername(changedBy)
+                    .map(ReconUser::getFullName).orElse(changedBy);
+
+            emailService.sendRoleChangedNotification(user.getEmail(),
+                    user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                    oldName, newName, actor);
+        } catch (RuntimeException e) {
+            logger.warn("Role-changed email failed for user {}: {}", user.getUserId(), e.getMessage());
+        }
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getUsersVisibleTo(String username) {
+        // A non-admin sees only their own descendants. The Administration screens can replace and
+        // re-assign users, so showing a child their own parent (or an Admin) would hand them a way
+        // to swap that parent out and take their place.
+        List<ReconUser> users = hierarchyScopeService.caller(username)
+                .map(hierarchyScopeService::visibleUsers)
+                .orElse(java.util.Collections.emptyList());
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched.", users));
+    }
+
     @Override
     public ResponseEntity<RestWithStatusList> getUsersByBankCode(String bankCode) {
         Optional<com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster> bankOpt =
@@ -287,6 +327,8 @@ public class NewReconUserServiceImpl implements NewReconUserService {
                     "Your changes have been submitted to the Checker for approval.", null));
         }
 
+        Long previousRoleId = existing.getRoleId();
+
         if (user.getFullName() != null) existing.setFullName(user.getFullName());
         if (user.getMobileNumber() != null) existing.setMobileNumber(user.getMobileNumber());
         if (user.getDesignation() != null) existing.setDesignation(user.getDesignation());
@@ -296,6 +338,10 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(updatedBy);
         reconUserRepository.save(existing);
+
+        // A role change silently rewrites what this person can do in the platform, so they are told.
+        notifyRoleChanged(existing, previousRoleId, updatedBy);
+
         logger.info("ReconUser updated: {} by {}", userId, updatedBy);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User updated successfully.", Collections.singletonList(existing)));
     }

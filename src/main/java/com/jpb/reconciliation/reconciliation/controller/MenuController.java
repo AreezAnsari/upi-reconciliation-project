@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
@@ -39,15 +40,17 @@ public class MenuController {
     @Operation(summary = "Add menu")
     @PostMapping(value = "/addmenu", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> addMasterMenu(@RequestBody ReconMenuMasterDto menuRequest,
+            @RequestParam(name = "force", required = false, defaultValue = "false") boolean force,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return menuMasterService.addMenu(menuRequest, userDetails);
+        return menuMasterService.addMenu(menuRequest, userDetails, force);
     }
 
     @Operation(summary = "Add menu — Admin-only, activates immediately")
     @PostMapping(value = "/addmenu-active", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> addMasterMenuActive(@RequestBody ReconMenuMasterDto menuRequest,
+            @RequestParam(name = "force", required = false, defaultValue = "false") boolean force,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return menuMasterService.addMenuActive(menuRequest, userDetails);
+        return menuMasterService.addMenuActive(menuRequest, userDetails, force);
     }
 
     @Operation(summary = "Get menu by ID")
@@ -97,7 +100,11 @@ public class MenuController {
     public ResponseEntity<ResponseDto> updateMenu(@RequestBody ReconMenuMasterDto menuDto,
                                                   @AuthenticationPrincipal UserDetails userDetails) {
         String result = menuMasterService.updateMenu(menuDto, userDetails != null ? userDetails.getUsername() : null);
-        if ("APPLIED".equals(result)) {
+        if ("CATALOG_IMMUTABLE".equals(result)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ResponseDto(MenuConstants.STATUS_417,
+                            "This is a system catalog menu and cannot be edited."));
+        } else if ("APPLIED".equals(result)) {
             return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseDto(MenuConstants.STATUS_200, MenuConstants.MESSAGE_200));
         } else if ("SUBMITTED".equals(result)) {
@@ -108,6 +115,12 @@ public class MenuController {
             return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
                     .body(new ResponseDto(MenuConstants.STATUS_417, MenuConstants.MESSAGE_417));
         }
+    }
+
+    @Operation(summary = "Menus visible to the caller (Admin → institution; otherwise → own subtree only)")
+    @GetMapping(value = "/menu/visible", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getMenusVisibleTo(@AuthenticationPrincipal UserDetails userDetails) {
+        return menuMasterService.getMenusVisibleTo(userDetails.getUsername());
     }
 
     @GetMapping(value = "/getallmenu", produces = CommonConstants.APPLICATION_JSON)

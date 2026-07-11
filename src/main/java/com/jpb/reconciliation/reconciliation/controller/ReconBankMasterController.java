@@ -225,8 +225,16 @@ public class ReconBankMasterController {
             @RequestParam(required = false) String reason,
             Authentication authentication) {
         String scheduledBy = resolveUser(authentication);
+        // Blocking an institution is the most destructive action here: it cascades BLOCK_PENDING to
+        // every branch and every user, and once it lands it is permanent (a live replacement is even
+        // made permanent with it). It therefore gets the same 24-hour grace window an individual
+        // user block gets — that window IS the undo, and the warning email tells recipients to
+        // contact their administrator to cancel within it.
+        //
+        // This used to default to now()+5s, so the UI's Block button (which sends no scheduledAt)
+        // blocked the whole institution five seconds later, with no chance to cancel.
         LocalDateTime dateTime = (scheduledAt != null && !scheduledAt.trim().isEmpty())
-                ? LocalDateTime.parse(scheduledAt) : LocalDateTime.now().plusSeconds(5);
+                ? LocalDateTime.parse(scheduledAt) : LocalDateTime.now().plusHours(24);
         logger.info("Schedule block for bankId: {} at {} by {}", bankId, dateTime, scheduledBy);
         return reconBankMasterService.scheduleBlock(bankId, dateTime, scheduledBy, reason);
     }
