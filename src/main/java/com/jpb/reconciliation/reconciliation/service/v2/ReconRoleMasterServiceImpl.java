@@ -76,14 +76,17 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> createRole(ReconRoleMaster role, String createdBy) {
+    public ResponseEntity<RestWithStatusList> createRole(ReconRoleMaster role, String createdBy, boolean force) {
         if (role.getRoleName() == null || role.getRoleName().trim().isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(new RestWithStatusList("FAILURE", "Role name is required.", null));
         }
-        if (reconRoleMasterRepository.existsByRoleName(role.getRoleName())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(new RestWithStatusList("FAILURE", "Role name already exists.", null));
+        // Roles are tenant-scoped, not globally unique: Bank A and Bank B may each have a MAKER.
+        // A same-name role in the SAME organization isn't an error — it returns DUPLICATE_ROLE_EXISTS
+        // so the UI can ask "continue?". force=true means the user already confirmed.
+        if (!force && roleExistsInTenant(role.getRoleName(), role.getRoleType(), createdBy)) {
+            return ResponseEntity.ok(new RestWithStatusList("DUPLICATE_ROLE_EXISTS",
+                    "This role already exists for this organization. Do you still want to continue?", null));
         }
         // Role code is never typed by hand — auto-generated from ROLE_CODE_SEQ/ROLE_CODE_CUSTOM_SEQ
         // (same as the old backend). Reuses the code the Add Role form already reserved/showed the
@@ -100,7 +103,7 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
     @Override
     @Transactional
-    public ResponseEntity<RestWithStatusList> createRoleActive(ReconRoleMaster role, String createdBy) {
+    public ResponseEntity<RestWithStatusList> createRoleActive(ReconRoleMaster role, String createdBy, boolean force) {
         Optional<ReconUser> actorOpt = reconUserRepository.findByUsername(createdBy);
         if (!actorOpt.isPresent() || !com.jpb.reconciliation.reconciliation.constants.UserConstants.isAdminUserType(actorOpt.get().getUserType())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -110,9 +113,11 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
             return ResponseEntity.badRequest()
                     .body(new RestWithStatusList("FAILURE", "Role name is required.", null));
         }
-        if (reconRoleMasterRepository.existsByRoleName(role.getRoleName())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(new RestWithStatusList("FAILURE", "Role name already exists.", null));
+        // Tenant-scoped duplicate check (see createRole): same name in the same organization is
+        // allowed after the user confirms the prompt (force=true).
+        if (!force && roleExistsInTenant(role.getRoleName(), role.getRoleType(), createdBy)) {
+            return ResponseEntity.ok(new RestWithStatusList("DUPLICATE_ROLE_EXISTS",
+                    "This role already exists for this organization. Do you still want to continue?", null));
         }
         role.setRoleCode(resolveRoleCode(role.getRoleCode(), role.getRoleName()));
         // Not ACTIVE yet — a role with zero privileges is unusable. It only flips to ACTIVE
@@ -163,6 +168,24 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
                     .body(new RestWithStatusList("FAILURE", "Role not found with ID: " + roleId, null));
         }
         ReconRoleMaster existing = opt.get();
+
+        // Maker-checker on UPDATE: Admin applies immediately; a Maker's edit is held as a PENDING
+        // approval request (proposed changes stashed, live role untouched) until a Checker approves.
+        boolean isAdmin = reconUserRepository.findByUsername(updatedBy)
+                .map(a -> com.jpb.reconciliation.reconciliation.constants.UserConstants.isAdminUserType(a.getUserType()))
+                .orElse(false);
+        if (!isAdmin) {
+            java.util.Map<String, Object> changes = new java.util.LinkedHashMap<>();
+            if (role.getRoleName() != null) changes.put("roleName", role.getRoleName());
+            if (role.getRoleDesc() != null) changes.put("roleDesc", role.getRoleDesc());
+            if (role.getRoleType() != null) changes.put("roleType", role.getRoleType());
+            approvalAuditRecorder.recordSubmission(ApprovalAuditRecorder.ENTITY_ROLE, roleId,
+                    ApprovalAuditRecorder.ACTION_UPDATE, updatedBy, ApprovalJson.write(changes));
+            logger.info("Role update by Maker {} submitted for approval (role {})", updatedBy, roleId);
+            return ResponseEntity.ok(new RestWithStatusList("SUBMITTED_FOR_APPROVAL",
+                    "Your changes have been submitted to the Checker for approval.", null));
+        }
+
         if (role.getRoleName() != null) existing.setRoleName(role.getRoleName());
         if (role.getRoleDesc() != null) existing.setRoleDesc(role.getRoleDesc());
         if (role.getRoleType() != null) existing.setRoleType(role.getRoleType());
@@ -300,6 +323,19 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
                 return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                         "A role cannot have both Checker Dashboard and Maker-side privileges (Maker Dashboard / Add Role / Add Menu / Add User).",
                         null));
+            }
+
+            // Defence-in-depth: only a Bank/Branch/KAL Admin may grant Checker Dashboard. A Maker
+            // (a non-admin holding Add Role) must never create a Checker — the Privileges screen
+            // hides the option, and this stops a hand-crafted request from bypassing it.
+            if (hasChecker) {
+                Optional<ReconUser> actorOpt = reconUserRepository.findByUsername(updatedBy);
+                boolean actorIsAdmin = actorOpt.isPresent()
+                        && com.jpb.reconciliation.reconciliation.constants.UserConstants.isAdminUserType(actorOpt.get().getUserType());
+                if (!actorIsAdmin) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new RestWithStatusList("FAILURE",
+                            "Only a Bank or Branch Admin can create or assign a Checker role.", null));
+                }
             }
         }
 
@@ -493,6 +529,50 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
     private Set<Long> resolveProductScope(Long roleId) {
         if (roleId == null) return Collections.emptySet();
         return new java.util.HashSet<>(roleProductMapRepository.findProductIdsByRoleId(roleId));
+    }
+
+    // Tenant-scoped duplicate detection. Roles carry no BANK_ID column, so an organization is
+    // derived from RCN_RECON_USER exactly like getRolesByBankId: a role "belongs" to the actor's
+    // bank if it's assigned to one of that bank's users, or was created by someone from that bank
+    // and isn't in use anywhere else. A name+type match within that set is a duplicate.
+    // Kal Admin (no bankId) is scoped to roles it created itself.
+    private boolean roleExistsInTenant(String roleName, String roleType, String createdBy) {
+        if (roleName == null) return false;
+        String targetName = roleName.trim();
+        Optional<ReconUser> actorOpt = reconUserRepository.findByUsername(createdBy);
+        Long bankId = actorOpt.map(ReconUser::getBankId).orElse(null);
+
+        List<ReconRoleMaster> candidates;
+        if (bankId == null) {
+            // Kal Admin / no bank context — scope to this creator's own roles.
+            candidates = reconRoleMasterRepository.findByCreatedByIn(Collections.singletonList(createdBy));
+        } else {
+            List<ReconUser> bankUsers = reconUserRepository.findByBankId(bankId);
+            List<Long> roleIds = bankUsers.stream()
+                    .map(ReconUser::getRoleId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+            List<String> usernames = bankUsers.stream()
+                    .map(ReconUser::getUsername).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+            if (!usernames.contains(createdBy)) usernames.add(createdBy);
+
+            List<ReconRoleMaster> byUser = roleIds.isEmpty() ? Collections.emptyList()
+                    : reconRoleMasterRepository.findByRoleIdIn(roleIds);
+            List<ReconRoleMaster> byCreator = usernames.isEmpty() ? Collections.emptyList()
+                    : reconRoleMasterRepository.findByCreatedByIn(usernames);
+            // A creator's role already assigned to a DIFFERENT bank belongs to that bank, not here.
+            byCreator = byCreator.stream()
+                    .filter(r -> reconUserRepository.findByRoleId(r.getRoleId()).stream()
+                            .allMatch(u -> bankId.equals(u.getBankId())))
+                    .collect(Collectors.toList());
+
+            Map<Long, ReconRoleMaster> merged = new LinkedHashMap<>();
+            byUser.forEach(r -> merged.put(r.getRoleId(), r));
+            byCreator.forEach(r -> merged.put(r.getRoleId(), r));
+            candidates = new java.util.ArrayList<>(merged.values());
+        }
+
+        return candidates.stream().anyMatch(r ->
+                r.getRoleName() != null && r.getRoleName().trim().equalsIgnoreCase(targetName)
+                && (roleType == null || roleType.equalsIgnoreCase(r.getRoleType())));
     }
 
     // ROLE_CODE is now a flat sequential number (same generator as Add Role) so it can no

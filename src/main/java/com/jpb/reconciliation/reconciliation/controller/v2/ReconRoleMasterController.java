@@ -27,18 +27,23 @@ public class ReconRoleMasterController {
                 java.util.Collections.singletonList(code)));
     }
 
+    // force=true means "the user saw the 'role already exists for this organization' prompt and
+    // chose to continue". Default false: a same-name role in the same tenant returns
+    // DUPLICATE_ROLE_EXISTS so the frontend can show the confirmation dialog.
     @PostMapping("/create")
     public ResponseEntity<RestWithStatusList> createRole(
             @RequestBody ReconRoleMaster role,
+            @RequestParam(name = "force", required = false, defaultValue = "false") boolean force,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return reconRoleMasterService.createRole(role, userDetails.getUsername());
+        return reconRoleMasterService.createRole(role, userDetails.getUsername(), force);
     }
 
     @PostMapping("/create-active")
     public ResponseEntity<RestWithStatusList> createRoleActive(
             @RequestBody ReconRoleMaster role,
+            @RequestParam(name = "force", required = false, defaultValue = "false") boolean force,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return reconRoleMasterService.createRoleActive(role, userDetails.getUsername());
+        return reconRoleMasterService.createRoleActive(role, userDetails.getUsername(), force);
     }
 
     @GetMapping

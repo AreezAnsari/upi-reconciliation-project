@@ -11,7 +11,9 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 @Service
 public interface MenuMasterService {
 
-    boolean updateMenu(ReconMenuMasterDto menuDto);
+    /** Updates a menu. Returns "APPLIED" when the change was saved (Admin-direct), "SUBMITTED"
+     *  when a Maker's change was held for Checker approval instead, or "FAILED". */
+    String updateMenu(ReconMenuMasterDto menuDto, String updatedBy);
 
     ResponseEntity<RestWithStatusList> getMenus(Long menuId);
 

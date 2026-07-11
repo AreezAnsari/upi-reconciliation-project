@@ -1,6 +1,8 @@
 package com.jpb.reconciliation.reconciliation.service;
 
 import com.jpb.reconciliation.reconciliation.constants.UserConstants;
+import com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder;
+import com.jpb.reconciliation.reconciliation.service.v2.ApprovalJson;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconPasswordManager;
@@ -263,6 +265,28 @@ public class NewReconUserServiceImpl implements NewReconUserService {
                     .body(new RestWithStatusList("FAILURE", "User not found with ID: " + userId, null));
         }
         ReconUser existing = opt.get();
+
+        // Maker-checker on UPDATE: an Admin's edit applies immediately; a Maker's edit is held as
+        // a PENDING approval request (proposed changes stashed as JSON, live user untouched) until
+        // a Checker approves — same rule the CREATE flow already follows.
+        boolean isAdmin = reconUserRepository.findByUsername(updatedBy)
+                .map(a -> UserConstants.isAdminUserType(a.getUserType())).orElse(false);
+        if (!isAdmin) {
+            java.util.Map<String, Object> changes = new java.util.LinkedHashMap<>();
+            if (user.getFullName() != null) changes.put("fullName", user.getFullName());
+            if (user.getMobileNumber() != null) changes.put("mobileNumber", user.getMobileNumber());
+            if (user.getDesignation() != null) changes.put("designation", user.getDesignation());
+            if (user.getDepartment() != null) changes.put("department", user.getDepartment());
+            if (user.getContactRank() != null) changes.put("contactRank", user.getContactRank());
+            if (user.getRoleId() != null) changes.put("roleId", user.getRoleId());
+            String json = ApprovalJson.write(changes);
+            approvalAuditRecorder.recordSubmission(ApprovalAuditRecorder.ENTITY_USER, userId,
+                    ApprovalAuditRecorder.ACTION_UPDATE, updatedBy, json);
+            logger.info("ReconUser update by Maker {} submitted for approval (user {})", updatedBy, userId);
+            return ResponseEntity.ok(new RestWithStatusList("SUBMITTED_FOR_APPROVAL",
+                    "Your changes have been submitted to the Checker for approval.", null));
+        }
+
         if (user.getFullName() != null) existing.setFullName(user.getFullName());
         if (user.getMobileNumber() != null) existing.setMobileNumber(user.getMobileNumber());
         if (user.getDesignation() != null) existing.setDesignation(user.getDesignation());

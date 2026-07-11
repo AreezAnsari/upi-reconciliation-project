@@ -94,11 +94,16 @@ public class MenuController {
 
     @Operation(summary = "Update menu")
     @PutMapping(value = "/editmenu", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<ResponseDto> updateMenu(@RequestBody ReconMenuMasterDto menuDto) {
-        boolean isUpdated = menuMasterService.updateMenu(menuDto);
-        if (isUpdated) {
+    public ResponseEntity<ResponseDto> updateMenu(@RequestBody ReconMenuMasterDto menuDto,
+                                                  @AuthenticationPrincipal UserDetails userDetails) {
+        String result = menuMasterService.updateMenu(menuDto, userDetails != null ? userDetails.getUsername() : null);
+        if ("APPLIED".equals(result)) {
             return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseDto(MenuConstants.STATUS_200, MenuConstants.MESSAGE_200));
+        } else if ("SUBMITTED".equals(result)) {
+            // A Maker's edit is held for Checker approval, not applied yet.
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(new ResponseDto("SUBMITTED", "Your changes have been submitted to the Checker for approval."));
         } else {
             return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
                     .body(new ResponseDto(MenuConstants.STATUS_417, MenuConstants.MESSAGE_417));

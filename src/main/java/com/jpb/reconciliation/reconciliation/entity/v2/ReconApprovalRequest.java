@@ -47,4 +47,12 @@ public class ReconApprovalRequest {
 
     @Column(name = "STATUS", length = 20, nullable = false)
     private String status = "DRAFT";
+
+    // For a Maker's UPDATE request only: a JSON snapshot of the proposed field changes, held
+    // here (NOT applied to the live entity) until a Checker approves. On approval these are
+    // applied to the entity; on rejection they are discarded. NULL for CREATE requests and for
+    // Admin-direct updates, which never route through approval.
+    @Lob
+    @Column(name = "PROPOSED_CHANGES")
+    private String proposedChanges;
 }

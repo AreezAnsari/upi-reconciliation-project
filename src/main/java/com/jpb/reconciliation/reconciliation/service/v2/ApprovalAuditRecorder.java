@@ -52,11 +52,23 @@ public class ApprovalAuditRecorder {
      * outstanding for a given entity at a time.
      */
     public void recordSubmission(String entityType, Long entityId, String actionType, String makerUsername) {
+        recordSubmission(entityType, entityId, actionType, makerUsername, null);
+    }
+
+    /**
+     * As {@link #recordSubmission(String, Long, String, String)} but also stashes the maker's
+     * proposed field changes (JSON) — used by the UPDATE flow, where the live entity is left
+     * untouched until a Checker approves and the stashed changes are applied.
+     *
+     * @return the saved request's REQUEST_ID, or null if it couldn't be recorded.
+     */
+    public Long recordSubmission(String entityType, Long entityId, String actionType,
+                                 String makerUsername, String proposedChanges) {
         try {
             Long makerId = resolveUserId(makerUsername);
             if (entityId == null || makerId == null) {
                 logger.warn("Skipping approval audit for {}={}: unresolved maker '{}'", entityType, entityId, makerUsername);
-                return;
+                return null;
             }
 
             ReconApprovalRequest request = approvalRequestRepository
@@ -69,15 +81,17 @@ public class ApprovalAuditRecorder {
             request.setMakerId(makerId);
             request.setSubmittedAt(LocalDateTime.now());
             request.setStatus(STATUS_PENDING);
+            request.setProposedChanges(proposedChanges);
             // A fresh submission is undecided again — clear any leftover decision fields.
             request.setCheckerId(null);
             request.setCheckedAt(null);
             request.setDecision(null);
             request.setRemarks(null);
 
-            approvalRequestRepository.save(request);
+            return approvalRequestRepository.save(request).getRequestId();
         } catch (RuntimeException e) {
             logger.error("Failed to record approval submission for {}={}", entityType, entityId, e);
+            return null;
         }
     }
 

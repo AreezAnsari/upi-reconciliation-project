@@ -2350,20 +2350,37 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    // Shared shell for all short notification emails (block, workflow, capability, product-expiry).
+    // Kept deliberately aligned with the Bank Admin welcome mail so every transactional message
+    // carries the same professional look: gold-on-navy header with the "Powered by KalInfotech"
+    // subtitle, a prominent headline, a generously spaced body, the closing note in a highlighted
+    // callout box, and a two-line footer. OTP mails intentionally use their own bespoke builders.
     private String simpleNotice(String contactName, String headline, String body, String note) {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
-            + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>" + sanitize(headline) + "</p></td></tr>"
-            + "<tr><td style='padding:32px 40px 24px;'>"
-            + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
-            + "<p style='font-size:13px;color:#64748b;line-height:1.6;'>" + body + "</p>"
-            + "<p style='font-size:12px;color:#64748b;line-height:1.6;'>" + note + "</p>"
+
+            // Header — matches the welcome mail
+            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p></td></tr>"
+
+            // Body
+            + "<tr><td style='padding:40px;'>"
+            + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
+            + "<h2 style='font-size:18px;color:#0f3460;margin:0 0 16px;font-weight:bold;'>" + sanitize(headline) + "</h2>"
+            + "<p style='font-size:14px;color:#475569;line-height:1.8;margin:0 0 24px;'>" + body + "</p>"
+
+            // Closing note in a highlighted callout box
+            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;'>"
+            + "<p style='margin:0;font-size:13px;color:#92400e;line-height:1.7;'>" + note + "</p>"
+            + "</div>"
             + "</td></tr>"
-            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 40px;text-align:center;'>"
-            + "<p style='margin:0;font-size:11px;color:#94a3b8;'>ReconXpert.Ai — Automated Notification | support@kalinfotech.com</p>"
+
+            // Footer — matches the welcome mail
+            + "<tr><td style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;text-align:center;'>"
+            + "<p style='margin:0;font-size:12px;color:#94a3b8;'>This is an automated email from ReconXpert.Ai. Please do not reply.</p>"
+            + "<p style='margin:6px 0 0;font-size:11px;color:#cbd5e1;'>&#169; KalInfotech | support@kalinfotech.com</p>"
             + "</td></tr></table></td></tr></table></body></html>";
     }
 }

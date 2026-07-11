@@ -113,12 +113,29 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     }
 
     @Override
-    public boolean updateMenu(ReconMenuMasterDto menuDto) {
+    public String updateMenu(ReconMenuMasterDto menuDto, String updatedBy) {
         Optional<ReconMenuMaster> opt = menuMasterRepository.findById(menuDto.getMenuId());
-        if (!opt.isPresent()) return false;
+        if (!opt.isPresent()) return "FAILED";
+
+        // Maker-checker on UPDATE: Admin applies immediately; a Maker's edit is held as a PENDING
+        // approval request (proposed changes stashed, live menu untouched) until a Checker approves.
+        boolean isAdmin = updatedBy != null && reconUserRepository.findByUsername(updatedBy)
+                .map(a -> UserConstants.isAdminUserType(a.getUserType())).orElse(false);
+        if (!isAdmin && updatedBy != null) {
+            java.util.Map<String, Object> changes = new java.util.LinkedHashMap<>();
+            if (menuDto.getMenuName() != null) changes.put("menuName", menuDto.getMenuName());
+            if (menuDto.getMenuDescription() != null) changes.put("menuDescription", menuDto.getMenuDescription());
+            if (menuDto.getMenuUrl() != null) changes.put("menuUrl", menuDto.getMenuUrl());
+            approvalAuditRecorder.recordSubmission(
+                    com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ENTITY_MENU, menuDto.getMenuId(),
+                    com.jpb.reconciliation.reconciliation.service.v2.ApprovalAuditRecorder.ACTION_UPDATE, updatedBy,
+                    com.jpb.reconciliation.reconciliation.service.v2.ApprovalJson.write(changes));
+            return "SUBMITTED";
+        }
+
         ReconMenuMasterMapper.mapToMenu(menuDto, opt.get());
         menuMasterRepository.save(opt.get());
-        return true;
+        return "APPLIED";
     }
 
     @Override

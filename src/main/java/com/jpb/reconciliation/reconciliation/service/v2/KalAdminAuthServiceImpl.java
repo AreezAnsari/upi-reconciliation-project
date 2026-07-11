@@ -191,7 +191,7 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
             String myOrgId = String.valueOf(myOrg.getMenuId());
             for (String[] item : Arrays.asList(
                 new String[]{"Overview",          "/admin/my-organization/overview"},
-                new String[]{"Bank Branches",     "/admin/my-organization/bank-branches"},
+                new String[]{"Banks & Branches",  "/admin/my-organization/bank-branches"},
                 new String[]{"Bank Onboarding",   "/admin/bank-onboarding"},
                 new String[]{"My Hierarchy",      "/admin/my-organization/hierarchy"},
                 new String[]{"Admin Status",      "/admin/my-organization/admin-status"}

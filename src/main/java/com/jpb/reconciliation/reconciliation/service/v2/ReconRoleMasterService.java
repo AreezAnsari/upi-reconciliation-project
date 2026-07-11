@@ -9,12 +9,12 @@ import java.util.List;
 
 public interface ReconRoleMasterService {
 
-    ResponseEntity<RestWithStatusList> createRole(ReconRoleMaster role, String createdBy);
+    ResponseEntity<RestWithStatusList> createRole(ReconRoleMaster role, String createdBy, boolean force);
 
     /** Admin-only: creates a Role and activates it immediately, skipping the
      *  DRAFT -> PENDING -> Checker-approval flow entirely. Rejected if the
      *  caller isn't an Admin (KAL_ADMIN / BANK_ADMIN / BRANCH_ADMIN). */
-    ResponseEntity<RestWithStatusList> createRoleActive(ReconRoleMaster role, String createdBy);
+    ResponseEntity<RestWithStatusList> createRoleActive(ReconRoleMaster role, String createdBy, boolean force);
 
     ResponseEntity<RestWithStatusList> getAllRoles();
 

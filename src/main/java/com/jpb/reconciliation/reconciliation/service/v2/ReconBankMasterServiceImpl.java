@@ -1693,7 +1693,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 new String[]{"User List", prefix + "/user-list"},
                 new String[]{"Role List", prefix + "/role-list"},
                 new String[]{"Menu List", prefix + "/menu-list"},
-                new String[]{"User Management", prefix + "/user-management"},
+                new String[]{"Handover & Delegation History", prefix + "/user-management"},
+                new String[]{"Approval Request History", prefix + "/approval-history"},
+                new String[]{"Maker Dashboard", prefix + "/maker-queue"},
                 new String[]{"Checker Dashboard", prefix + "/checker-queue"}
             )) {
                 saveMenu(adminMenuName, "Main", item[0], item[1], roleId, bankId, createdBy);
@@ -1722,8 +1724,10 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
 
         // Arrays.<String[]>asList, not Arrays.asList: with a single String[] the varargs form
         // would spread the array into a List<String> instead of wrapping it.
-        for (String[] item : Arrays.<String[]>asList(
-            new String[]{"User Management", prefix + "/user-management"}
+        for (String[] item : Arrays.asList(
+            new String[]{"Handover & Delegation History", prefix + "/user-management"},
+            new String[]{"Approval Request History", prefix + "/approval-history"},
+            new String[]{"Maker Dashboard", prefix + "/maker-queue"}
         )) {
             if (menuMasterRepository.findByMenuNameAndBankId(item[0], bankId) == null) {
                 saveMenu(adminMaster.getMenuName(), "Main", item[0], item[1], roleId, bankId, createdBy);

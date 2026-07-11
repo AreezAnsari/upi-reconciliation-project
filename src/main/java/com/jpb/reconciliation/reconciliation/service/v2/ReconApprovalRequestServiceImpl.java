@@ -12,9 +12,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
+
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -24,6 +30,18 @@ public class ReconApprovalRequestServiceImpl implements ReconApprovalRequestServ
 
     @Autowired
     private ReconApprovalRequestRepository reconApprovalRequestRepository;
+
+    @Autowired
+    private ReconUserRepository reconUserRepository;
+
+    @Autowired
+    private com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleMasterRepository reconRoleMasterRepository;
+
+    @Autowired
+    private com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository menuMasterRepository;
+
+    private static final String ACTION_UPDATE = "UPDATE";
+    private static final String STATUS_PENDING = "PENDING";
 
     @Override
     @Transactional
@@ -111,6 +129,162 @@ public class ReconApprovalRequestServiceImpl implements ReconApprovalRequestServ
         reconApprovalRequestRepository.save(existing);
         logger.info("ReconApprovalRequest rejected: requestId={}, checkerId={}", requestId, checkerId);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Request rejected.", null));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getHistoryFor(Long userId, Long bankId, boolean isAdmin) {
+        List<ReconApprovalRequest> rows;
+        if (isAdmin && bankId == null) {
+            rows = reconApprovalRequestRepository.findAll();           // KAL_ADMIN → everything
+        } else if (isAdmin) {
+            rows = reconApprovalRequestRepository.findByMakerBankId(bankId);  // bank/branch admin → own institution
+        } else {
+            rows = reconApprovalRequestRepository.findByMakerId(userId);      // normal user → own requests
+        }
+
+        // The row stores maker/checker IDs only; a read-only history page needs names. Resolve
+        // each id once into a small cache rather than per row.
+        Map<Long, String> nameCache = new LinkedHashMap<>();
+        List<Object> out = new ArrayList<>();
+        for (ReconApprovalRequest a : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("requestId", a.getRequestId());
+            m.put("entityType", a.getEntityType());
+            m.put("entityId", a.getEntityId());
+            m.put("actionType", a.getActionType());
+            m.put("status", a.getStatus());
+            m.put("decision", a.getDecision());
+            m.put("remarks", a.getRemarks());
+            m.put("submittedAt", a.getSubmittedAt());
+            m.put("checkedAt", a.getCheckedAt());
+            m.put("requestedBy", resolveName(a.getMakerId(), nameCache));
+            m.put("approvedBy", resolveName(a.getCheckerId(), nameCache));
+            out.add(m);
+        }
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Approval history fetched.", out));
+    }
+
+    private String resolveName(Long userId, Map<Long, String> cache) {
+        if (userId == null) return null;
+        return cache.computeIfAbsent(userId, id ->
+                reconUserRepository.findById(id).map(ReconUser::getFullName).orElse("User #" + id));
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getPendingUpdatesForChecker(String checkerUsername) {
+        Optional<ReconUser> checkerOpt = reconUserRepository.findByUsername(checkerUsername);
+        if (!checkerOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "Checker not found: " + checkerUsername, null));
+        }
+        Long bankId = checkerOpt.get().getBankId();
+        List<ReconApprovalRequest> rows = (bankId == null)
+                ? reconApprovalRequestRepository.findByActionTypeAndStatus(ACTION_UPDATE, STATUS_PENDING)  // KAL_ADMIN → all
+                : reconApprovalRequestRepository.findPendingUpdatesByBank(ACTION_UPDATE, STATUS_PENDING, bankId);
+
+        Map<Long, String> nameCache = new LinkedHashMap<>();
+        List<Object> out = new ArrayList<>();
+        for (ReconApprovalRequest a : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("requestId", a.getRequestId());
+            m.put("entityType", a.getEntityType());
+            m.put("entityId", a.getEntityId());
+            m.put("entityName", resolveEntityName(a.getEntityType(), a.getEntityId()));
+            m.put("actionType", a.getActionType());
+            m.put("status", a.getStatus());
+            m.put("submittedAt", a.getSubmittedAt());
+            m.put("requestedBy", resolveName(a.getMakerId(), nameCache));
+            m.put("changes", ApprovalJson.read(a.getProposedChanges()));
+            out.add(m);
+        }
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Pending update requests fetched.", out));
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<RestWithStatusList> decideUpdateRequest(Long requestId, String checkerUsername,
+                                                                  String decision, String remarks) {
+        Optional<ReconApprovalRequest> opt = reconApprovalRequestRepository.findById(requestId);
+        if (!opt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "Approval request not found with ID: " + requestId, null));
+        }
+        ReconApprovalRequest req = opt.get();
+        if (!ACTION_UPDATE.equals(req.getActionType()) || !STATUS_PENDING.equals(req.getStatus())) {
+            return ResponseEntity.ok(new RestWithStatusList("FAILURE", "This request is not a pending update.", null));
+        }
+        boolean approved = "APPROVED".equalsIgnoreCase(decision);
+        if (approved) {
+            applyProposedChanges(req.getEntityType(), req.getEntityId(), ApprovalJson.read(req.getProposedChanges()), checkerUsername);
+        }
+        req.setDecision(approved ? "APPROVED" : "REJECTED");
+        req.setStatus(approved ? "APPROVED" : "REJECTED");
+        req.setCheckerId(reconUserRepository.findByUsername(checkerUsername).map(ReconUser::getUserId).orElse(null));
+        req.setCheckedAt(LocalDateTime.now());
+        req.setRemarks(remarks);
+        reconApprovalRequestRepository.save(req);
+        logger.info("Update request {} {} by {}", requestId, req.getStatus(), checkerUsername);
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
+                approved ? "Update approved and applied." : "Update rejected.", null));
+    }
+
+    private String resolveEntityName(String entityType, Long entityId) {
+        if (entityId == null) return null;
+        if (ApprovalAuditRecorder.ENTITY_USER.equals(entityType)) {
+            return reconUserRepository.findById(entityId).map(ReconUser::getFullName).orElse("User #" + entityId);
+        }
+        if (ApprovalAuditRecorder.ENTITY_ROLE.equals(entityType)) {
+            return reconRoleMasterRepository.findById(entityId)
+                    .map(com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster::getRoleName).orElse("Role #" + entityId);
+        }
+        if (ApprovalAuditRecorder.ENTITY_MENU.equals(entityType)) {
+            return menuMasterRepository.findByMenuId(entityId)
+                    .map(com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster::getMenuName).orElse("Menu #" + entityId);
+        }
+        return null;
+    }
+
+    // Applies a maker's approved proposed changes onto the live entity, field by field. Only the
+    // fields the corresponding update endpoint itself allows are honoured — anything else in the
+    // JSON is ignored, so a stale/tampered payload can never write an unexpected column.
+    private void applyProposedChanges(String entityType, Long entityId, Map<String, Object> changes, String by) {
+        if (changes == null || changes.isEmpty()) return;
+        if (ApprovalAuditRecorder.ENTITY_USER.equals(entityType)) {
+            reconUserRepository.findById(entityId).ifPresent(u -> {
+                if (changes.containsKey("fullName")) u.setFullName(asString(changes.get("fullName")));
+                if (changes.containsKey("mobileNumber")) u.setMobileNumber(asString(changes.get("mobileNumber")));
+                if (changes.containsKey("designation")) u.setDesignation(asString(changes.get("designation")));
+                if (changes.containsKey("department")) u.setDepartment(asString(changes.get("department")));
+                if (changes.containsKey("contactRank")) u.setContactRank(asString(changes.get("contactRank")));
+                if (changes.containsKey("roleId")) u.setRoleId(asLong(changes.get("roleId")));
+                u.setUpdatedAt(LocalDateTime.now());
+                u.setUpdatedBy(by);
+                reconUserRepository.save(u);
+            });
+        } else if (ApprovalAuditRecorder.ENTITY_ROLE.equals(entityType)) {
+            reconRoleMasterRepository.findById(entityId).ifPresent(r -> {
+                if (changes.containsKey("roleName")) r.setRoleName(asString(changes.get("roleName")));
+                if (changes.containsKey("roleDesc")) r.setRoleDesc(asString(changes.get("roleDesc")));
+                if (changes.containsKey("roleType")) r.setRoleType(asString(changes.get("roleType")));
+                r.setUpdatedAt(LocalDateTime.now());
+                r.setUpdatedBy(by);
+                reconRoleMasterRepository.save(r);
+            });
+        } else if (ApprovalAuditRecorder.ENTITY_MENU.equals(entityType)) {
+            menuMasterRepository.findByMenuId(entityId).ifPresent(mn -> {
+                if (changes.containsKey("menuName")) mn.setMenuName(asString(changes.get("menuName")));
+                if (changes.containsKey("menuDescription")) mn.setMenuDescription(asString(changes.get("menuDescription")));
+                if (changes.containsKey("menuUrl")) mn.setMenuUrl(asString(changes.get("menuUrl")));
+                menuMasterRepository.save(mn);
+            });
+        }
+    }
+
+    private String asString(Object v) { return v == null ? null : String.valueOf(v); }
+
+    private Long asLong(Object v) {
+        if (v == null) return null;
+        try { return Long.valueOf(String.valueOf(v)); } catch (NumberFormatException e) { return null; }
     }
 }
 
