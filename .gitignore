@@ -38,4 +38,4 @@ build/
 /.idea/
 /.mvn/
 /.settings/
-/target/
+/target/src/main/resources/application.yml 
