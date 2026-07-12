@@ -77,6 +77,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+
 @Service
 @Transactional(readOnly = true)
 public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConfigService {
@@ -557,7 +558,11 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                 return fieldConfigurations;
             }
 
-            Row headerRow = sheet.getRow(0);
+            Row headerRow = findHeaderRow(sheet);
+
+            if (headerRow == null) {
+                return fieldConfigurations;
+            }
 
             int totalColumns = headerRow.getLastCellNum();
 
@@ -571,11 +576,14 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     continue;
                 }
 
-                String header = headerCell.toString().trim();
+              String header = headerCell.toString().trim();
+                System.out.println("Column " + columnIndex + " Header = [" + header + "]");
+            //    String header = formatter.formatCellValue(headerCell).trim();
+               // DataFormatter formatter = new DataFormatter();
 
                 List<String> columnValues = new ArrayList<>();
 
-                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                for (int rowIndex = headerRow.getRowNum() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
 
                     Row row = sheet.getRow(rowIndex);
 
@@ -585,7 +593,8 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
                     Cell cell = row.getCell(columnIndex);
 
-                    columnValues.add(cell == null ? "" : cell.toString().trim());
+                   columnValues.add(cell == null ? "" : cell.toString().trim());
+                 //   columnValues.add(cell == null ? "" : formatter.formatCellValue(cell).trim());
                 }
 
                 fieldConfigurations.add(
@@ -599,6 +608,33 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
 
         return fieldConfigurations;
     }
+    // =========================================================================
+// FIND HEADER ROW IN EXCEL
+// =========================================================================
+    private Row findHeaderRow(Sheet sheet) {
+
+        for (Row row : sheet) {
+
+            int nonEmptyCells = 0;
+
+            for (Cell cell : row) {
+
+                if (cell != null
+                        && !cell.toString().trim().isEmpty()) {
+
+                    nonEmptyCells++;
+                }
+            }
+
+            // Header should contain multiple populated columns
+            if (nonEmptyCells >= 4) {
+                return row;
+            }
+        }
+
+        return null;
+    }
+    
     // =========================================================================
     // PARSE XML FILE
     // =========================================================================
