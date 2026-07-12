@@ -10,4 +10,6 @@ public class UpiAdjItemDto {
     private int    count;
     private double amount;
     private String ttumStatus;
+    private int    remJioCount;   
+    private int    benJioCount;   
 }
