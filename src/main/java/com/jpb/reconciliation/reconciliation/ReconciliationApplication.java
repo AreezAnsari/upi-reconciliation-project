@@ -13,9 +13,8 @@ import com.ulisesbocchio.jasyptspringboot.annotation.EnableEncryptableProperties
 @EnableRetry
 @EnableEncryptableProperties
 public class ReconciliationApplication {
-
+	
 	public static void main(String[] args) {
 		SpringApplication.run(ReconciliationApplication.class, args);
 	}
-
 }
