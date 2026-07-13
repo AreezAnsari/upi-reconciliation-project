@@ -4,7 +4,9 @@
 
 jasypt:
   encryptor:
-    password: jpbrecon@123
+   # password: jpbrecon@123
+    password: Jpbrecon2026
+
 
 spring:
   application:
@@ -12,15 +14,17 @@ spring:
   datasource:
 #    primary:
 #      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb  AWS DB
-      url: jdbc:oracle:thin:@//80.225.233.60:1521/FREEPDB1
+      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/Oracledb/Wallet_RECONDB1
+#      url: jdbc:oracle:thin:@//80.225.233.60:1521/FREEPDB1
       driver-class-name: oracle.jdbc.OracleDriver
 #      username: recon_sit
-#      username: jpb_recon   AWS
-      userName: RECON_SIT
+ #     username: jpb_recon   AWS
+      username: jpb_recon
+      password: Jpbrecon2026
+ #     userName: RECON_SIT
 #      password: recon_sit
 #      password: Jpbrecon2026   AWS
-      password: RECON_SIT
+     # password: RECON_SIT
       hikari:
         maximum-pool-size: 100
         max-lifetime: 1800000
