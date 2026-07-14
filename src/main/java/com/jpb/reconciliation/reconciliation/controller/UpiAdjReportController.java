@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Slf4j
 @RestController
@@ -41,9 +45,10 @@ public class UpiAdjReportController {
     }
 
     /**
-     * Stage-wise TTUM Decision -- DR/CR account codes resolved from real
-     * REC_UPI_ADJ_DATA rows for the given ADJDATE (REMITTER/BENEFICIERY
-     * tell us Jio's actual role, TRANSACTION_TYPE tells us U2 vs U3).
+     * Stage-wise TTUM Decision -- paginated, raw REC_UPI_ADJ_DATA rows for the
+     * given ADJDATE, in natural DB order. page/size now come from the request
+     * body (UpiAdjRequestDto) -- single source of truth, default size = 50.
+     * Example body: { "adjDate": "13-06-2026", "page": 0, "size": 50 }
      */
     @PostMapping(value = "/upi-adj-ttm-stage", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getUpiAdjTtmStage(@RequestBody UpiAdjRequestDto requestDto) {
@@ -56,7 +61,36 @@ public class UpiAdjReportController {
                     .data(Collections.emptyList())
                     .build());
         }
-        log.info("API called: POST /api/v1/upi/upi-adj-ttm-stage for Adjustment Date: {}", requestDto.getAdjDate());
-        return ResponseEntity.ok(upiAdjTtmStageService.getUpiAdjTtmStage(requestDto.getAdjDate()));
+        log.info("API called: POST /api/v1/upi/upi-adj-ttm-stage for date: {}, page: {}, size: {}",
+                requestDto.getAdjDate(), requestDto.getPage(), requestDto.getSize());
+        return ResponseEntity.ok(upiAdjTtmStageService.getUpiAdjTtmStage(
+                requestDto.getAdjDate(), requestDto.getPage(), requestDto.getSize()));
+    }
+    /**
+     * Download full Stage-wise TTUM Decision data as CSV — NO pagination,
+     * poora data ek CSV file mein, direct browser download trigger karega.
+     * Example: GET /api/v1/upi/upi-adj-ttm-stage/download?adjDate=13-06-2026
+     */
+    @GetMapping(value = "/upi-adj-ttm-stage/download")
+    public ResponseEntity<byte[]> downloadUpiAdjTtmStage(@RequestParam String adjDate) {
+
+        if (adjDate == null || adjDate.trim().isEmpty()) {
+            log.warn("Download API called without adjDate!");
+            return ResponseEntity.badRequest().body("Adjustment Date is required".getBytes());
+        }
+
+        log.info("API called: GET /api/v1/upi/upi-adj-ttm-stage/download for date: {}", adjDate);
+
+        byte[] csvBytes = upiAdjTtmStageService.downloadUpiAdjTtmStageCsv(adjDate);
+
+        String fileName = "Stage_Wise_TTUM_" + adjDate.replace("-", "") + ".csv";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv"));
+        headers.setContentDispositionFormData("attachment", fileName);
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csvBytes);
     }
 }
