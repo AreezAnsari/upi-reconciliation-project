@@ -69,17 +69,20 @@ public class UpiAdjReportController {
     /**
      * Download full Stage-wise TTUM Decision data as CSV — NO pagination,
      * poora data ek CSV file mein, direct browser download trigger karega.
-     * Example: GET /api/v1/upi/upi-adj-ttm-stage/download?adjDate=13-06-2026
+     * Example: POST /api/v1/upi/upi-adj-ttm-stage/download
+     * Body: { "adjDate": "13-06-2026" }
      */
-    @GetMapping(value = "/upi-adj-ttm-stage/download")
-    public ResponseEntity<byte[]> downloadUpiAdjTtmStage(@RequestParam String adjDate) {
+    @PostMapping(value = "/upi-adj-ttm-stage/download")
+    public ResponseEntity<byte[]> downloadUpiAdjTtmStage(@RequestBody UpiAdjRequestDto request) {
+
+        String adjDate = request.getAdjDate();
 
         if (adjDate == null || adjDate.trim().isEmpty()) {
             log.warn("Download API called without adjDate!");
             return ResponseEntity.badRequest().body("Adjustment Date is required".getBytes());
         }
 
-        log.info("API called: GET /api/v1/upi/upi-adj-ttm-stage/download for date: {}", adjDate);
+        log.info("API called: POST /api/v1/upi/upi-adj-ttm-stage/download for date: {}", adjDate);
 
         byte[] csvBytes = upiAdjTtmStageService.downloadUpiAdjTtmStageCsv(adjDate);
 

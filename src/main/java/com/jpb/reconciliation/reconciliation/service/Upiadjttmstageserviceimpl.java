@@ -70,7 +70,7 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
         FLAG_MAP.put("Fraud Chargeback Representment", "FCR");
         FLAG_MAP.put("Chargeback Raise", "B");
         FLAG_MAP.put("Chargeback Acceptance", "A");
-        FLAG_MAP.put("Transaction Credit Confirmation", "TCC");
+        FLAG_MAP.put("TCC", "TCC");
         FLAG_MAP.put("Debit Reversal Confirmation", "DRC");
         FLAG_MAP.put("Re-presentment Raise", "R");
         FLAG_MAP.put("Wrong Credit Chargeback Raise", "WC");
@@ -91,6 +91,8 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
         String rem = normalize(row.get("REMITTER") != null ? row.get("REMITTER").toString() : "");
         String ben = normalize(row.get("BENEFICIERY") != null ? row.get("BENEFICIERY").toString() : "");
         double amt = row.get("TRAN_AMOUNT") != null ? ((Number) row.get("TRAN_AMOUNT")).doubleValue() : 0.0;
+        String response = normalize(row.get("RESPONSE") != null ? row.get("RESPONSE").toString() : "");
+        String rcGroup = response.isEmpty() ? "–" : "RC-" + response;  // e.g. "RC-00", "RC-RB"
 
         boolean isRemIss = "JIO".equalsIgnoreCase(rem);
         boolean isBenAcq = "JIO".equalsIgnoreCase(ben);
@@ -126,12 +128,25 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
             }
         }
 
+        // JIO ROLE: sirf DB column check karo
+        // REMITTER = JIO → JIO-REM
+        // BENEFICIERY = JIO → JIO-BEN
+        String jioRole;
+        if ("JIO".equalsIgnoreCase(rem)) {
+            jioRole = "JIO-REM";
+        } else if ("JIO".equalsIgnoreCase(ben)) {
+            jioRole = "JIO-BEN";
+        } else {
+            jioRole = "-";
+        }
+
         return UpiAdjTtumStageItemDto.builder()
                 .adjType(adjType)
                 .stage(adjType)
                 .flag(FLAG_MAP.getOrDefault(adjType, "–"))
                 .txn(txnType)
-                .role(financial ? roleLabel : "–")
+                .rcGroup(rcGroup)                           // ← NEW
+                .role(jioRole)
                 .fin(financial ? "Financial" : "Non-Financial")
                 .dr(nvl(dr))
                 .cr(nvl(cr))
@@ -186,7 +201,7 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
             // natural order the data was loaded into the table -- no artificial reordering,
             // no grouping by U2/U3 or anything else, exactly as it sits in the DB.
             String pagedSql =
-                    "SELECT TXN_UID, ADJTYPE, TRANSACTION_TYPE, REMITTER, BENEFICIERY, TRAN_AMOUNT " +
+                    "SELECT TXN_UID, ADJTYPE, TRANSACTION_TYPE, REMITTER, BENEFICIERY, TRAN_AMOUNT, RESPONSE " +
                     "FROM REC_UPI_ADJ_DATA " +
                     "WHERE ADJDATE = TO_DATE(?, 'DD-MM-YYYY') " +
                     "ORDER BY TXN_UID " +
@@ -230,7 +245,7 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
 
             // Poora data ek saath — bina OFFSET/FETCH ke, sirf download ke liye
             String fullSql =
-                    "SELECT TXN_UID, ADJTYPE, TRANSACTION_TYPE, REMITTER, BENEFICIERY, TRAN_AMOUNT " +
+                    "SELECT TXN_UID, ADJTYPE, TRANSACTION_TYPE, REMITTER, BENEFICIERY, TRAN_AMOUNT, RESPONSE " +
                     "FROM REC_UPI_ADJ_DATA " +
                     "WHERE ADJDATE = TO_DATE(?, 'DD-MM-YYYY') " +
                     "ORDER BY TXN_UID";
@@ -238,7 +253,7 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
             List<Map<String, Object>> dbRows = jdbcTemplate.queryForList(fullSql, formattedDate);
 
             StringBuilder csv = new StringBuilder();
-            csv.append("Sr.,Dispute/Adjustment Stage,Flag,Txn Type,JIO Role,Financial,DR Account,CR Account,TTUM Required,Amount\n");
+            csv.append("Sr.,Dispute/Adjustment Stage,Flag,Txn Type,RC Group,JIO Role,Financial,DR Account,CR Account,TTUM Required,Amount\n");
 
             int sr = 1;
             for (Map<String, Object> row : dbRows) {
@@ -247,6 +262,7 @@ public class Upiadjttmstageserviceimpl implements Upiadjttmstageservice {
                    .append(csvSafe(dto.getStage())).append(",")
                    .append(csvSafe(dto.getFlag())).append(",")
                    .append(csvSafe(dto.getTxn())).append(",")
+                   .append(csvSafe(dto.getRcGroup())).append(",")   // ← NEW
                    .append(csvSafe(dto.getRole())).append(",")
                    .append(csvSafe(dto.getFin())).append(",")
                    .append(csvSafe(dto.getDr())).append(",")

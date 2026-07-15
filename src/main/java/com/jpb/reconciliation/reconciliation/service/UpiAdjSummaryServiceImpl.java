@@ -17,7 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Slf4j
-@Service
+@Service	
 public class UpiAdjSummaryServiceImpl implements UpiAdjSummaryService {
 
     private final JdbcTemplate jdbcTemplate;
