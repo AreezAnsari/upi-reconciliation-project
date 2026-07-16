@@ -118,14 +118,14 @@ public class EmailServiceImpl implements EmailService {
     private String buildLoginOtpEmailHtml(String userName, String otpCode, int expiryMins) {
         return "<div style='font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e5e7eb;border-radius:8px;'>"
             + "<div style='text-align:center;margin-bottom:24px;'>"
-            + "<span style='font-size:20px;font-weight:600;color:#1e3a5f;'>ReconXpert.Ai</span><br/>"
+            + "<span style='font-size:20px;font-weight:600;color:#0f2137;'>ReconXpert.Ai</span><br/>"
             + "<span style='font-size:12px;color:#6b7280;'>by KalInfotech</span>"
             + "</div>"
             + "<p style='color:#374151;font-size:15px;'>Dear <strong>" + sanitize(userName) + "</strong>,</p>"
             + "<p style='color:#374151;font-size:15px;'>Your One-Time Password (OTP) for login is:</p>"
             + "<div style='text-align:center;margin:24px 0;'>"
             + "<span style='display:inline-block;font-size:36px;font-weight:700;letter-spacing:12px;"
-            + "color:#1e3a5f;background:#f0f4ff;padding:16px 28px;border-radius:8px;'>"
+            + "color:#0f2137;background:#f0f4ff;padding:16px 28px;border-radius:8px;'>"
             + sanitize(otpCode)
             + "</span>"
             + "</div>"
@@ -147,17 +147,17 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background-color:#f4f6f9;padding:40px 0;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628 0%,#0f2137 50%,#152d47 100%);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
             + "<tr><td style='padding:40px 40px 20px 40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px 0;'>Dear <strong>" + sanitize(userName) + "</strong>,</p>"
             + "<p style='font-size:14px;color:#64748b;margin:0 0 28px 0;'>We have received a request to reset the password associated with your ReconXpert.Ai account. To proceed, please use the One-Time Password (OTP) provided below to verify your identity.</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:8px 0 28px 0;'>"
-            + "<div style='background:#f8fafc;border:2px dashed #d4a843;border-radius:12px;padding:24px 32px;display:inline-block;text-align:center;'>"
+            + "<div style='background:#f8fafc;border:2px dashed #f59e0b;border-radius:12px;padding:24px 32px;display:inline-block;text-align:center;'>"
             + "<p style='margin:0 0 8px 0;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:2px;'>Your One-Time Password</p>"
-            + "<p style='margin:0;font-size:40px;font-weight:bold;color:#1a1a2e;letter-spacing:10px;'>" + sanitize(otpCode) + "</p>"
+            + "<p style='margin:0;font-size:40px;font-weight:bold;color:#0a1628;letter-spacing:10px;'>" + sanitize(otpCode) + "</p>"
             + "<p style='margin:8px 0 0 0;font-size:12px;color:#ef4444;'>Valid for " + expiryMins + " minutes only</p>"
             + "</div></td></tr></table>"
             + "<p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>To reset your password:</p>"
@@ -190,8 +190,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -221,7 +221,7 @@ public class EmailServiceImpl implements EmailService {
             // Verify button
             + "<p style='font-size:14px;color:#475569;margin:0 0 16px;'>Kindly click the button below to verify your email and set your new password:</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
-            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Email &amp; Set Password</a>"
+            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#0a1628,#152d47);color:#f59e0b;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Email &amp; Set Password</a>"
             + "</td></tr></table>"
 
             // Steps
@@ -234,7 +234,7 @@ public class EmailServiceImpl implements EmailService {
             + "</ol>"
 
             // Warning box
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Important:</strong> Your account will remain <strong>INACTIVE</strong> until you complete email verification. "
             + "Please do not share your credentials with anyone."
@@ -313,7 +313,7 @@ public class EmailServiceImpl implements EmailService {
                     + "You can now access the ReconXpert.Ai platform using your credentials.";
                 break;
             default:
-                statusColor  = "#d4a843";
+                statusColor  = "#f59e0b";
                 statusBg     = "rgba(212,168,67,0.1)";
                 statusIcon   = "ℹ";
                 statusMessage = "Your bank status has been updated to <strong>" + sanitize(newStatus) + "</strong>.";
@@ -325,8 +325,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -356,10 +356,10 @@ public class EmailServiceImpl implements EmailService {
             + "</table></div>"
 
             // Contact note
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Note:</strong> This is an automated notification from KalInfotech Admin. "
-            + "If you have any questions, please contact us at <a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "If you have any questions, please contact us at <a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>."
             + "</p></div>"
 
             + "</td></tr>"
@@ -424,7 +424,7 @@ public class EmailServiceImpl implements EmailService {
                     + "During this period, platform login and all reconciliation operations will be unavailable.";
                 actionNote    = "To understand the reason for this action or to request rebnkatement, "
                     + "please reach out to your designated KalInfotech Relationship Manager or write to us at "
-                    + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>. "
+                    + "<a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>. "
                     + "Please quote your Bank Code when contacting support.";
                 break;
             case "ACTIVE":
@@ -439,17 +439,17 @@ public class EmailServiceImpl implements EmailService {
                     + "using your existing Bank Admin credentials.";
                 actionNote    = "If you experience any difficulty accessing the platform or require assistance, "
                     + "please contact our support team at "
-                    + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>.";
+                    + "<a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>.";
                 break;
             default:
-                statusColor   = "#d4a843";
+                statusColor   = "#f59e0b";
                 statusBg      = "rgba(212,168,67,0.08)";
                 statusIcon    = "ℹ";
                 statusHeading = "Bank Status Update";
                 statusMessage = "Your bank's status on the ReconXpert.Ai platform has been updated "
                     + "to <strong>" + sanitize(newStatus) + "</strong> by KalInfotech Administration.";
                 actionNote    = "For queries, contact us at "
-                    + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>.";
+                    + "<a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>.";
         }
 
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
@@ -458,8 +458,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -507,7 +507,7 @@ public class EmailServiceImpl implements EmailService {
             + "</div>"
 
             // Action note
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:14px 18px;'>"
             + "<p style='margin:0 0 4px;font-size:12px;color:#92400e;font-weight:700;'>Action Required</p>"
             + "<p style='margin:0;font-size:13px;color:#92400e;line-height:1.7;'>" + actionNote + "</p>"
             + "</div>"
@@ -646,8 +646,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -681,11 +681,11 @@ public class EmailServiceImpl implements EmailService {
             + "<td style='font-size:13px;color:#1e293b;font-weight:600;padding:5px 0;'>KalInfotech Administration</td></tr>"
             + "</table></div>"
 
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Note:</strong> No further action is required from your side. "
             + "If you have any questions, please contact us at "
-            + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "<a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>."
             + "</p></div>"
 
             + "</td></tr>"
@@ -711,8 +711,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -748,11 +748,11 @@ public class EmailServiceImpl implements EmailService {
             + " <span style='font-family:monospace;color:#6366f1;font-size:12px;'>(" + sanitize(parentBankCode) + ")</span></td></tr>"
             + "</table></div>"
 
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>No action required.</strong> You may continue using the platform normally. "
             + "For any queries, contact us at "
-            + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "<a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>."
             + "</p></div>"
 
             + "</td></tr>"
@@ -779,8 +779,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -849,8 +849,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -1005,8 +1005,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -1044,12 +1044,12 @@ public class EmailServiceImpl implements EmailService {
             + changesHtml.toString()
 
             // Security note
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;margin-top:10px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:14px 18px;margin-top:10px;'>"
             + "<p style='margin:0 0 4px;font-size:12px;color:#92400e;font-weight:700;'>Important Notice</p>"
             + "<p style='margin:0;font-size:13px;color:#92400e;line-height:1.7;'>"
             + "If you were not informed of this update or believe it was made in error, "
             + "please contact KalInfotech Administration immediately at "
-            + "<a href='mailto:support@kalinfotech.com' style='color:#d4a843;font-weight:600;'>support@kalinfotech.com</a> "
+            + "<a href='mailto:support@kalinfotech.com' style='color:#f59e0b;font-weight:600;'>support@kalinfotech.com</a> "
             + "and quote your Bank Code: <strong>" + sanitize(bankCode) + "</strong>."
             + "</p></div>"
 
@@ -1224,8 +1224,8 @@ public class EmailServiceImpl implements EmailService {
                 + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
                 // Header
-                + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-                + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+                + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+                + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
                 + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
                 + "</td></tr>"
 
@@ -1253,7 +1253,7 @@ public class EmailServiceImpl implements EmailService {
 
                 // Login button
                 + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
-                + "<a href='" + safeUrl + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Login to ReconXpert.Ai</a>"
+                + "<a href='" + safeUrl + "' style='background:linear-gradient(135deg,#0a1628,#152d47);color:#f59e0b;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Login to ReconXpert.Ai</a>"
                 + "</td></tr></table>"
 
                 // Steps note
@@ -1264,7 +1264,7 @@ public class EmailServiceImpl implements EmailService {
                 + "</ol>"
 
                 // Warning box
-                + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+                + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
                 + "<p style='margin:0;font-size:12px;color:#92400e;'>"
                 + "<strong>Important:</strong> Please do not share your credentials with anyone. "
                 + "Contact your administrator if you need assistance."
@@ -1309,8 +1309,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -1340,10 +1340,10 @@ public class EmailServiceImpl implements EmailService {
             + "</table></div>"
 
             // Note box
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Note:</strong> This is an automated notification from KalInfotech Admin. "
-            + "If you have any questions, please contact us at <a href='mailto:support@kalinfotech.com' style='color:#d4a843;'>support@kalinfotech.com</a>."
+            + "If you have any questions, please contact us at <a href='mailto:support@kalinfotech.com' style='color:#f59e0b;'>support@kalinfotech.com</a>."
             + "</p></div>"
 
             + "</td></tr>"
@@ -1417,8 +1417,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
@@ -1435,7 +1435,7 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='font-size:13px;color:#64748b;padding:4px 0;'>Reason:</td><td style='font-size:13px;color:#1e293b;'>" + safeReason + "</td></tr>"
             + "</table></div>"
             + "<p style='font-size:13px;color:#64748b;margin:0 0 16px;'>If you believe this is an error, please contact your KalInfotech administrator immediately.</p>"
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not reply to this email.</p>"
             + "</div>"
             + "</td></tr>"
@@ -1455,8 +1455,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
@@ -1470,12 +1470,12 @@ public class EmailServiceImpl implements EmailService {
             + "<tr><td style='font-size:13px;color:#64748b;padding:6px 0;'>Username:</td>"
             + "<td style='font-size:14px;color:#1e293b;font-weight:bold;letter-spacing:1px;'>" + sanitize(username) + "</td></tr>"
             + "<tr><td style='font-size:13px;color:#64748b;padding:6px 0;'>Temporary Password:</td>"
-            + "<td><span style='background:#1a1a2e;color:#d4a843;font-size:15px;font-weight:bold;letter-spacing:2px;padding:4px 12px;border-radius:6px;display:inline-block;'>" + sanitize(tempPassword) + "</span></td></tr>"
+            + "<td><span style='background:#0a1628;color:#f59e0b;font-size:15px;font-weight:bold;letter-spacing:2px;padding:4px 12px;border-radius:6px;display:inline-block;'>" + sanitize(tempPassword) + "</span></td></tr>"
             + "</table></div>"
             + "<div style='background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;padding:12px 16px;margin:0 0 16px;'>"
             + "<p style='margin:0;font-size:13px;color:#1e40af;'><strong>&#128274; Security:</strong> For security reasons, we strongly recommend changing your password immediately after your first login using the <strong>Forgot Password</strong> option.</p>"
             + "</div>"
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'><strong>Note:</strong> This is an automated notification. Do not share your credentials with anyone. Do not reply to this email.</p>"
             + "</div>"
             + "</td></tr>"
@@ -1518,8 +1518,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
@@ -1539,7 +1539,7 @@ public class EmailServiceImpl implements EmailService {
             + "</div>"
             + "<p style='font-size:14px;color:#475569;margin:0 0 16px;'>Kindly click the button below to verify your email and set your new password:</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
-            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Email &amp; Set Password</a>"
+            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#0a1628,#152d47);color:#f59e0b;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Email &amp; Set Password</a>"
             + "</td></tr></table>"
             + "<p style='font-size:13px;color:#64748b;margin:0 0 8px;'>After clicking the link, on the login page:</p>"
             + "<ol style='font-size:13px;color:#64748b;margin:0 0 20px;padding-left:20px;line-height:1.8;'>"
@@ -1548,7 +1548,7 @@ public class EmailServiceImpl implements EmailService {
             + "<li>Enter your <strong>Default Password:</strong> " + sanitize(defaultPassword) + "</li>"
             + "<li>Set a new password to activate your account</li>"
             + "</ol>"
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Important:</strong> Your account will remain <strong>INACTIVE</strong> until you complete email verification. "
             + "Please do not share your credentials with anyone."
@@ -1583,8 +1583,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
@@ -1594,7 +1594,7 @@ public class EmailServiceImpl implements EmailService {
             + "The original administrator has been successfully reactivated, and your replacement account has been changed to <strong>Inactive</strong> status. "
             + "We appreciate your contribution during this assignment."
             + "</p>"
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:14px 18px;'>"
             + "<p style='margin:0;font-size:13px;color:#92400e;'>"
             + "If you believe this change was made in error or require clarification, please contact your KalInfotech Administrator."
             + "</p>"
@@ -1628,8 +1628,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='padding:40px 0;background:#f4f6f9;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
             + "<tr><td style='padding:40px;'>"
@@ -1709,8 +1709,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -1745,7 +1745,7 @@ public class EmailServiceImpl implements EmailService {
             // Verify button
             + "<p style='font-size:14px;color:#475569;margin:0 0 16px;'>Click the button below to verify your account and set your new password:</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
-            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Account &amp; Set Password</a>"
+            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#0a1628,#152d47);color:#f59e0b;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Account &amp; Set Password</a>"
             + "</td></tr></table>"
 
             // Steps
@@ -1758,7 +1758,7 @@ public class EmailServiceImpl implements EmailService {
             + "</ol>"
 
             // Warning box
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Important:</strong> Your account will remain <strong>INACTIVE</strong> until you complete verification. "
             + "Please do not share your credentials with anyone."
@@ -1785,8 +1785,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p>"
             + "</td></tr>"
 
@@ -1815,7 +1815,7 @@ public class EmailServiceImpl implements EmailService {
             // Verify button
             + "<p style='font-size:14px;color:#475569;margin:0 0 16px;'>Click the button below to verify your account and set your new password:</p>"
             + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding-bottom:28px;'>"
-            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#d4a843;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Account &amp; Set Password</a>"
+            + "<a href='" + sanitize(verifyLink) + "' style='background:linear-gradient(135deg,#0a1628,#152d47);color:#f59e0b;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px;display:inline-block;'>Verify Account &amp; Set Password</a>"
             + "</td></tr></table>"
 
             // Steps
@@ -1828,7 +1828,7 @@ public class EmailServiceImpl implements EmailService {
             + "</ol>"
 
             // Warning box
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:12px 16px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;'>"
             + "<p style='margin:0;font-size:12px;color:#92400e;'>"
             + "<strong>Important:</strong> Your account will remain <strong>INACTIVE</strong> until you complete verification. "
             + "Please do not share your credentials with anyone."
@@ -1879,8 +1879,8 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'>"
             + "<tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628 0%,#0f2137 50%,#152d47 100%);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Action Confirmation</p>"
             + "</td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
@@ -2028,8 +2028,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Work Delegation Confirmation</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegatorName) + "</strong>,</p>"
@@ -2051,8 +2051,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Work Delegation Received</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
@@ -2073,8 +2073,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — Block Scheduled</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
@@ -2091,8 +2091,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — User Blocked</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
@@ -2107,8 +2107,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Update — User Unblocked</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
@@ -2123,8 +2123,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>You Are Restored — Delegation Ended</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegatorName) + "</strong>,</p>"
@@ -2140,8 +2140,8 @@ public class EmailServiceImpl implements EmailService {
         return "<!DOCTYPE html><html><body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>"
             + "<table width='100%' cellpadding='0' cellspacing='0' style='background:#f4f6f9;padding:40px 0;'><tr><td align='center'>"
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;'>"
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:28px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#0f2137,#152d47);padding:28px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:20px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:4px 0 0;font-size:12px;'>Delegation Ended</p></td></tr>"
             + "<tr><td style='padding:32px 40px 24px;'>"
             + "<p style='font-size:15px;color:#1e293b;'>Dear <strong>" + sanitize(delegateeName) + "</strong>,</p>"
@@ -2387,18 +2387,18 @@ public class EmailServiceImpl implements EmailService {
             + "<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);'>"
 
             // Header — matches the welcome mail
-            + "<tr><td style='background:linear-gradient(135deg,#1a1a2e,#0f3460);padding:32px 40px;text-align:center;'>"
-            + "<h1 style='color:#d4a843;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
+            + "<tr><td style='background:linear-gradient(135deg,#0a1628,#152d47);padding:32px 40px;text-align:center;'>"
+            + "<h1 style='color:#f59e0b;margin:0;font-size:22px;letter-spacing:1px;'>ReconXpert.Ai</h1>"
             + "<p style='color:#94a3b8;margin:6px 0 0;font-size:13px;'>Powered by KalInfotech</p></td></tr>"
 
             // Body
             + "<tr><td style='padding:40px;'>"
             + "<p style='font-size:16px;color:#1e293b;margin:0 0 8px;'>Dear <strong>" + sanitize(contactName) + "</strong>,</p>"
-            + "<h2 style='font-size:18px;color:#0f3460;margin:0 0 16px;font-weight:bold;'>" + sanitize(headline) + "</h2>"
+            + "<h2 style='font-size:18px;color:#152d47;margin:0 0 16px;font-weight:bold;'>" + sanitize(headline) + "</h2>"
             + "<p style='font-size:14px;color:#475569;line-height:1.8;margin:0 0 24px;'>" + body + "</p>"
 
             // Closing note in a highlighted callout box
-            + "<div style='background:#fef9ec;border-left:4px solid #d4a843;border-radius:6px;padding:14px 18px;'>"
+            + "<div style='background:#fef9ec;border-left:4px solid #f59e0b;border-radius:6px;padding:14px 18px;'>"
             + "<p style='margin:0;font-size:13px;color:#92400e;line-height:1.7;'>" + note + "</p>"
             + "</div>"
             + "</td></tr>"

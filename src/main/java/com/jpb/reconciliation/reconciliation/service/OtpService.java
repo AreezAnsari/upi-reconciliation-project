@@ -208,13 +208,13 @@ public class OtpService {
     private String buildEmailHtml(String otp) {
         return "<div style='font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 8px;'>"
              + "  <div style='text-align: center; margin-bottom: 24px;'>"
-             + "    <span style='font-size: 20px; font-weight: 600; color: #1e3a5f;'>ReconXpert.Ai</span><br/>"
+             + "    <span style='font-size: 20px; font-weight: 600; color: #0f2137;'>ReconXpert.Ai</span><br/>"
              + "    <span style='font-size: 12px; color: #6b7280;'>by KalInfotech</span>"
              + "  </div>"
              + "  <p style='color: #374151; font-size: 15px;'>Your One-Time Password (OTP) for login is:</p>"
              + "  <div style='text-align: center; margin: 24px 0;'>"
              + "    <span style='display: inline-block; font-size: 36px; font-weight: 700; letter-spacing: 12px;"
-             + "                 color: #1e3a5f; background: #f0f4ff; padding: 16px 28px; border-radius: 8px;'>"
+             + "                 color: #0f2137; background: #f0f4ff; padding: 16px 28px; border-radius: 8px;'>"
              + otp
              + "    </span>"
              + "  </div>"

@@ -421,6 +421,12 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
             boolean dirty = false;
             if (!"Y".equals(found.getIsPortalTwin())) { found.setIsPortalTwin("Y"); dirty = true; }
             if (found.getTwinOfMenuId() == null) { found.setTwinOfMenuId(original.getMenuId()); dirty = true; }
+            // Self-heal parentMenuId the same way — a twin row created before this field existed
+            // should backfill it, mirroring the isPortalTwin/twinOfMenuId self-heal above.
+            if (found.getParentMenuId() == null && original.getParentMenuId() != null) {
+                found.setParentMenuId(original.getParentMenuId());
+                dirty = true;
+            }
             if (dirty) menuMasterRepository.save(found);
             return found;
         }
@@ -432,6 +438,10 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         twin.setMenuName(original.getMenuName());
         twin.setMenuDescription(original.getMenuDescription());
         twin.setParentMenuCode(original.getParentMenuCode());
+        // Mirrors the parentMenuCode copy above (and its existing masterMenuParent-not-copied
+        // asymmetry, left as-is): the twin's parent pointer is the ORIGINAL's own parent row,
+        // never a "twin of the parent" — nothing here tries to find/create one.
+        twin.setParentMenuId(original.getParentMenuId());
         twin.setSubMenu("N");
         twin.setMenuUrl(twinUrl);
         twin.setStatus("Y");

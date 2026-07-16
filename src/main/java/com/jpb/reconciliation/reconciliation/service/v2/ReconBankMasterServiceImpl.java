@@ -46,10 +46,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,6 +77,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Autowired private EmailService emailService;
     @Autowired private AuditReplacementService replacementService;
     @Autowired private DelegationService delegationService;
+    @Autowired private com.jpb.reconciliation.reconciliation.repository.v2.AuditReplacementRepository auditReplacementRepository;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -281,6 +285,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     public ResponseEntity<RestWithStatusList> getAllBanks() {
         List<ReconBankMaster> banks = reconBankMasterRepository.findAllPrimary();
         banks.forEach(this::enrichWithProducts);
+        banks.forEach(this::enrichWithReplacement);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Banks fetched.", banks));
     }
 
@@ -294,6 +299,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         ReconBankMaster found = opt.get();
         enrichWithProducts(found);
         enrichForEditAndDetail(found);
+        enrichWithReplacement(found);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(found)));
     }
 
@@ -307,7 +313,41 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         ReconBankMaster found = opt.get();
         enrichWithProducts(found);
         enrichForEditAndDetail(found);
+        enrichWithReplacement(found);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Bank found.", Collections.singletonList(found)));
+    }
+
+    /**
+     * Surfaces the CURRENTLY acting admin's contact info on a bank/branch row for "View" and list
+     * screens (OrgOverview/OrgHierarchy/OrgBankBranches — they all read fullName/email/
+     * mobileNumber/bankAdminUsername straight off this row, plus replacementStatus/
+     * replacedByUsername to label it "(Replaced)"; see ReconBankMasterController
+     * .getAllBankAdmins() for the per-admin-row equivalent of this same shape).
+     *
+     * While a replacement is ACTIVE (the common state right after a replace, before the original
+     * is ever permanently blocked), RECON_BANK_MASTER's own stored contact columns still hold the
+     * ORIGINAL's info — they are only overwritten once AuditReplacementServiceImpl
+     * .onOriginalBlocked() finalizes the replacement (original permanently BLOCKED). Every "View"
+     * screen that read the bank row directly therefore showed stale, original data throughout
+     * that whole ACTIVE window. This closes that gap by mirroring the same field-mapping
+     * onOriginalBlocked() uses, in-memory only (never persisted) and only while ACTIVE — once
+     * FINALIZED, the bank row's own columns are already correct and this leaves them untouched.
+     */
+    private void enrichWithReplacement(ReconBankMaster bank) {
+        bank.setReplacementAdminRow(false);
+        bank.setReplacementStatus(null);
+        bank.setReplacedByUsername(null);
+        if (bank.getBankAdminUsername() == null) return;
+        reconUserRepository.findByUsername(bank.getBankAdminUsername()).ifPresent(admin ->
+                auditReplacementRepository.findByOriginalUserIdAndStatus(admin.getUserId(), "ACTIVE")
+                        .ifPresent(rep -> reconUserRepository.findById(rep.getReplacementUserId()).ifPresent(repUser -> {
+                            bank.setFullName(rep.getPendingFullName() != null ? rep.getPendingFullName() : repUser.getUsername());
+                            bank.setEmail(repUser.getEmail());
+                            bank.setMobileNumber(rep.getPendingMobile() != null ? rep.getPendingMobile() : repUser.getMobileNumber());
+                            bank.setBankAdminUsername(repUser.getUsername());
+                            bank.setReplacementStatus("ACTIVE");
+                            bank.setReplacedByUsername(repUser.getUsername());
+                        })));
     }
 
     // Populates fields that are stored separately/combined in the DB but that the
@@ -354,6 +394,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     public ResponseEntity<RestWithStatusList> getBranchBanks(Long parentBankId) {
         List<ReconBankMaster> banks = reconBankMasterRepository.findByParentBankId(parentBankId);
         banks.forEach(this::enrichWithProducts);
+        banks.forEach(this::enrichWithReplacement);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Branch banks fetched.", banks));
     }
 
@@ -1316,11 +1357,33 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         }
     }
 
+    /**
+     * The users in this institution who are currently standing in for someone else. They are the
+     * people taking OVER from the admins being blocked, so a block cascade must leave them alone.
+     *
+     * Snapshotted BEFORE the cascade runs, never re-checked inside the loop: blocking an original
+     * calls onOriginalBlocked(), which flips their replacement record ACTIVE → FINALIZED. If we
+     * asked "is this an active replacement?" per-user, the original would usually be visited first,
+     * and by the time we reached the replacement they'd no longer look like one — so they'd be
+     * blocked. (That's exactly the bug this snapshot fixes.)
+     */
+    private Set<Long> standingInUserIds(List<ReconUser> users) {
+        Set<Long> ids = new HashSet<>();
+        for (ReconUser u : users) {
+            if (replacementService.isActiveReplacementUser(u.getUserId())) ids.add(u.getUserId());
+        }
+        return ids;
+    }
+
     // Immediate BLOCKED cascade to all users of an institution
     private void cascadeBlockUsersNow(Long bankId, String reason, String updatedBy) {
         try {
-            for (ReconUser u : reconUserRepository.findByBankId(bankId)) {
+            List<ReconUser> users = reconUserRepository.findByBankId(bankId);
+            Set<Long> standingIn = standingInUserIds(users);
+            for (ReconUser u : users) {
                 if ("BLOCKED".equals(u.getStatus())) continue;
+                // The replacement is taking over FROM the blocked original — don't block them too.
+                if (standingIn.contains(u.getUserId())) continue;
                 if (u.getPreBlockStatus() == null) u.setPreBlockStatus(u.getStatus());
                 u.setStatus("BLOCKED");
                 u.setBlockReason(reason);
@@ -1329,6 +1392,15 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 u.setUpdatedAt(LocalDateTime.now());
                 u.setUpdatedBy(updatedBy);
                 reconUserRepository.save(u);
+                // Mirrors StatusSchedulerService.cascadeBlockUsers() — this immediate-block cascade
+                // is otherwise identical (same standingIn snapshot, same loop) but was missing these
+                // two calls, so a bank/branch blocked via "Block Now" (not the scheduler) never
+                // finalised the blocked original's ACTIVE replacement record, and never notified
+                // that original's delegatee. Scheduled block cascades already did both.
+                try { replacementService.onOriginalBlocked(u.getUserId()); }
+                catch (Exception e) { logger.warn("cascade onOriginalBlocked failed for {}: {}", u.getUserId(), e.getMessage()); }
+                try { delegationService.notifyDelegateeBlocked(u.getUserId()); }
+                catch (Exception e) { logger.warn("cascade notifyDelegateeBlocked failed for {}: {}", u.getUserId(), e.getMessage()); }
                 try {
                     if (u.getEmail() != null && !u.getEmail().isEmpty()) {
                         emailService.sendBlockedNotification(u.getEmail(), u.getFullName());
@@ -1373,8 +1445,12 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                                            String reason, String entityName, String entityCode, String atFormatted,
                                            String skipEmail) {
         try {
-            for (ReconUser u : reconUserRepository.findByBankId(bankId)) {
+            List<ReconUser> users = reconUserRepository.findByBankId(bankId);
+            Set<Long> standingIn = standingInUserIds(users);
+            for (ReconUser u : users) {
                 if ("BLOCKED".equals(u.getStatus()) || "BLOCK_PENDING".equals(u.getStatus())) continue;
+                // The replacement is taking over FROM the blocked original — don't block them too.
+                if (standingIn.contains(u.getUserId())) continue;
                 u.setPreBlockStatus(u.getStatus());
                 u.setStatus("BLOCK_PENDING");
                 u.setBlockScheduledAt(scheduledAt);
@@ -1695,8 +1771,12 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
                 new String[]{"Menu List", prefix + "/menu-list"},
                 new String[]{"Handover & Delegation History", prefix + "/user-management"},
                 new String[]{"Approval Request History", prefix + "/approval-history"},
-                new String[]{"Maker Dashboard", prefix + "/maker-queue"},
                 new String[]{"Checker Dashboard", prefix + "/checker-queue"}
+                // Maker Dashboard is deliberately NOT granted by default — an Admin must never
+                // hold it out of the box (it's a Maker-only privilege, and holding it alongside
+                // Checker Dashboard here would already violate the Checker/Maker SOD rule that
+                // savePrivileges enforces). The Admin can grant it explicitly via Privileges if a
+                // role actually needs to act as a Maker.
             )) {
                 saveMenu(adminMenuName, "Main", item[0], item[1], roleId, bankId, createdBy);
             }
@@ -1726,8 +1806,8 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         // would spread the array into a List<String> instead of wrapping it.
         for (String[] item : Arrays.asList(
             new String[]{"Handover & Delegation History", prefix + "/user-management"},
-            new String[]{"Approval Request History", prefix + "/approval-history"},
-            new String[]{"Maker Dashboard", prefix + "/maker-queue"}
+            new String[]{"Approval Request History", prefix + "/approval-history"}
+            // Maker Dashboard intentionally excluded — see createDefaultAdminMenus() above.
         )) {
             if (menuMasterRepository.findByMenuNameAndBankId(item[0], bankId) == null) {
                 saveMenu(adminMaster.getMenuName(), "Main", item[0], item[1], roleId, bankId, createdBy);
@@ -1749,6 +1829,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         m.setSubMenu("N");
         m.setStatus("Y");
         m.setBankId(bankId);
+        m.setParentMenuId(resolveParentMenuId(menuType, parentMenuCode, bankId));
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());
@@ -1770,6 +1851,31 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         roleMenuMapRepository.save(map);
 
         return saved;
+    }
+
+    // Internal, additive mirror of parentMenuCode — see MenuMasterServiceImpl's identically-named
+    // private helper (this class is in a different package, so it's duplicated per this
+    // codebase's per-class-helper style rather than pulled into a shared utility). Resolves the
+    // DIRECT parent's MENU_ID only; never throws — parentMenuCode remains authoritative. Every
+    // call site here creates only Master/Main rows, so the Submenu branch is unreachable in
+    // practice but kept for consistency with the other copies of this helper.
+    // See sql/menu_parent_id_migration.sql.
+    private Long resolveParentMenuId(String menuType, String parentMenuCode, Long bankId) {
+        if ("Master".equals(menuType) || parentMenuCode == null) return null;
+        String parentType = "Main".equals(menuType) ? "Master" : "Main";
+        Optional<ReconMenuMaster> byName = menuMasterRepository
+                .findAllByMenuNameAndMenuType(parentMenuCode, parentType).stream()
+                .filter(p -> "Y".equals(p.getStatus()))
+                .filter(p -> Objects.equals(p.getBankId(), bankId))
+                .filter(p -> bankId != null || !"CATALOG".equals(p.getCreatedBy()))
+                .findFirst();
+        if (byName.isPresent()) return byName.get().getMenuId();
+        if ("Main".equals(menuType)) {
+            try { return Long.parseLong(parentMenuCode); } catch (NumberFormatException ignored) {
+                // parentMenuCode isn't numeric — not a legacy ID-based row, nothing to fall back to
+            }
+        }
+        return null;
     }
 }
 

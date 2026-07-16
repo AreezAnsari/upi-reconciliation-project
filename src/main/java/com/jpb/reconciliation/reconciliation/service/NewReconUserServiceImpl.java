@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -66,6 +67,9 @@ public class NewReconUserServiceImpl implements NewReconUserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private com.jpb.reconciliation.reconciliation.repository.v2.AuditReplacementRepository auditReplacementRepository;
 
     @Autowired
     private EmailService emailService;
@@ -201,7 +205,39 @@ public class NewReconUserServiceImpl implements NewReconUserService {
     @Override
     public ResponseEntity<RestWithStatusList> getAllUsers() {
         List<ReconUser> users = reconUserRepository.findAll();
+        users.forEach(this::enrichWithReplacement);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched.", users));
+    }
+
+    /**
+     * Surfaces replacement awareness on a regular user row — mirrors
+     * ReconBankMasterServiceImpl.enrichWithReplacement() (bank rows) and
+     * ReconUserController.putReplacementInfo() (Map-based /my-team, /hierarchy rows). This
+     * endpoint (v2GetAllUsers, used by OrgBankUserStatus.jsx for a Bank/Branch Admin) previously
+     * returned the raw entity with no replacement fields at all, so a replaced-or-being-replaced
+     * user's "(Replaced)" badge never appeared in User Status for an Admin viewer.
+     */
+    private void enrichWithReplacement(ReconUser u) {
+        List<com.jpb.reconciliation.reconciliation.entity.v2.AuditReplacement> asReplacementOf =
+                auditReplacementRepository.findByReplacementUserIdAndStatusIn(u.getUserId(), Arrays.asList("ACTIVE", "FINALIZED"));
+        if (!asReplacementOf.isEmpty()) {
+            u.setReplacementAdminRow(true);
+            u.setReplacementStatus("FINALIZED".equals(asReplacementOf.get(0).getStatus()) ? "PERMANENT" : "ACTIVE");
+            u.setReplacedByUsername(null);
+            return;
+        }
+        u.setReplacementAdminRow(false);
+        List<com.jpb.reconciliation.reconciliation.entity.v2.AuditReplacement> reps =
+                auditReplacementRepository.findByOriginalUserIdAndStatusIn(u.getUserId(), Arrays.asList("ACTIVE", "FINALIZED"));
+        if (!reps.isEmpty()) {
+            com.jpb.reconciliation.reconciliation.entity.v2.AuditReplacement rep = reps.get(0);
+            ReconUser repUser = reconUserRepository.findById(rep.getReplacementUserId()).orElse(null);
+            u.setReplacementStatus("FINALIZED".equals(rep.getStatus()) ? "PERMANENT" : "ACTIVE");
+            u.setReplacedByUsername(repUser != null ? repUser.getUsername() : null);
+        } else {
+            u.setReplacementStatus(null);
+            u.setReplacedByUsername(null);
+        }
     }
 
     @Override
@@ -211,6 +247,7 @@ public class NewReconUserServiceImpl implements NewReconUserService {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new RestWithStatusList("FAILURE", "User not found with ID: " + userId, null));
         }
+        enrichWithReplacement(opt.get());
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "User found.", Collections.singletonList(opt.get())));
     }
 
@@ -264,6 +301,7 @@ public class NewReconUserServiceImpl implements NewReconUserService {
         List<ReconUser> users = hierarchyScopeService.caller(username)
                 .map(hierarchyScopeService::visibleUsers)
                 .orElse(java.util.Collections.emptyList());
+        users.forEach(this::enrichWithReplacement);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched.", users));
     }
 
@@ -275,6 +313,7 @@ public class NewReconUserServiceImpl implements NewReconUserService {
             return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "No data", Collections.emptyList()));
         }
         List<ReconUser> users = reconUserRepository.findByBankId(bankOpt.get().getBankId());
+        users.forEach(this::enrichWithReplacement);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Users fetched by bank.", users));
     }
 

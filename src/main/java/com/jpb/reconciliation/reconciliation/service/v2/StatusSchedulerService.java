@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 @EnableScheduling
@@ -98,11 +100,21 @@ public class StatusSchedulerService {
             notifyActor(actor, "Reactivated", user.getFullName(), user.getUsername());
         }
 
-        // BLOCK_PENDING → BLOCKED (24h after scheduling)
+        // BLOCK_PENDING → BLOCKED (once the due time passes)
         List<ReconUser> toBlock = reconUserRepository.findByStatus("BLOCK_PENDING");
         for (ReconUser user : toBlock) {
             if (user.getBlockScheduledAt() == null) continue;
-            if (user.getBlockScheduledAt().plusHours(24).isAfter(now)) continue;
+            // blockScheduledAt is the due time itself (same as the bank-level block). It used to be
+            // the scheduling time with a +24h added here, which double-counted the grace window for
+            // cascaded users — they carry the institution's due time, so they'd block 24h late.
+            if (user.getBlockScheduledAt().isAfter(now)) continue;
+            // A user whose block came from an institution-wide cascade is blocked by that
+            // institution's own tick (cascadeBlockUsers). They share the institution's due time, so
+            // without this both ticks would process them in the same window: two BLOCKED emails, two
+            // onOriginalBlocked() calls, and — because onOriginalBlocked re-saves RECON_BANK_MASTER
+            // to sync the contact — a stale write from this tick's transaction that clobbered the
+            // institution's own BLOCKED status straight back to BLOCK_PENDING.
+            if (isCascadeActor(user.getBlockScheduledBy())) continue;
 
             Long userId = user.getUserId();
             String actor = user.getBlockScheduledBy();
@@ -194,6 +206,12 @@ public class StatusSchedulerService {
     }
 
     // ── Cascade helpers ──────────────────────────────────────────────────────────
+
+    /** cascadeScheduleBlockUsers tags every cascaded user's actor as "CASCADE:<who>". */
+    private boolean isCascadeActor(String scheduledBy) {
+        return scheduledBy != null && scheduledBy.startsWith("CASCADE:");
+    }
+
     private void cascadeInactivateUsers(Long bankId, LocalDateTime now) {
         List<ReconUser> users = reconUserRepository.findByBankId(bankId);
         for (ReconUser u : users) {
@@ -240,8 +258,18 @@ public class StatusSchedulerService {
 
     private void cascadeBlockUsers(Long bankId, LocalDateTime now, String reason) {
         List<ReconUser> users = reconUserRepository.findByBankId(bankId);
+        // Snapshot who is standing in for someone else BEFORE any blocking happens. Blocking an
+        // original calls onOriginalBlocked(), which flips their replacement record ACTIVE →
+        // FINALIZED; checking per-user inside the loop would therefore stop recognising the
+        // replacement as soon as their original was blocked, and block them too.
+        Set<Long> standingIn = new HashSet<>();
+        for (ReconUser u : users) {
+            if (replacementService.isActiveReplacementUser(u.getUserId())) standingIn.add(u.getUserId());
+        }
         for (ReconUser u : users) {
             if ("BLOCKED".equals(u.getStatus())) continue;
+            // The replacement is taking over FROM the blocked original — don't block them too.
+            if (standingIn.contains(u.getUserId())) continue;
             // preBlockStatus may already be saved at schedule time — don't overwrite with BLOCK_PENDING
             if (u.getPreBlockStatus() == null) u.setPreBlockStatus(u.getStatus());
             u.setStatus("BLOCKED");

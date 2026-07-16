@@ -180,6 +180,19 @@ public class ReconBankMaster {
     @Transient
     private Map<String, ProductDateEntry> productDates;
 
+    // ── Transient: replacement awareness for "View"/list screens ────────────────
+    // Read-only, populated per-request by ReconBankMasterServiceImpl.enrichWithReplacement() —
+    // never persisted. While this bank's admin has an ACTIVE (not yet permanent) replacement,
+    // fullName/email/mobileNumber/bankAdminUsername above are swapped in-memory to the
+    // replacement's own contact info, and these three fields are set so the frontend can label
+    // the row "(Replaced)" — matching the shape ReconBankMasterController.getAllBankAdmins()
+    // already returns per-admin-row, but here per bank/branch row (see get-all/get/{id}/
+    // branch-banks). Always false/null once the replacement is FINALIZED — at that point
+    // RECON_BANK_MASTER's own stored columns already reflect the replacement permanently.
+    @Transient private boolean replacementAdminRow;
+    @Transient private String replacementStatus;
+    @Transient private String replacedByUsername;
+
     @lombok.Data
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor

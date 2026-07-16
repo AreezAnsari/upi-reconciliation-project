@@ -144,4 +144,15 @@ public class ReconUser {
     // if a product's validity is renewed within the grace period.
     @Column(name = "PRE_PRODUCT_HOLD_STATUS", length = 20)
     private String preProductHoldStatus;
+
+    // ── Transient: replacement awareness for list/hierarchy screens ─────────────
+    // Read-only, populated per-request by NewReconUserServiceImpl.enrichWithReplacement() —
+    // never persisted. Mirrors ReconBankMasterController.getAllBankAdmins()'s per-admin-row
+    // shape (replacementAdminRow/replacementStatus/replacedByUsername), but for a regular user
+    // row (My Organization > Hierarchy / User Status). replacementAdminRow=true means THIS row
+    // is itself someone else's active/finalized replacement; replacementStatus/replacedByUsername
+    // are set instead when THIS user has an active/finalized replacement covering for them.
+    @Transient private boolean replacementAdminRow;
+    @Transient private String replacementStatus;
+    @Transient private String replacedByUsername;
 }

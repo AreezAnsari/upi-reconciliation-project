@@ -287,6 +287,18 @@ public class AuditReplacementServiceImpl implements AuditReplacementService {
         });
     }
 
+    /**
+     * A replacement is the person taking OVER from the blocked original — they are a distinct
+     * individual who must survive the block, not be swept up by it. onOriginalBlocked() even makes
+     * them the permanent admin, so blocking them in the same cascade would leave the institution
+     * with a blocked permanent admin. Every block cascade skips them via this check.
+     */
+    @Override
+    public boolean isActiveReplacementUser(Long userId) {
+        return userId != null && auditReplacementRepository
+                .findByReplacementUserIdAndStatus(userId, "ACTIVE").isPresent();
+    }
+
     // ── On Original Reactivated — replacement tenure ends ───────────────────────
     /**
      * The original's reactivation has been SCHEDULED (they are ACTIVE_PENDING). Their replacement is

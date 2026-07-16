@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.controller;
 
+import com.jpb.reconciliation.reconciliation.constants.BlockScheduleConstants;
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditReplacement;
@@ -234,7 +235,8 @@ public class ReconBankMasterController {
         // This used to default to now()+5s, so the UI's Block button (which sends no scheduledAt)
         // blocked the whole institution five seconds later, with no chance to cancel.
         LocalDateTime dateTime = (scheduledAt != null && !scheduledAt.trim().isEmpty())
-                ? LocalDateTime.parse(scheduledAt) : LocalDateTime.now().plusHours(24);
+                ? LocalDateTime.parse(scheduledAt)
+                : LocalDateTime.now().plusMinutes(BlockScheduleConstants.BLOCK_DELAY_MINUTES);
         logger.info("Schedule block for bankId: {} at {} by {}", bankId, dateTime, scheduledBy);
         return reconBankMasterService.scheduleBlock(bankId, dateTime, scheduledBy, reason);
     }
@@ -257,6 +259,15 @@ public class ReconBankMasterController {
         List<Map<String, Object>> result = new ArrayList<>();
         for (ReconUser user : bankAdmins) {
             if (!"PRIMARY".equals(user.getContactRank()) && user.getContactRank() != null) continue;
+            // A replacement whose cover has concluded (RESTORED — the original was reactivated and
+            // is back in charge) is no longer an admin of this institution. They only ever appeared
+            // here because finalizePendingReplacement gave them userType=BANK_ADMIN and this bank's
+            // ID, and they carry no contactRank, so the PRIMARY filter above can't exclude them.
+            // Drop them from My Organization; the user themselves still exists everywhere else.
+            if (auditReplacementRepository
+                    .findByReplacementUserIdAndStatus(user.getUserId(), "RESTORED").isPresent()) {
+                continue;
+            }
             Map<String, Object> row = new LinkedHashMap<>();
             ReconBankMaster bank = null;
             if (user.getBankId() != null) {
@@ -279,16 +290,11 @@ public class ReconBankMasterController {
             row.put("primaryEmail", user.getEmail());
             row.put("primaryMobile", user.getMobileNumber());
             row.put("adminStatus", user.getStatus());
-            // Is this admin a "ghost" former replacement whose cover has concluded (RESTORED,
-            // i.e. the original they covered for was reactivated)? Their ReconUser row still
-            // exists and still shares this bank's ID, but they're a distinct individual now —
-            // status actions on their row must target THEM, not the shared institution.
-            // (ACTIVE and FINALIZED replacements are already handled separately above/below:
-            // ACTIVE suppresses buttons entirely via the "Temporary" label, and FINALIZED means
-            // they're now the legitimate ongoing admin, where bank-level cascade is correct.)
-            boolean isGhostReplacementAccount = auditReplacementRepository
-                    .findByReplacementUserIdAndStatus(user.getUserId(), "RESTORED").isPresent();
-            row.put("isIndividualAccount", isGhostReplacementAccount);
+            // Every row that survives the RESTORED filter above belongs to a real admin of this
+            // institution: an original, or an ACTIVE replacement (buttons suppressed via the
+            // "Temporary" label), or a FINALIZED one (now the legitimate ongoing admin). For all
+            // of them the bank-level cascade is the correct target, so none is an individual account.
+            row.put("isIndividualAccount", false);
 
             // Is THIS admin currently covering for someone else? Their own row must be
             // flagged so the frontend shows "Temporary" and suppresses their buttons

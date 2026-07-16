@@ -142,4 +142,15 @@ public class ReconMenuMaster {
     // into that same canonical position instead of wherever it landed chronologically.
     @Column(name = "TWIN_OF_MENU_ID")
     private Long twinOfMenuId;
+
+    // Internal, numeric mirror of the parentMenuCode/masterMenuParent hierarchy (MENU_PARENT /
+    // MASTER_MENU_PARENT), which remain the wire contract read/written by the frontend and by
+    // getMenusByRolePrivileges()/resolveUnmappedHiddenNames(). Exists so internal traversal can
+    // resolve a parent by ID instead of by (possibly non-unique, possibly bank-ambiguous) name.
+    // Plain Long, not @ManyToOne, matching TWIN_OF_MENU_ID precedent — avoids Hibernate lazy/
+    // eager fetch surprises across the bulk hierarchy-scanning queries in
+    // MenuMasterServiceImpl. NULL for a Master row (root) and for any row whose parent could
+    // not be resolved. See sql/menu_parent_id_migration.sql.
+    @Column(name = "PARENT_MENU_ID")
+    private Long parentMenuId;
 }

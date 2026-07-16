@@ -17,6 +17,7 @@ import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -219,6 +220,7 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         // KAL_ADMIN belongs to no institution, so these rows have no owner. They are reachable
         // only through the C_ROLE_MENU_MAP grant written below.
         m.setBankId(null);
+        m.setParentMenuId(resolveParentMenuId(menuType, parentMenuCode, null));
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());
@@ -238,5 +240,29 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
         roleMenuMapRepository.save(map);
 
         return saved;
+    }
+
+    // Internal, additive mirror of parentMenuCode — see MenuMasterServiceImpl's identically-named
+    // private helper (duplicated per this codebase's per-class-helper style). bankId is always
+    // null here. createDefaultKalAdminMenus() passes a stringified MENU_ID (myOrgId) as
+    // parentMenuCode for every Main it creates, so the name-lookup branch below never matches and
+    // this reliably falls straight to the numeric-parse branch — no name-collision risk possible
+    // for KAL_ADMIN rows. See sql/menu_parent_id_migration.sql.
+    private Long resolveParentMenuId(String menuType, String parentMenuCode, Long bankId) {
+        if ("Master".equals(menuType) || parentMenuCode == null) return null;
+        String parentType = "Main".equals(menuType) ? "Master" : "Main";
+        Optional<ReconMenuMaster> byName = menuMasterRepository
+                .findAllByMenuNameAndMenuType(parentMenuCode, parentType).stream()
+                .filter(p -> "Y".equals(p.getStatus()))
+                .filter(p -> Objects.equals(p.getBankId(), bankId))
+                .filter(p -> bankId != null || !"CATALOG".equals(p.getCreatedBy()))
+                .findFirst();
+        if (byName.isPresent()) return byName.get().getMenuId();
+        if ("Main".equals(menuType)) {
+            try { return Long.parseLong(parentMenuCode); } catch (NumberFormatException ignored) {
+                // parentMenuCode isn't numeric — not a legacy ID-based row, nothing to fall back to
+            }
+        }
+        return null;
     }
 }

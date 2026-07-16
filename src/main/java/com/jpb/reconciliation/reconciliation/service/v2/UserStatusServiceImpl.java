@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.service.v2;
 
+import com.jpb.reconciliation.reconciliation.constants.BlockScheduleConstants;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.AuditLog;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
@@ -216,10 +217,15 @@ public class UserStatusServiceImpl implements UserStatusService {
         }
 
         String old = user.getStatus();
+        // blockScheduledAt is the DUE time, not the time we scheduled it — the same meaning the
+        // bank-level block already uses, so the scheduler can just compare it against now() and
+        // a cascade can hand every user the institution's own due time.
+        LocalDateTime blockDueAt = LocalDateTime.now()
+                .plusMinutes(BlockScheduleConstants.BLOCK_DELAY_MINUTES);
         user.setPreBlockStatus(old);
         user.setStatus("BLOCK_PENDING");
         user.setBlockReason(reason);
-        user.setBlockScheduledAt(LocalDateTime.now());
+        user.setBlockScheduledAt(blockDueAt);
         user.setBlockScheduledBy(scheduledBy);
         user.setUpdatedAt(LocalDateTime.now());
         user.setUpdatedBy(scheduledBy);
@@ -228,7 +234,7 @@ public class UserStatusServiceImpl implements UserStatusService {
         auditLog("RCN_RECON_USER", userId, "STATUS_CHANGE", old, "BLOCK_PENDING",
                 scheduledBy, user.getUserType(), user.getBankId(), "Block scheduled");
 
-        String blockAt = LocalDateTime.now().plusHours(24).format(FMT);
+        String blockAt = blockDueAt.format(FMT);
         try {
             emailService.sendBlockWarning(user.getEmail(), user.getFullName(),
                     resolveOrgInfo(user)[0], resolveOrgInfo(user)[1], blockAt);
@@ -242,7 +248,7 @@ public class UserStatusServiceImpl implements UserStatusService {
         notifyActor(scheduledBy, "Block Scheduled", user.getFullName(), user.getUsername(), blockAt, user);
 
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS",
-                "Block scheduled. User will be BLOCKED in 24 hours.", null));
+                "Block scheduled. User will be BLOCKED in " + BlockScheduleConstants.delayLabel() + ".", null));
     }
 
     // ── Undo Block ───────────────────────────────────────────────────────────────

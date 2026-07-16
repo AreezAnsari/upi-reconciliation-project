@@ -29,6 +29,9 @@ public interface AuditReplacementService {
 
     void onOriginalBlocked(Long originalUserId);
 
+    /** True while this user is standing in for someone else (their replacement record is ACTIVE). */
+    boolean isActiveReplacementUser(Long userId);
+
     void onOriginalReactivated(Long originalUserId);
 
     /** The original's reactivation was SCHEDULED — put their replacement into INACTIVE_PENDING so

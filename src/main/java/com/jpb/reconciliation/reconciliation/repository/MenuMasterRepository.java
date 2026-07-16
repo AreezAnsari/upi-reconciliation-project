@@ -80,4 +80,11 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 
     /** Appended rows a bank holds for one product — used to cascade when a product is deactivated. */
     List<ReconMenuMaster> findByBankIdAndProductId(Long bankId, Long productId);
+
+    // ── Internal numeric hierarchy (PARENT_MENU_ID) ─────────────────────────────
+    // Additive mirror of the existing name-based hierarchy lookups above — those stay exactly
+    // as-is and in use (see sql/menu_parent_id_migration.sql for why). Reserved for future use;
+    // NOT used by removeMenu()'s children check, which deliberately keeps its existing
+    // findByParentMenuCode(menu.getMenuType()) call unchanged.
+    List<ReconMenuMaster> findByParentMenuId(Long parentMenuId);
 }

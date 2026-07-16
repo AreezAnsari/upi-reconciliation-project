@@ -456,6 +456,15 @@ public class BankAuthServiceImpl implements BankAuthService {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new RestWithStatusList("INACTIVE", "Account is INACTIVE. Contact administrator.", null));
         }
+        // Scheduled for reactivation but not live yet — no login until it actually flips to ACTIVE.
+        // (INACTIVE_PENDING / BLOCK_PENDING accounts are still functionally active, so they may sign
+        // in; only ACTIVE_PENDING is a not-yet-usable account.)
+        if ("ACTIVE_PENDING".equals(user.getStatus())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new RestWithStatusList("ACTIVE_PENDING",
+                            "Your account is scheduled for reactivation and is not active yet. "
+                          + "Please wait until it becomes Active, then sign in again.", null));
+        }
         return null;
     }
 

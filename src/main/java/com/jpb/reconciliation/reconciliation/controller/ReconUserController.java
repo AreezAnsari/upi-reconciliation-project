@@ -22,8 +22,10 @@ import com.jpb.reconciliation.reconciliation.dto.ReconUserDto;
 import com.jpb.reconciliation.reconciliation.dto.ResponseDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.UserPasswordChangeRequest;
+import com.jpb.reconciliation.reconciliation.entity.v2.AuditReplacement;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
+import com.jpb.reconciliation.reconciliation.repository.v2.AuditReplacementRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
 import com.jpb.reconciliation.reconciliation.service.v2.DelegationService;
@@ -32,6 +34,7 @@ import com.jpb.reconciliation.reconciliation.service.v2.ReconUserService;
 import io.swagger.v3.oas.annotations.Operation;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,6 +58,9 @@ public class ReconUserController {
 
 	@Autowired
 	DelegationService delegationService;
+
+	@Autowired
+	AuditReplacementRepository auditReplacementRepository;
 
 	@PostMapping(value = "/create-user", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> createUser(@RequestBody ReconUserDto reconUserDto) {
@@ -182,11 +188,38 @@ public class ReconUserController {
 		row.put("inactivateScheduledAt", u.getInactivateScheduledAt());
 		row.put("reactivateScheduledAt", u.getReactivateScheduledAt());
 		row.put("preBlockStatus", u.getPreBlockStatus());
-		row.put("replacementStatus", null);
-		row.put("replacedByUsername", null);
-		row.put("replacementAdminRow", false);
+		putReplacementInfo(row, u.getUserId());
 		row.put("parentId", u.getParentUserId());
 		return row;
+	}
+
+	// Mirrors ReconBankMasterController.getAllBankAdmins()'s replacement enrichment, for a
+	// regular-user row instead of a bank-admin row. This used to hardcode replacementStatus/
+	// replacedByUsername/replacementAdminRow to null/false regardless of real AuditReplacement
+	// state, so a replaced-or-being-replaced regular user's "(Replaced)" badge never appeared
+	// anywhere under My Organization > Hierarchy / User Status.
+	private void putReplacementInfo(Map<String, Object> row, Long userId) {
+		List<AuditReplacement> asReplacementOf = auditReplacementRepository
+				.findByReplacementUserIdAndStatusIn(userId, Arrays.asList("ACTIVE", "FINALIZED"));
+		if (!asReplacementOf.isEmpty()) {
+			AuditReplacement asRep = asReplacementOf.get(0);
+			row.put("replacementAdminRow", true);
+			row.put("replacementStatus", "FINALIZED".equals(asRep.getStatus()) ? "PERMANENT" : "ACTIVE");
+			row.put("replacedByUsername", null);
+			return;
+		}
+		row.put("replacementAdminRow", false);
+		List<AuditReplacement> reps = auditReplacementRepository
+				.findByOriginalUserIdAndStatusIn(userId, Arrays.asList("ACTIVE", "FINALIZED"));
+		if (!reps.isEmpty()) {
+			AuditReplacement rep = reps.get(0);
+			ReconUser repUser = reconUserRepository.findById(rep.getReplacementUserId()).orElse(null);
+			row.put("replacementStatus", "FINALIZED".equals(rep.getStatus()) ? "PERMANENT" : "ACTIVE");
+			row.put("replacedByUsername", repUser != null ? repUser.getUsername() : null);
+		} else {
+			row.put("replacementStatus", null);
+			row.put("replacedByUsername", null);
+		}
 	}
 
 	/*

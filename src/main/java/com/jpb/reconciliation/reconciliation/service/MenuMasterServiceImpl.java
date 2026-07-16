@@ -111,6 +111,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ResponseDto(MenuConstants.STATUS_417, CATALOG_IMMUTABLE));
         }
+        // NOTE: this passes the menu's own TYPE STRING ("Master"/"Main"/"Submenu"), not its
+        // name/code — a known, pre-existing, effectively-broken "has children?" check. Left
+        // deliberately unchanged (not swapped for a parentMenuId-based check) by the
+        // PARENT_MENU_ID refactor — see sql/menu_parent_id_migration.sql — which requires zero
+        // behavioral change. Do not "fix" this as a drive-by.
         List<ReconMenuMaster> existsParentMenuList = menuMasterRepository.findByParentMenuCode(menu.getMenuType());
         if (existsParentMenuList.isEmpty()) {
             menuMasterRepository.deleteById(menu.getMenuId());
@@ -459,8 +464,35 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         copy.setCreatedBy(createdBy);
         copy.setCreatedDate(new Date());
         copy.setInsertDate(new Date());
+        // Resolved against the NEW bank's scope, not the catalog's — materialiseCatalogParents
+        // copies the Master before the Main, so by the time the Main is copied, this bank's own
+        // just-copied Master row already exists and is what this should point at.
+        copy.setParentMenuId(resolveParentMenuId(c.getMenuType(), c.getParentMenuCode(), bankId));
         menuMasterRepository.save(copy);
         logger.info("Materialised catalog {} '{}' for bankId={}", menuType, menuName, bankId);
+    }
+
+    // Internal, additive mirror of parentMenuCode — resolves the DIRECT parent's MENU_ID (one
+    // level up only; masterMenuParent, the grandparent's name, is not an input here, matching
+    // TWIN_OF_MENU_ID's single-level precedent). Never throws; returns null if unresolvable —
+    // parentMenuCode/masterMenuParent remain authoritative, this is a best-effort mirror only.
+    // See sql/menu_parent_id_migration.sql.
+    private Long resolveParentMenuId(String menuType, String parentMenuCode, Long bankId) {
+        if ("Master".equals(menuType) || parentMenuCode == null) return null;
+        String parentType = "Main".equals(menuType) ? "Master" : "Main";
+        Optional<ReconMenuMaster> byName = menuMasterRepository
+                .findAllByMenuNameAndMenuType(parentMenuCode, parentType).stream()
+                .filter(p -> "Y".equals(p.getStatus()))
+                .filter(p -> Objects.equals(p.getBankId(), bankId))
+                .filter(p -> bankId != null || !"CATALOG".equals(p.getCreatedBy()))
+                .findFirst();
+        if (byName.isPresent()) return byName.get().getMenuId();
+        if ("Main".equals(menuType)) {
+            try { return Long.parseLong(parentMenuCode); } catch (NumberFormatException ignored) {
+                // parentMenuCode isn't numeric — not a legacy ID-based row, nothing to fall back to
+            }
+        }
+        return null;
     }
 
     private ReconMenuMaster createMenu(ReconMenuMasterDto req, String createdBy, Long bankId) {
@@ -482,6 +514,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setParentMenuCode(req.getParentMenuCode());
         m.setSubMenu(req.getSubMenuReq());
         m.setMasterMenuParent(req.getMasterMenuParent());
+        m.setParentMenuId(resolveParentMenuId(req.getMenuType(), req.getParentMenuCode(), bankId));
         m.setInsertUserId(req.getUserId());
         m.setMenuProcessId(req.getMenuProcessId());
         // Identity is inherited from the catalog, never taken from the request.
@@ -563,7 +596,13 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         List<ReconMenuMaster> effective = new ArrayList<>(mapped);
         for (ReconMenuMaster m : mapped) {
             if (!"Submenu".equals(m.getMenuType()) || m.getParentMenuCode() == null) continue;
-            ReconMenuMaster main = menuMasterRepository.findByMenuNameAndBankId(m.getParentMenuCode(), m.getBankId());
+            // Prefer the numeric pointer when present — an exact PK lookup, strictly more
+            // precise than name+bankId, and returns the same row that lookup would for any
+            // correctly-backfilled row (see sql/menu_parent_id_migration.sql). Falls back to the
+            // original name-based lookup, unchanged, when parentMenuId happens to be absent.
+            ReconMenuMaster main = m.getParentMenuId() != null
+                    ? menuMasterRepository.findByMenuId(m.getParentMenuId()).orElse(null)
+                    : menuMasterRepository.findByMenuNameAndBankId(m.getParentMenuCode(), m.getBankId());
             if (main != null && "Y".equals(main.getStatus()) && byId.putIfAbsent(main.getMenuId(), main) == null) {
                 effective.add(main);
             }

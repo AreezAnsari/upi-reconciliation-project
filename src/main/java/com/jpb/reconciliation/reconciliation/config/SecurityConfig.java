@@ -128,6 +128,17 @@ public class SecurityConfig {
                 ex.authenticationEntryPoint(point)
             )
 
+            // Without this, a request with no/invalid JWT (missing, malformed, expired) falls
+            // through JwtAuthenticationFilter with SecurityContext empty, and Spring's
+            // AnonymousAuthenticationFilter then fills in an anonymous principal. .anyRequest()
+            // .authenticated() correctly rejects that anonymous principal, but does so via
+            // AccessDeniedException -> a bare 403 from Spring's default handler, bypassing our
+            // JwtAuthenticationEntryPoint entirely. The frontend only auto-logs-out on 401, so a
+            // stale/expired session silently showed a broken "no menus assigned" screen instead of
+            // signing the user out. Disabling anonymous auth means no-auth now raises an
+            // AuthenticationException, which IS routed through the entry point -> a clean 401.
+            .anonymous(anonymous -> anonymous.disable())
+
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
