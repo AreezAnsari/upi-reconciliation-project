@@ -19,4 +19,6 @@ public interface ReconFieldFormatMastRepository extends JpaRepository<ReconField
     }
 
     Optional<ReconFieldFormatMast> findByFieldFormatDesc(String fieldFormatDesc);
+
+    Optional<ReconFieldFormatMast> findByFieldFormatDescIgnoreCase(String fieldFormatDesc);
 }

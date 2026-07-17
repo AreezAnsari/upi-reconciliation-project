@@ -778,7 +778,7 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         dto.setFieldSequence(sequence);
 
         dto.setFieldType(detectFieldType(values));
-        dto.setFieldFormat(detectFieldFormat(values));
+        dto.setFieldFormat(resolveValidFieldFormat(detectFieldFormat(values)));
         dto.setFieldLength(detectFieldLength(values));
         dto.setFieldScale(detectFieldScale(values));
 
@@ -932,6 +932,28 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
             default:
                 return "N/A";
         }
+    }
+    // =========================================================================
+    // RESOLVE A DB-VALID FIELD FORMAT
+    // =========================================================================
+    // detectFieldFormat() only *guesses* a likely format string (e.g. "dd-MM-yyyy").
+    // buildFieldEntities() rejects the entire submit with "Invalid Field Format" if
+    // that exact string isn't seeded in recon_field_format_mast — and since every
+    // auto-detected field (CSV/Excel/XML alike) funnels through this guess, a single
+    // unseeded literal was enough to break submit for every uploaded file. Only keep
+    // the guess if it actually matches master data (case-insensitive); otherwise fall
+    // back to "N/A" — the same fallback already used for a manually left-blank format.
+    private String resolveValidFieldFormat(String guessedFormat) {
+
+        if (null != guessedFormat && !guessedFormat.trim().isEmpty()) {
+            Optional<ReconFieldFormatMast> match =
+                    fieldFormatRepository.findByFieldFormatDescIgnoreCase(guessedFormat.trim());
+            if (match.isPresent()) {
+                return match.get().getFieldFormatDesc();
+            }
+        }
+
+        return "N/A";
     }
     // =========================================================================
     // INNER TRANSACTIONAL HELPERS (called via self-proxy)
