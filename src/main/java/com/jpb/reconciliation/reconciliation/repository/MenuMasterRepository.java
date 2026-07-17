@@ -15,13 +15,9 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 
     Optional<ReconMenuMaster> findByMenuId(Long menuId);
 
-    List<ReconMenuMaster> getByInsertUserId(Long userId);
-
     ReconMenuMaster findByMenuName(String menuName);
 
     List<ReconMenuMaster> findByParentMenuCode(String menuType);
-
-    ReconMenuMaster findByMenuNameAndInsertUserId(String menuName, Long userId);
 
     // Bank scoping. A branch is its own RECON_BANK_MASTER row, so this serves both.
     // Replaces findByRoleIdIn(bank -> users -> roleIds), which needed two extra hops.
@@ -83,8 +79,19 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
 
     // ── Internal numeric hierarchy (PARENT_MENU_ID) ─────────────────────────────
     // Additive mirror of the existing name-based hierarchy lookups above — those stay exactly
-    // as-is and in use (see sql/menu_parent_id_migration.sql for why). Reserved for future use;
-    // NOT used by removeMenu()'s children check, which deliberately keeps its existing
-    // findByParentMenuCode(menu.getMenuType()) call unchanged.
+    // as-is and in use (see sql/menu_parent_id_migration.sql for why). Now also used by
+    // removeMenu()'s children check (fixed to use this instead of the broken
+    // findByParentMenuCode(menu.getMenuType()) call) and by the custom-menu recursive
+    // visibility resolver (see sql/menu_source_clickable_migration.sql).
     List<ReconMenuMaster> findByParentMenuId(Long parentMenuId);
+
+    // ── Custom menu creation (MENU_SOURCE='CUSTOM') ─────────────────────────────
+    // Duplicate guard for a custom Master/Main/Submenu — same parent + name (case-insensitive) +
+    // bank + product. Deliberately status-agnostic (no STATUS filter): an existing row with this
+    // key blocks a new one regardless of ACTIVE/DRAFT/REJECTED/INACTIVE, so nobody ends up with
+    // duplicate names under the same parent. Distinct from resolveExistingMapping's
+    // SYSTEM_MENU_CODE-keyed catalog guard — custom rows have their own generated code, not a
+    // shared catalog one, so identity for this check is (parent, name, bank, product) instead.
+    List<ReconMenuMaster> findByParentMenuIdAndMenuNameIgnoreCaseAndBankIdAndProductId(
+            Long parentMenuId, String menuName, Long bankId, Long productId);
 }

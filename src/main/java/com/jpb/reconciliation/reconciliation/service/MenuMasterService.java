@@ -19,8 +19,6 @@ public interface MenuMasterService {
 
     ResponseEntity<RestWithStatusList> getAllMenus();
 
-    ResponseEntity<RestWithStatusList> getMenuByUserId(Long userId);
-
     /** force=true means the user saw (and accepted) the duplicate / reactivate prompt. */
     ResponseEntity<RestWithStatusList> addMenu(ReconMenuMasterDto menuRequest, UserDetails userDetails, boolean force);
 

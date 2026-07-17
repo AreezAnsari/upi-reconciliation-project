@@ -24,11 +24,18 @@ public class ReconMenuMasterDto {
     private String masterMenuParent;
     private String subMenuReq;
     private String menuUrl;
-    private String operations;
-    private Long userId;
     private Long roleId;
     private Long productId;
     private Long menuProcessId;
     private String processType;
     private String reconFilePath;
+
+    // true = the new custom Master/Main/Submenu creation path (no catalog lookup at all); absent
+    // or false = today's catalog-driven Add Menu path, completely unchanged.
+    private Boolean custom;
+
+    // Custom path only — the chosen parent's MENU_ID, sent directly by the new Add Menu UI (no
+    // name resolution needed, unlike parentMenuCode/masterMenuParent above). Null for a custom
+    // Master (it has no parent).
+    private Long parentMenuId;
 }

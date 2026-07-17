@@ -14,11 +14,13 @@ public class ReconMenuMasterMapper {
         menuDto.setParentMenuCode(menu.getParentMenuCode());
         menuDto.setSubMenuReq(menu.getSubMenu());
         menuDto.setMenuUrl(menu.getMenuUrl());
-        menuDto.setOperations(menu.getOperations());
-        menuDto.setUserId(menu.getInsertUserId());
         menuDto.setMenuProcessId(menu.getMenuProcessId());
         menuDto.setMasterMenuParent(menu.getMasterMenuParent());
         menuDto.setProductId(menu.getProductId());
+        // A custom Main/Submenu never sets parentMenuCode/masterMenuParent (only this numeric
+        // pointer) — frontend tree-building (Sidebar/Navbar/PrivilegesAssign) needs it to nest
+        // custom rows at all, so every raw-entity response must carry it through.
+        menuDto.setParentMenuId(menu.getParentMenuId());
         return menuDto;
     }
 
@@ -29,9 +31,7 @@ public class ReconMenuMasterMapper {
         menu.setParentMenuCode(menuDto.getParentMenuCode());
         menu.setMenuUrl(menuDto.getMenuUrl());
         menu.setMenuName(menuDto.getMenuName());
-        menu.setOperations(menuDto.getOperations());
         menu.setSubMenu(menuDto.getSubMenuReq());
-        menu.setInsertUserId(menuDto.getUserId());
         menu.setMenuProcessId(menuDto.getMenuProcessId());
         menu.setProductId(menuDto.getProductId());
         return menu;
@@ -46,11 +46,10 @@ public class ReconMenuMasterMapper {
         reconMenuMasterDto.setParentMenuCode(menu.getParentMenuCode());
         reconMenuMasterDto.setSubMenuReq(menu.getSubMenu());
         reconMenuMasterDto.setMenuUrl(menu.getMenuUrl());
-        reconMenuMasterDto.setOperations(menu.getOperations());
-        reconMenuMasterDto.setUserId(menu.getInsertUserId());
         reconMenuMasterDto.setMenuProcessId(menu.getMenuProcessId());
         reconMenuMasterDto.setMasterMenuParent(menu.getMasterMenuParent());
         reconMenuMasterDto.setProductId(menu.getProductId());
+        reconMenuMasterDto.setParentMenuId(menu.getParentMenuId());
         if (fileData == null) {
             reconMenuMasterDto.setReconFilePath(null);
         } else {

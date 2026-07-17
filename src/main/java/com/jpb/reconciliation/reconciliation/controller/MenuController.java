@@ -59,11 +59,6 @@ public class MenuController {
         return menuMasterService.getMenus(menuId);
     }
 
-    @GetMapping(value = "/getMenuBy-userId/{userId}", produces = CommonConstants.APPLICATION_JSON)
-    public ResponseEntity<RestWithStatusList> getMenuByUserId(@PathVariable Long userId) {
-        return menuMasterService.getMenuByUserId(userId);
-    }
-
     @GetMapping(value = "/getMenuBy-Role/{roleId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> getMenuByRole(@PathVariable Long roleId,
             @AuthenticationPrincipal UserDetails userDetails) {

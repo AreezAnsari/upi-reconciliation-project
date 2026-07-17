@@ -61,9 +61,6 @@ public class ReconMenuMaster {
     @Column(name = "MENU_URL")
     private String menuUrl;
 
-    @Column(name = "OPERATIONS")
-    private String operations;
-
     @Column(name = "STATUS")
     private String status;
 
@@ -79,14 +76,8 @@ public class ReconMenuMaster {
     @Column(name = "MODIFIED_DATE")
     private Timestamp modifiedDate;
 
-    @Column(name = "USER_ID")
-    private Long insertUserId;
-
     @Column(name = "INSERT_DATE")
     private Date insertDate;
-
-    @Column(name = "INSERT_CODE")
-    private Long insertCode;
 
     @Column(name = "LAST_UPDATED_USER")
     private Long lastUpdatedUser;
@@ -153,4 +144,16 @@ public class ReconMenuMaster {
     // not be resolved. See sql/menu_parent_id_migration.sql.
     @Column(name = "PARENT_MENU_ID")
     private Long parentMenuId;
+
+    // "CATALOG" (today's only path — appended from the BANK_ID-IS-NULL register) or "CUSTOM" (an
+    // Admin-created Master/Main/Submenu with no catalog backing). Partitions which
+    // validation/visibility rule a row is subject to, so custom-menu logic can never reach or
+    // change a catalog-sourced row. See sql/menu_source_clickable_migration.sql.
+    @Column(name = "MENU_SOURCE")
+    private String menuSource;
+
+    // "Y"/"N", a synced mirror of "MENU_URL IS NOT NULL" — always backend-derived (never part of
+    // the DTO, never client-writable), kept in sync at every write site that sets MENU_URL.
+    @Column(name = "IS_CLICKABLE")
+    private String isClickable;
 }

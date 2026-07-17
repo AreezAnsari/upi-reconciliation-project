@@ -11,7 +11,7 @@ jasypt:
   datasource:
 #    primary:
 #      url: jdbc:oracle:thin:@//localhost:1521/orcl.lan
-#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb  AWS DB
+#      url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=/home/ec2-user/walletdb
 #      url: jdbc:oracle:thin:@//80.225.233.60:1521/FREEPDB
       url: jdbc:oracle:thin:@recondb1_high?TNS_ADMIN=C:/OracleDatabase/Wallet_RECONDB1
 
@@ -20,8 +20,8 @@ jasypt:
       username: kal_recon  
 #      userName: RECON_SIT
 #      password: recon_sit
-#      password: Jpbrecon2026   AWS
-#      password: RECON_SI
+#      password: Jpbrecon2026
+#      username: jpb_recon
       password: Finrecon1234567
 
       hikari:
