@@ -207,6 +207,12 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             // resolution, persistence) reads the correct value with no further changes needed.
             menuRequest.setProductId(resolveAutoProductId(menuRequest));
 
+            // One Process id may only ever back one live menu, system-wide.
+            String dupProcess = validateProcessIdUnique(menuRequest.getMenuProcessId());
+            if (dupProcess != null) {
+                return new ResponseEntity<>(new RestWithStatusList("FAILURE", dupProcess, null), HttpStatus.BAD_REQUEST);
+            }
+
             // Bank is taken from the caller's account, never from the request body — a client must
             // not be able to name the institution a menu is mapped under.
             String badProduct = validateProductForBank(menuRequest.getProductId(), userData.getBankId());
@@ -261,6 +267,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
             // Product is never user input — see the matching comment in addMenu().
             menuRequest.setProductId(resolveAutoProductId(menuRequest));
+
+            String dupProcess = validateProcessIdUnique(menuRequest.getMenuProcessId());
+            if (dupProcess != null) {
+                return new ResponseEntity<>(new RestWithStatusList("FAILURE", dupProcess, null), HttpStatus.BAD_REQUEST);
+            }
 
             String badProduct = validateProductForBank(menuRequest.getProductId(), userData.getBankId());
             if (badProduct != null) {
@@ -358,9 +369,18 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             if (!"Main".equals(parentOpt.get().getMenuType())) {
                 return "Parent must be a Main menu.";
             }
-            // Custom submenus have no process mapping to derive a route from — the URL IS their
-            // identity, so it is mandatory (unlike a catalog submenu, which may be process-driven).
-            if (req.getMenuUrl() == null || req.getMenuUrl().trim().isEmpty()) {
+            // A custom Submenu under an Extraction/Reconciliation Main is process-driven, exactly
+            // like its catalog counterpart — the Admin picks a real RFD_FILE_ID/RPM_PROCESS_ID, and
+            // the fixed-prefix URL is composed internally (see createCustomMenu), never typed. Every
+            // other module still has no process mapping at all, so the URL IS its identity there.
+            String customModule = resolveModuleByMasterId(parentOpt.get().getParentMenuId());
+            if (customModule != null) {
+                if (req.getMenuProcessId() == null) {
+                    return "Select a Process for this custom " + customModule + " submenu.";
+                }
+                String dupProcess = validateProcessIdUnique(req.getMenuProcessId());
+                if (dupProcess != null) return dupProcess;
+            } else if (req.getMenuUrl() == null || req.getMenuUrl().trim().isEmpty()) {
                 return "Custom sub menus must have a URL — they have no process mapping to derive one from.";
             }
             // Product is never user input, anywhere — a custom submenu has no catalog/process
@@ -400,7 +420,25 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setMenuDescription(req.getMenuDescription());
         m.setParentMenuId(req.getParentMenuId());
         m.setSubMenu("N");
-        m.setMenuUrl(req.getMenuUrl() != null ? req.getMenuUrl().trim() : null);
+
+        // A custom Submenu under an Extraction/Reconciliation Main is process-driven — the fixed
+        // prefix + the chosen id is composed here, server-side, exactly like the catalog path;
+        // req.getMenuUrl() is never trusted for this case (validateCustomMenu already required
+        // menuProcessId instead of a manual URL for it). Every other module keeps the existing
+        // free-URL behavior untouched.
+        String customModule = "Submenu".equals(req.getMenuType())
+                ? resolveModuleByMasterId(menuMasterRepository.findByMenuId(req.getParentMenuId())
+                        .map(ReconMenuMaster::getParentMenuId).orElse(null))
+                : null;
+        if (customModule != null) {
+            Long processId = req.getMenuProcessId();
+            String prefix = "Extraction".equals(customModule) ? EXTRACTION_URL_PREFIX : RECONCILIATION_URL_PREFIX;
+            m.setMenuUrl(prefix + processId);
+            m.setMenuProcessId(processId);
+            m.setProcessType(customModule.toUpperCase());
+        } else {
+            m.setMenuUrl(req.getMenuUrl() != null ? req.getMenuUrl().trim() : null);
+        }
         m.setStatus(status);
         m.setSubmittedBy(submittedBy);
         m.setApprovedBy(approvedBy);
@@ -556,6 +594,37 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
     private boolean isValidCustomUrl(String url) {
         return url != null && URL_PATTERN.matcher(url.trim()).matches();
+    }
+
+    // Same fixed route pattern the catalog Extraction/Reconciliation submenus already use
+    // (previously composed client-side) — the Process id is never user-typed into this, it's
+    // always appended internally once a real RFD_FILE_ID / RPM_PROCESS_ID has been picked.
+    private static final String EXTRACTION_URL_PREFIX = "/extraction/fileProcessing.extr?processid=";
+    private static final String RECONCILIATION_URL_PREFIX = "/reconciliation/fileProcessing.extr?processid=";
+
+    /**
+     * Resolves a custom Main's module ("Extraction"/"Reconciliation"/null) by walking up to its
+     * own parent Master's name — a custom Main never carries masterMenuParent (that's catalog-only
+     * wire), so this is the only way to know which module a custom Submenu's parent belongs to.
+     */
+    private String resolveModuleByMasterId(Long masterId) {
+        if (masterId == null) return null;
+        return menuMasterRepository.findByMenuId(masterId)
+                .map(ReconMenuMaster::getMenuName)
+                .filter(nm -> "Extraction".equals(nm) || "Reconciliation".equals(nm))
+                .orElse(null);
+    }
+
+    /**
+     * B5-style write-side guard, but system-wide rather than per-bank: one MENU_PROCESS_ID
+     * (RFD_FILE_ID / RPM_PROCESS_ID) may back only one live menu — catalog or custom. Returns the
+     * rejection message, or null when the id is free.
+     */
+    private String validateProcessIdUnique(Long menuProcessId) {
+        if (menuProcessId == null) return null;
+        boolean clash = menuMasterRepository.findByMenuProcessId(menuProcessId).stream()
+                .anyMatch(m -> !isDeadStatus(m.getStatus()));
+        return clash ? "This Process is already mapped to another menu. Please select a different Process." : null;
     }
 
     /** Catalog rows own no institution. They are the register Add Menu validates against — never

@@ -94,4 +94,8 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
     // shared catalog one, so identity for this check is (parent, name, bank, product) instead.
     List<ReconMenuMaster> findByParentMenuIdAndMenuNameIgnoreCaseAndBankIdAndProductId(
             Long parentMenuId, String menuName, Long bankId, Long productId);
+
+    // Process-uniqueness guard (catalog + custom Extraction/Reconciliation submenus): one
+    // MENU_PROCESS_ID (RFD_FILE_ID / RPM_PROCESS_ID) may back only one live menu, system-wide.
+    List<ReconMenuMaster> findByMenuProcessId(Long menuProcessId);
 }

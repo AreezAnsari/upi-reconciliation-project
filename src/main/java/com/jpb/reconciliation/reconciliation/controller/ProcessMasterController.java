@@ -38,13 +38,12 @@ public class ProcessMasterController {
 		return processMasterService.getAllProcessData(menuFlag);
 	}
 
-	// Flat file/process pickers for Add Menu's Extraction/Reconciliation Submenu step —
-	// deliberately independent of PROCESS_MASTER_TBL (the get-process endpoint above's grouping
-	// parent), since that table is a separate, often-unseeded concept unrelated to which
-	// files/processes actually exist. menuProcessId is always the file's/process's own PK
-	// (RFD_FILE_ID / RPM_PROCESS_ID) — this never changes, only how it's picked.
-	@GetMapping(value = "get-files", produces = CommonConstants.APPLICATION_JSON)
-	public ResponseEntity<RestWithStatusList> getAllFiles() {
+	// Add Menu's Extraction/Reconciliation Submenu step: select the file/process directly by its
+	// own real PK (RFD_FILE_ID / RPM_PROCESS_ID) — no PROCESS_MAST_ID grouping step at all. The
+	// Template Name is just that same row's own name, returned alongside so the frontend can
+	// auto-populate a read-only field once the id is picked. menuProcessId is always this id.
+	@GetMapping(value = "get-extraction-files", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> getExtractionFiles() {
 		List<Object> files = fileDetailsMasterRepository.findAll().stream()
 				.map(f -> {
 					Map<String, Object> m = new LinkedHashMap<>();
@@ -56,9 +55,9 @@ public class ProcessMasterController {
 		return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Files found successfully", files), HttpStatus.OK);
 	}
 
-	@GetMapping(value = "get-recon-processes", produces = CommonConstants.APPLICATION_JSON)
-	public ResponseEntity<RestWithStatusList> getAllReconProcesses() {
-		List<Object> processes = processDefMasterRepository.findAll().stream()
+	@GetMapping(value = "get-reconciliation-process-defs", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> getReconciliationProcessDefs() {
+		List<Object> defs = processDefMasterRepository.findAll().stream()
 				.map(p -> {
 					Map<String, Object> m = new LinkedHashMap<>();
 					m.put("reconProcessId", p.getReconProcessId());
@@ -66,6 +65,6 @@ public class ProcessMasterController {
 					return (Object) m;
 				})
 				.collect(Collectors.toList());
-		return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Processes found successfully", processes), HttpStatus.OK);
+		return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Processes found successfully", defs), HttpStatus.OK);
 	}
 }
