@@ -241,24 +241,23 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 
 		for (ReconTmpltFieldDtls filed : reconTemplateFileDetails.get().getTemplate().getFieldDetails()) {
 			if (!filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("STRING")) {
-				if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("NUMBER")) {
+				if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("NUMBER")
+						|| filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("DECIMAL")) {
 
-//					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-//						
-//					}else
+					String numSourceExpr = "Y".equalsIgnoreCase(filed.getTrimFlag())
+							? "TRIM(BOTH '''' FROM :" + filed.getShortName() + ")"
+							: ":" + filed.getShortName();
+
 					if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
-						controlFileContent.append(filed.getFromPosition()).append(":").append(filed.getToPosition())
-								.append(")").append(" ").append("\"TO_")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("(:")
-								.append(filed.getShortName()).append(")").append(filed.getFieldFormat())
-								.append("\", \n");
+						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
+								.append(filed.getFromPosition()).append(":").append(filed.getToPosition())
+								.append(")").append(" ").append("\"TO_NUMBER(").append(numSourceExpr)
+								.append(")\", \n");
 					}
 
 					else {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("(:")
-								.append(filed.getShortName()).append(")").append(filed.getFieldFormat())
-								.append("\", \n");
+						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_NUMBER(")
+								.append(numSourceExpr).append(")\", \n");
 					}
 
 //					if (fileName.equalsIgnoreCase("FEBA SWITCH DB") || fileName.equalsIgnoreCase("EPIK_AEP_AEPS")
@@ -283,7 +282,7 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 //					}
 				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("TODATE")) {
 					controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("DATE").append(" \"")
-							.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\" \n");
+							.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("\" \n");
 				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("DATE")
 						|| filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("TIMESTAMP")) {
 
@@ -291,17 +290,17 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_")
 								.append(filed.getReconFieldTypeMaster().getFieldTypeDes())
 								.append("(TRIM(BOTH '''' FROM :").append(filed.getShortName()).append("), '")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("')\"").append(",\n");
+								.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("')\"").append(",\n");
 					} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType()
 							.equalsIgnoreCase("FIXED")) {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
 								.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(") ")
 								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" \"")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\" ,\n");
+								.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("\" ,\n");
 					} else {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" ")
 								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" ").append("\"")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append("\"").append(",\n");
+								.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("\"").append(",\n");
 					}
 
 //					if (fileName.equalsIgnoreCase("CBS_AEPS") || fileName.equalsIgnoreCase("ELMS_CBS")
@@ -323,6 +322,19 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 //								.append(filed.getRftFieldTypeDesc()).append(" ").append("\"")
 //								.append(filed.getRffFieldFormatDesc()).append("\"").append(",\n");
 //					}
+				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("BOOLEAN")) {
+					// Stage column is VARCHAR2(1) (Oracle tables have no BOOLEAN type,
+					// see SP_STAGE_TAB_CREATION), so load it as a plain string value.
+					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
+						controlFileContent.append(" ").append(filed.getShortName()).append(" \"TRIM(BOTH '''' FROM :")
+								.append(filed.getShortName()).append(")\"").append(",\n");
+					} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
+						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
+								.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(")")
+								.append(",\n");
+					} else {
+						controlFileContent.append(" ").append(filed.getShortName()).append(",\n");
+					}
 				} else {
 					controlFileContent.append(" ").append(filed.getShortName()).append(" ")
 							.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" ").append("\"")

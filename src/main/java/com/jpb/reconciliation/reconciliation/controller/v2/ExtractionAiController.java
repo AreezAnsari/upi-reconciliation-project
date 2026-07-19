@@ -27,11 +27,12 @@ import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconUser;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconFileTmpltMast;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconTmpltFieldDtls;
 import com.jpb.reconciliation.reconciliation.repository.LoadMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconBatchProcessEntityRepository;
 import com.jpb.reconciliation.reconciliation.repository.ReconUserRepository;
-import com.jpb.reconciliation.reconciliation.repository.v2.ReconTmpltFieldDtlsRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconFileTmpltMastRepository;
 import com.jpb.reconciliation.reconciliation.service.LoadMasterService;
 import com.jpb.reconciliation.reconciliation.service.ReportGenerationService;
 import com.jpb.reconciliation.reconciliation.service.excelreader.ExcelToCsvConvertorService;
@@ -67,7 +68,7 @@ public class ExtractionAiController {
 	ReconBatchProcessEntityRepository reconBatchProcessEntityRepository;
 
 	@Autowired
-	ReconTmpltFieldDtlsRepository reconTemplateFileDtlRepository;
+	ReconFileTmpltMastRepository reconFileTmpltMastRepository;
 
 	@GetMapping(value = "/start-extraction", produces = CommonConstants.APPLICATION_JSON)
 	public ResponseEntity<RestWithStatusList> startExtraction(@RequestParam Long templateId,
@@ -75,10 +76,12 @@ public class ExtractionAiController {
 		RestWithStatusList restWithStatusList;
 		List<Object> runningProcessData = new ArrayList<>();
 		List<File> processedFiles = new ArrayList<>();
-		
-		// Find Template Data
-		Optional<ReconTmpltFieldDtls> reconTemplateFileDetails = reconTemplateFileDtlRepository.findById(templateId);
-//		ReconFileDetailsMaster reconFileDetails = reconFileDetailsMasterRepository.findByReconFileId(processId);
+
+		// Find Template Data — look up the real template by its own templateId
+		// (recon_file_tmplt_mast), not by a field's field_id (recon_tmplt_field_dtls)
+		List<ReconFileTmpltMast> matchedTemplates = reconFileTmpltMastRepository.findByIdWithDetails(templateId);
+		Optional<ReconTmpltFieldDtls> reconTemplateFileDetails = matchedTemplates.isEmpty() ? Optional.empty()
+				: matchedTemplates.get(0).getFieldDetails().stream().findFirst();
 		logger.info("TEMPLATE DETAILS WITH FILE :::::::::::::::::" + reconTemplateFileDetails);
 		ReconUser userData = reconUserRepository.findByUserName(userDetails.getUsername()).get();
 		// Find running process by file id
@@ -88,9 +91,10 @@ public class ExtractionAiController {
 		List<ReconBatchProcessEntity> checkProcessCompleted = reconBatchProcessEntityRepository
 				.findByTemplateIdAndStatus(templateId, "Completed");
 
-		if (reconTemplateFileDetails != null) {
+		if (reconTemplateFileDetails.isPresent()) {
 			// Check GL Flag For Extraction Process If N Then check GL Master Table
-			if (reconTemplateFileDetails.get().getTemplate().getGlFlag().equalsIgnoreCase("N")) {
+			String glFlag = reconTemplateFileDetails.get().getTemplate().getGlFlag();
+			if (glFlag == null || glFlag.equalsIgnoreCase("N")) {
 				// Get file list from file path store at file details
 				List<File> originalFileList = getFileListFromDirectory(reconTemplateFileDetails);
 				// Check which type of file, if found excel then convert into csv

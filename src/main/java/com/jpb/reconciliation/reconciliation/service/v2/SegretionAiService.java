@@ -59,7 +59,7 @@ public class SegretionAiService {
 		logger.info(
 				"Template Id :::::::::::::" + reconTemplateFileDetails.get().getTemplate().getTemplateId());
 
-		simpleJdbcCall = new SimpleJdbcCall(jdbcTemplate).withProcedureName("SP_PROCESS_DATA").declareParameters(
+		simpleJdbcCall = new SimpleJdbcCall(jdbcTemplate).withProcedureName("SP_PROCESS_DATA_V2").declareParameters(
 				new SqlParameter("p_templateId", Types.NUMERIC), new SqlParameter("p_fileName", Types.VARCHAR),
 				new SqlOutParameter("p_error_message", Types.VARCHAR));
 
