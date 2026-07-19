@@ -30,7 +30,7 @@ public class ReconProcessDefMaster {
 	@SequenceGenerator(name = "seq", sequenceName = "RecProcessManager", allocationSize = 1)
 	@Column(name = "RPM_PROCESS_ID")
 	private Long reconProcessId;
-    
+
 	@Column(name = "RPM_PROCESS_NAME")
 	private String reconProcessName;
 

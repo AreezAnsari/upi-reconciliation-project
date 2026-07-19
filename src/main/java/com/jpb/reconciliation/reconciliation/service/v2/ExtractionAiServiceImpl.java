@@ -206,7 +206,23 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 		StringBuilder controlFileContent = new StringBuilder();
 //		logger.info("FILE DATA ::::::::" + getFiledData);
 
-		if (reconTemplateFileDetails.get().getTemplate().getHasHeader().equals("Y")) {
+		// Fixed-width records have no delimiter — fields are read via POSITION(),
+		// so FIELDS TERMINATED BY must be omitted (there is no separator to declare).
+		String templateType = reconTemplateFileDetails.get().getTemplate().getTemplateType();
+		boolean isFixedWidth = templateType != null && (templateType.equalsIgnoreCase("FIXED_WIDTH")
+				|| templateType.equalsIgnoreCase("FIXED WIDTH") || templateType.equalsIgnoreCase("FIXED"));
+		boolean isExcel = templateType != null && templateType.equalsIgnoreCase("EXCEL");
+		boolean isXml = templateType != null && templateType.equalsIgnoreCase("XML");
+
+		// EXCEL/XML: both are converted to CSV before reaching this point
+		// (ExcelToCsvConvertorService / XmlToCsvConvertorService), and both converters
+		// always write exactly ONE header line into that CSV regardless of the
+		// source file's own structure — so skip=1 unconditionally here, not the
+		// original headerLineCount (EXCEL) or the template's hasHeader flag (XML,
+		// which is normally "N" since raw XML has no header row of its own).
+		if (isExcel || isXml) {
+			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=1, PARALLEL=TRUE) \n");
+		} else if (reconTemplateFileDetails.get().getTemplate().getHasHeader().equals("Y")) {
 			controlFileContent.append("OPTIONS (multithreading=TRUE, skip=")
 					.append(reconTemplateFileDetails.get().getTemplate().getHeaderLineCount())
 					.append(", PARALLEL=TRUE) \n");
@@ -223,8 +239,18 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 				.append("\n");
 		controlFileContent.append("append \n");
 
-		controlFileContent.append("FIELDS TERMINATED BY '").append(fileSeprator).append("'")
-				.append(" OPTIONALLY ENCLOSED BY '\"' \n");
+		// EXCEL/XML templates always store delimiter=null (delimiter is a CSV-only
+		// config field, nulled out at save time), but both converters always write
+		// comma-separated CSV — so the control file must use ',' regardless of the
+		// stored (null) delimiter value, otherwise "FIELDS TERMINATED BY 'null'" breaks the load.
+		if ((fileSeprator == null || fileSeprator.isEmpty()) && (isExcel || isXml)) {
+			fileSeprator = ",";
+		}
+
+		if (!isFixedWidth) {
+			controlFileContent.append("FIELDS TERMINATED BY '").append(fileSeprator).append("'")
+					.append(" OPTIONALLY ENCLOSED BY '\"' \n");
+		}
 
 //		if (fileName.equalsIgnoreCase("EPIK_AEP_AEPS") || fileName.equalsIgnoreCase("CBS_AEPS")
 //				|| fileName.equalsIgnoreCase("CBS OB") || fileName.equalsIgnoreCase("ELMS_CBS")
@@ -248,7 +274,7 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 							? "TRIM(BOTH '''' FROM :" + filed.getShortName() + ")"
 							: ":" + filed.getShortName();
 
-					if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
+					if (isFixedWidth) {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
 								.append(filed.getFromPosition()).append(":").append(filed.getToPosition())
 								.append(")").append(" ").append("\"TO_NUMBER(").append(numSourceExpr)
@@ -286,17 +312,16 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("DATE")
 						|| filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("TIMESTAMP")) {
 
-					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_")
-								.append(filed.getReconFieldTypeMaster().getFieldTypeDes())
-								.append("(TRIM(BOTH '''' FROM :").append(filed.getShortName()).append("), '")
-								.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("')\"").append(",\n");
-					} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType()
-							.equalsIgnoreCase("FIXED")) {
+					if (isFixedWidth) {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
 								.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(") ")
 								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" \"")
 								.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("\" ,\n");
+					} else if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
+						controlFileContent.append(" ").append(filed.getShortName()).append(" ").append("\"TO_")
+								.append(filed.getReconFieldTypeMaster().getFieldTypeDes())
+								.append("(TRIM(BOTH '''' FROM :").append(filed.getShortName()).append("), '")
+								.append(filed.getReconFieldFormatMaster().getReconFieldFormatDesc()).append("')\"").append(",\n");
 					} else {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" ")
 								.append(filed.getReconFieldTypeMaster().getFieldTypeDes()).append(" ").append("\"")
@@ -325,13 +350,13 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 				} else if (filed.getReconFieldTypeMaster().getFieldTypeDes().equalsIgnoreCase("BOOLEAN")) {
 					// Stage column is VARCHAR2(1) (Oracle tables have no BOOLEAN type,
 					// see SP_STAGE_TAB_CREATION), so load it as a plain string value.
-					if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-						controlFileContent.append(" ").append(filed.getShortName()).append(" \"TRIM(BOTH '''' FROM :")
-								.append(filed.getShortName()).append(")\"").append(",\n");
-					} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
+					if (isFixedWidth) {
 						controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
 								.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(")")
 								.append(",\n");
+					} else if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
+						controlFileContent.append(" ").append(filed.getShortName()).append(" \"TRIM(BOTH '''' FROM :")
+								.append(filed.getShortName()).append(")\"").append(",\n");
 					} else {
 						controlFileContent.append(" ").append(filed.getShortName()).append(",\n");
 					}
@@ -342,13 +367,13 @@ public class ExtractionAiServiceImpl implements ExtractionAiService {
 					// .append(filed.getKeyName()).append(" ").append(filed.getRfmColOffset())
 				}
 			} else {
-				if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
-					controlFileContent.append(" ").append(filed.getShortName()).append(" \"TRIM(BOTH '''' FROM :")
-							.append(filed.getShortName()).append(")\"").append(",\n");
-				} else if (reconTemplateFileDetails.get().getTemplate().getTemplateType().equalsIgnoreCase("FIXED")) {
+				if (isFixedWidth) {
 					controlFileContent.append(" ").append(filed.getShortName()).append(" POSITION(")
 							.append(filed.getFromPosition()).append(":").append(filed.getToPosition()).append(")")
 							.append(",\n");
+				} else if (filed.getTrimFlag().equalsIgnoreCase("Y")) {
+					controlFileContent.append(" ").append(filed.getShortName()).append(" \"TRIM(BOTH '''' FROM :")
+							.append(filed.getShortName()).append(")\"").append(",\n");
 				} else {
 					controlFileContent.append(" ").append(filed.getShortName()).append(",\n");
 				}

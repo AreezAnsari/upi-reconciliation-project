@@ -22,6 +22,12 @@ public class ExcelToCsvConvertorService {
 
     private static final Logger logger = LoggerFactory.getLogger(ExcelToCsvConvertorService.class);
 
+    /**
+     * V1 compatibility overload — untouched original hardcoded-header-name
+     * behaviour, unchanged, so ExtractionController.java (V1) keeps working
+     * exactly as before. V1 must never call the new headerLineCount-based
+     * overload below; that one is V2-only (see ExtractionAiController.java).
+     */
     public void convertExcelToCsv(File excelFile) throws IOException {
         String csvFilePath = excelFile.getPath().replaceFirst("\\..*", ".csv");
 
@@ -60,6 +66,59 @@ public class ExcelToCsvConvertorService {
                 }
 
                 writeRowToCsv(row, writer);
+            }
+
+        } catch (Exception e) {
+            logger.error("Error converting Excel to CSV", e);
+            throw new IOException("Failed to convert Excel file.", e);
+        }
+    }
+
+    /**
+     * V2-only overload — see FILE 4 in Code_Changes_LineByLine.txt for why
+     * this exists separately from the V1 method above.
+     */
+    public void convertExcelToCsv(File excelFile, Integer headerLineCount) throws IOException {
+        String csvFilePath = excelFile.getPath().replaceFirst("\\..*", ".csv");
+
+        // Number of leading rows in the RAW excel file to skip before the real header
+        // row is reached (report title / bank name / search-criteria rows etc. that
+        // some source systems put above the actual column header — e.g. NEFT-ISO
+        // reports have 11 such rows before the header). Template-configured, not
+        // guessed from the header text, so it works for any file's header naming.
+        int rowsToSkip = (headerLineCount != null && headerLineCount > 0) ? headerLineCount - 1 : 0;
+
+        try (Workbook workbook = WorkbookFactory.create(excelFile);
+             PrintWriter writer = new PrintWriter(new FileWriter(csvFilePath))) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+            int rowIndex = 0;
+            boolean headerWritten = false;
+
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+
+                if (rowIndex < rowsToSkip) {
+                    rowIndex++;
+                    continue;
+                }
+                if (!headerWritten) {
+                    // This is the real header row (row after the configured skip count).
+                    // Written as-is to the CSV — the downstream SQL*Loader control file
+                    // always uses skip=1 to skip exactly this one header line.
+                    writeRowToCsv(row, writer);
+                    headerWritten = true;
+                    rowIndex++;
+                    continue;
+                }
+                if (isRowEmpty(row) || isFooterRow(row)) {
+                    rowIndex++;
+                    continue;
+                }
+
+                writeRowToCsv(row, writer);
+                rowIndex++;
             }
 
         } catch (Exception e) {

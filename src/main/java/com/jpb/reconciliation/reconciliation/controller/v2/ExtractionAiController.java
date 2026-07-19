@@ -36,6 +36,7 @@ import com.jpb.reconciliation.reconciliation.repository.v2.ReconFileTmpltMastRep
 import com.jpb.reconciliation.reconciliation.service.LoadMasterService;
 import com.jpb.reconciliation.reconciliation.service.ReportGenerationService;
 import com.jpb.reconciliation.reconciliation.service.excelreader.ExcelToCsvConvertorService;
+import com.jpb.reconciliation.reconciliation.service.xmlreader.XmlToCsvConvertorService;
 import com.jpb.reconciliation.reconciliation.service.v2.ExtractionAiService;
 
 import net.sf.jasperreports.engine.JRException;
@@ -61,6 +62,9 @@ public class ExtractionAiController {
 
 	@Autowired
 	ExcelToCsvConvertorService excelToCsvConvertorService;
+
+	@Autowired
+	XmlToCsvConvertorService xmlToCsvConvertorService;
 
 	Logger logger = LoggerFactory.getLogger(ExtractionController.class);
 
@@ -113,14 +117,22 @@ public class ExtractionAiController {
 					try {
 						if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
 							logger.info("Converting Excel file to CSV: " + fileName);
-							excelToCsvConvertorService.convertExcelToCsv(file);
+							excelToCsvConvertorService.convertExcelToCsv(file,
+									reconTemplateFileDetails.get().getTemplate().getHeaderLineCount());
 							// Construct the path for the converted CSV file
+							convertedFile = new File(file.getParent(), fileName.replaceFirst("\\..*", ".csv"));
+						} else if (fileName.endsWith(".xml")) {
+							logger.info("Converting XML file to CSV: " + fileName);
+							xmlToCsvConvertorService.convertXmlToCsv(file,
+									reconTemplateFileDetails.get().getTemplate().getXmlRootTag(),
+									reconTemplateFileDetails.get().getTemplate().getXmlRowTag(),
+									new ArrayList<>(reconTemplateFileDetails.get().getTemplate().getFieldDetails()));
 							convertedFile = new File(file.getParent(), fileName.replaceFirst("\\..*", ".csv"));
 						} else {
 							processedFiles.add(file);
 						}
 					} catch (Exception e) {
-						logger.error("Failed to convert Excel to CSV for file: " + fileName, e);
+						logger.error("Failed to convert file for: " + fileName, e);
 						restWithStatusList = new RestWithStatusList("FAILURE",
 								"File conversion failed for: " + fileName, null);
 						return new ResponseEntity<>(restWithStatusList, HttpStatus.INTERNAL_SERVER_ERROR);
