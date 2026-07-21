@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.jpb.reconciliation.reconciliation.dto.ReconConfigRequest;
 import com.jpb.reconciliation.reconciliation.dto.ReconConfigResponse;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
-import com.jpb.reconciliation.reconciliation.service.ReconConfigService;
+import com.jpb.reconciliation.reconciliation.service.ReconConfigServiceImpl;
 
 /**
  * REST controller for the 6-step Recon Config wizard  (API v2).
@@ -65,7 +65,7 @@ public class ReconConfigController {
     private static final String STATUS_NOT_FOUND        = "NOT_FOUND";
 
     @Autowired
-    private ReconConfigService reconConfigService;
+    private ReconConfigServiceImpl reconConfigService;
 
 
     @PostMapping("/add")

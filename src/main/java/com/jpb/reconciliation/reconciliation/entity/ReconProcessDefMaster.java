@@ -154,6 +154,9 @@ public class ReconProcessDefMaster {
 	@Column(name = "RPM_PROCESS_JPBRPSL")
 	private String reconProcessJPBRPSL;
 	
+	@Column(name = "RPM_MANREC_COUNT")
+	private Long reconManRecCount;
+	
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "PROCESS_MAST_ID")
 	@JsonBackReference
