@@ -39,8 +39,16 @@ public interface ReconRoleMasterService {
     /** Menu IDs currently assigned to this role (its privileges). */
     ResponseEntity<RestWithStatusList> getPrivileges(Long roleId);
 
-    /** Replaces this role's privilege set with exactly the given menu IDs. */
+    /** Replaces this role's privilege set with exactly the given menu IDs. For a
+     *  BRANCH_ADMIN_DEFAULT/BANK_ADMIN_DEFAULT role, its system-default menus (see
+     *  getLockedPrivileges) are always kept even if missing from menuIds — a Bank Admin may add
+     *  menus to the role but can never remove the ones it was bootstrapped with. */
     ResponseEntity<RestWithStatusList> savePrivileges(Long roleId, List<Long> menuIds, String updatedBy);
+
+    /** Menu IDs in this role that are the system-default bootstrap set (Dashboard, My Organization,
+     *  Administration, …) and therefore read-only — empty for any role that isn't a
+     *  BRANCH_ADMIN_DEFAULT/BANK_ADMIN_DEFAULT bootstrap role. */
+    ResponseEntity<RestWithStatusList> getLockedPrivileges(Long roleId);
 
     /** Roles belonging to a specific Bank/Branch — derived from RCN_RECON_USER
      *  (no BANK_ID column on RECON_ROLE_MASTER itself). Covers both roles already
@@ -67,4 +75,11 @@ public interface ReconRoleMasterService {
      *  different one), and for a plain Checker (not an Admin) further scoped to only roles
      *  whose own product restriction overlaps their own. KAL_ADMIN sees everything. */
     ResponseEntity<RestWithStatusList> getPendingRolesForChecker(String checkerUsername);
+
+    /** The Bank/Branch that actually owns this role, resolved from one of its current holders
+     *  (RECON_ROLE_MASTER has no BANK_ID of its own). This is normally the caller's own
+     *  institution, but for a BRANCH_ADMIN_DEFAULT role it's a CHILD branch — a Bank Admin
+     *  managing that role's privileges must see the BRANCH's own onboarded products/bank type,
+     *  not their own. Empty when the role has no holder yet (a brand-new, unassigned role). */
+    ResponseEntity<RestWithStatusList> getOwningBank(Long roleId);
 }

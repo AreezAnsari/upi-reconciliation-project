@@ -129,6 +129,18 @@ public class MenuController {
         return menuMasterService.getMenusByBankId(bankId);
     }
 
+    @Operation(summary = "Menu List only: every menu for this Bank/Branch, unfiltered by mapping status (no hide-until-mapped rule)")
+    @GetMapping(value = "/menu/all-by-bank/{bankId}", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getAllMenusByBankId(@PathVariable Long bankId) {
+        return menuMasterService.getAllMenusByBankId(bankId);
+    }
+
+    @Operation(summary = "Menu List only: unfiltered menus visible to the caller (Admin → institution; otherwise → own subtree only)")
+    @GetMapping(value = "/menu/all-visible", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getAllMenusVisibleTo(@AuthenticationPrincipal UserDetails userDetails) {
+        return menuMasterService.getAllMenusVisibleTo(userDetails.getUsername());
+    }
+
     @Operation(summary = "Submit menu for approval")
     @PutMapping(value = "/menu/{menuId}/submit", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> submitMenuForApproval(@PathVariable Long menuId,

@@ -46,6 +46,9 @@ public class ReconBankMasterController {
     private ReconBankMasterRepository reconBankMasterRepository;
 
     @Autowired
+    private com.jpb.reconciliation.reconciliation.service.v2.EmailRegistryService emailRegistry;
+
+    @Autowired
     private AuditReplacementRepository auditReplacementRepository;
 
     @Operation(summary = "Create a new bank")
@@ -166,8 +169,9 @@ public class ReconBankMasterController {
     @Operation(summary = "Check if a primary/secondary contact email is already registered as an admin user or bank/branch contact")
     @GetMapping(value = "/check-email", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> checkEmailExists(@RequestParam String email) {
-        String emailLc = email.trim().toLowerCase();
-        boolean exists = reconUserRepository.existsByEmail(emailLc) || reconBankMasterRepository.existsByEmail(emailLc);
+        // Only a NON-blocked holder makes the email unavailable — a blocked account is effectively
+        // deleted and its email may be reused (EmailRegistryService = single source of truth).
+        boolean exists = emailRegistry.isActivelyRegistered(email);
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", exists ? "EXISTS" : "AVAILABLE", null));
     }
 
@@ -228,9 +232,11 @@ public class ReconBankMasterController {
         String scheduledBy = resolveUser(authentication);
         // Blocking an institution is the most destructive action here: it cascades BLOCK_PENDING to
         // every branch and every user, and once it lands it is permanent (a live replacement is even
-        // made permanent with it). It therefore gets the same 24-hour grace window an individual
-        // user block gets — that window IS the undo, and the warning email tells recipients to
-        // contact their administrator to cancel within it.
+        // made permanent with it). It therefore gets the SAME grace window an individual user block
+        // gets, read from the single source of truth BlockScheduleConstants.BLOCK_DELAY_MINUTES
+        // (currently 1 minute for testing; set to 1440 for the 24-hour production window). That
+        // window IS the undo, and the warning email tells recipients to contact their administrator
+        // to cancel within it.
         //
         // This used to default to now()+5s, so the UI's Block button (which sends no scheduledAt)
         // blocked the whole institution five seconds later, with no chance to cancel.

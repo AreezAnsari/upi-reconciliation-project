@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.jpb.reconciliation.reconciliation.constants.MenuConstants;
 import com.jpb.reconciliation.reconciliation.dto.ReconMenuMasterDto;
@@ -189,6 +190,15 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             }
             ReconUser userData = userOpt.get();
 
+            // An appended menu row is always bank-scoped. A caller with no institution (e.g. a
+            // Kal Admin) has nothing to append to — reject cleanly here instead of letting the
+            // insert collide with the catalog's unique code index and surface a raw DB error.
+            if (userData.getBankId() == null) {
+                return new ResponseEntity<>(new RestWithStatusList("FAILURE",
+                        "Menus can only be added by a Bank or Branch administrator, not from a Kal Admin account.",
+                        null), HttpStatus.BAD_REQUEST);
+            }
+
             // The new custom Master/Main/Submenu path — entirely separate validation/creation,
             // no catalog lookup at all. Everything below this block (today's catalog-driven
             // sequence) is unreached and unchanged when this flag is absent/false.
@@ -253,6 +263,13 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             if (!com.jpb.reconciliation.reconciliation.constants.UserConstants.isAdminUserType(userData.getUserType())) {
                 return new ResponseEntity<>(new RestWithStatusList("FAILURE",
                         "Only a Bank/Branch/KAL Admin can create a Menu that activates immediately.", null), HttpStatus.FORBIDDEN);
+            }
+            // An appended menu row is bank-scoped; a caller with no institution (Kal Admin) has
+            // nothing to append to. Reject cleanly instead of hitting the catalog unique-index.
+            if (userData.getBankId() == null) {
+                return new ResponseEntity<>(new RestWithStatusList("FAILURE",
+                        "Menus can only be added by a Bank or Branch administrator, not from a Kal Admin account.",
+                        null), HttpStatus.BAD_REQUEST);
             }
 
             if (Boolean.TRUE.equals(menuRequest.getCustom())) {
@@ -997,6 +1014,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     }
 
     @Override
+    @Transactional
     public ResponseEntity<RestWithStatusList> approveMenu(Long menuId, String approvedBy) {
         Optional<ReconMenuMaster> opt = menuMasterRepository.findByMenuId(menuId);
         if (!opt.isPresent()) {
@@ -1016,7 +1034,21 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                     + ") that no longer exists. It cannot be approved — re-register it in the catalog first.",
                     null), HttpStatus.CONFLICT);
         }
-        existing.setStatus("Y");
+        // Only a menu still awaiting a Checker's decision can be approved. Guards the sequential
+        // race (a second Checker approving something already decided) as a clear rejection instead
+        // of a silent duplicate approval/email.
+        if (!"PENDING".equals(existing.getStatus())) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE",
+                    "This request has already been processed.", null), HttpStatus.CONFLICT);
+        }
+        // Atomic claim: if another Checker's decision landed between our read above and this write,
+        // rowsUpdated is 0 and we must not proceed (first completed decision always wins).
+        int rowsUpdated = menuMasterRepository.compareAndSetStatus(menuId, "PENDING", "Y");
+        if (rowsUpdated == 0) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE",
+                    "This request has already been processed.", null), HttpStatus.CONFLICT);
+        }
+        existing = menuMasterRepository.findByMenuId(menuId).orElse(existing);
         existing.setApprovedBy(approvedBy);
         existing.setModifiedBy(approvedBy);
         existing.setModifiedDate(new Timestamp(System.currentTimeMillis()));
@@ -1099,6 +1131,54 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         }
 
         ResponseEntity<RestWithStatusList> bankMenus = getMenusByBankId(caller.getBankId());
+        List<?> data = bankMenus.getBody() != null && bankMenus.getBody().getData() != null
+                ? bankMenus.getBody().getData() : Collections.emptyList();
+        List<Object> owned = data.stream()
+                .filter(ReconMenuMaster.class::isInstance)
+                .map(ReconMenuMaster.class::cast)
+                .filter(m -> mine.contains(m.getCreatedBy()))
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menus fetched.", owned), HttpStatus.OK);
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getAllMenusByBankId(Long bankId) {
+        // Menu List's own view: every appended Master/Main/Submenu this bank has ever created,
+        // regardless of whether it's been mapped to a URL/process yet. Deliberately does NOT call
+        // getMenusByBankId or reuse its hide-until-mapped rule (resolveUnmappedHiddenNames /
+        // resolveCustomHiddenIds) — that rule exists for the Privilege tree and Sidebar, which are
+        // both untouched here. Portal-twin rows are still excluded: those are an internal
+        // implementation detail no Admin ever manages directly, not a "no mapping yet" case.
+        // Bootstrap admin menus (Dashboard / My Organization / Administration and everything under
+        // them — see SystemMenuCodes) are auto-created at onboarding, not something an Admin ever
+        // manages from Menu List either, so they're excluded the same way.
+        List<ReconMenuMaster> menus = menuMasterRepository.findByBankId(bankId);
+        List<ReconMenuMaster> visible = menus.stream()
+                .filter(m -> !"Y".equals(m.getIsPortalTwin()))
+                .filter(m -> !com.jpb.reconciliation.reconciliation.constants.SystemMenuCodes.isBootstrapCode(m.getSystemMenuCode()))
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menus fetched for bank.", new ArrayList<>(visible)), HttpStatus.OK);
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getAllMenusVisibleTo(String username) {
+        Optional<ReconUser> callerOpt = hierarchyScopeService.caller(username);
+        if (!callerOpt.isPresent()) {
+            return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menus fetched.", new ArrayList<>()), HttpStatus.OK);
+        }
+        ReconUser caller = callerOpt.get();
+
+        if (hierarchyScopeService.isAdmin(caller)) {
+            return getAllMenusByBankId(caller.getBankId());
+        }
+
+        Set<String> mine = new HashSet<>();
+        mine.add(caller.getUsername());
+        for (ReconUser d : reconUserRepository.findAllById(hierarchyScopeService.descendantUserIds(caller.getUserId()))) {
+            if (d.getUsername() != null) mine.add(d.getUsername());
+        }
+
+        ResponseEntity<RestWithStatusList> bankMenus = getAllMenusByBankId(caller.getBankId());
         List<?> data = bankMenus.getBody() != null && bankMenus.getBody().getData() != null
                 ? bankMenus.getBody().getData() : Collections.emptyList();
         List<Object> owned = data.stream()

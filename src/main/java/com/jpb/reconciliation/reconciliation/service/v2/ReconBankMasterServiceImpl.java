@@ -69,6 +69,8 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
     @Autowired private CRoleMenuMapRepository roleMenuMapRepository;
     @Autowired private RoleCodeGeneratorService roleCodeGeneratorService;
     @Autowired private ReconUserRepository reconUserRepository;
+    @Autowired private EmailRegistryService emailRegistry;
+    @Autowired private HierarchyScopeService hierarchyScope;
     @Autowired private ReconPasswordManagerRepository reconPasswordManagerRepository;
     @Autowired private AuditLogRepository auditLogRepository;
     @Autowired private CBankProductMapRepository bankProductMapRepository;
@@ -101,15 +103,15 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         // Checked against both RCN_RECON_USER (login accounts) and RECON_BANK_MASTER
         // (contact rows for other banks/branches) — an email registered in either
         // place must not be reused for a new onboarding.
+        // A BLOCKED account/institution is effectively deleted, so its email may be reused; every
+        // other status still blocks reuse. EmailRegistryService is the single source of truth.
         String primaryEmailLc = bank.getEmail() != null ? bank.getEmail().trim().toLowerCase() : null;
-        if (primaryEmailLc != null && !primaryEmailLc.isEmpty()
-                && (reconUserRepository.existsByEmail(primaryEmailLc) || reconBankMasterRepository.existsByEmail(primaryEmailLc))) {
+        if (primaryEmailLc != null && !primaryEmailLc.isEmpty() && emailRegistry.isActivelyRegistered(primaryEmailLc)) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "\"" + primaryEmailLc + "\" is already registered.", null));
         }
         String secondaryEmailLc = bank.getSecondaryEmail() != null ? bank.getSecondaryEmail().trim().toLowerCase() : null;
-        if (secondaryEmailLc != null && !secondaryEmailLc.isEmpty()
-                && (reconUserRepository.existsByEmail(secondaryEmailLc) || reconBankMasterRepository.existsByEmail(secondaryEmailLc))) {
+        if (secondaryEmailLc != null && !secondaryEmailLc.isEmpty() && emailRegistry.isActivelyRegistered(secondaryEmailLc)) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "\"" + secondaryEmailLc + "\" is already registered.", null));
         }
@@ -147,6 +149,12 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "Alternate mobile number cannot be the same as Mobile number.", null));
         }
+
+        // All validation passed. If either contact email is being reused from a BLOCKED account,
+        // release (tombstone) that blocked holder's email now so the new bank/admin rows below stay
+        // the single live holder of it (findByEmail must remain single-valued).
+        emailRegistry.releaseBlockedHolders(primaryEmailLc);
+        emailRegistry.releaseBlockedHolders(secondaryEmailLc);
 
         // ── Determine branch vs bank ─────────────────────────────────────────
         boolean isBranch     = bank.getParentBankId() != null;
@@ -414,7 +422,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         String newPrimaryEmail = bank.getEmail() != null ? bank.getEmail().trim().toLowerCase() : null;
         if (newPrimaryEmail != null && !newPrimaryEmail.isEmpty()
                 && !newPrimaryEmail.equalsIgnoreCase(existing.getEmail())
-                && reconUserRepository.existsByEmail(newPrimaryEmail)) {
+                && emailRegistry.isActivelyRegistered(newPrimaryEmail)) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "\"" + newPrimaryEmail + "\" is already registered.", null));
         }
@@ -423,7 +431,7 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         String newSecondaryEmail = bank.getSecondaryEmail() != null ? bank.getSecondaryEmail().trim().toLowerCase() : null;
         if (newSecondaryEmail != null && !newSecondaryEmail.isEmpty()
                 && (secondaryRow == null || !newSecondaryEmail.equalsIgnoreCase(secondaryRow.getEmail()))
-                && reconUserRepository.existsByEmail(newSecondaryEmail)) {
+                && emailRegistry.isActivelyRegistered(newSecondaryEmail)) {
             return ResponseEntity.badRequest().body(new RestWithStatusList("FAILURE",
                     "\"" + newSecondaryEmail + "\" is already registered.", null));
         }
@@ -1097,6 +1105,20 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             return ResponseEntity.badRequest()
                     .body(new RestWithStatusList("FAILURE", "scheduleType is required (INACTIVATE / REACTIVATE / BLOCK).", null));
         }
+        // Only the user who scheduled this institution-level action, or one of their ancestors, may
+        // cancel it — a child can never override a parent's action, and an unrelated parent of the
+        // affected users can never touch a pending action they didn't initiate.
+        String bankActioner;
+        switch (scheduleType.toUpperCase()) {
+            case "REACTIVATE": bankActioner = existing.getReactivateScheduledBy(); break;
+            case "BLOCK":      bankActioner = existing.getBlockScheduledBy();      break;
+            default:           bankActioner = existing.getInactivateScheduledBy(); break; // INACTIVATE
+        }
+        ReconUser cancelCaller = hierarchyScope.caller(updatedBy).orElse(null);
+        if (!hierarchyScope.canOverrideActionBy(cancelCaller, bankActioner)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new RestWithStatusList("FAILURE",
+                    "Only the user who initiated this action, or someone above them, can undo it.", null));
+        }
         switch (scheduleType.toUpperCase()) {
             case "INACTIVATE":
                 existing.setInactivateScheduledAt(null);
@@ -1716,7 +1738,10 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
             ReconRoleMaster role = new ReconRoleMaster();
             role.setRoleCode(roleCodeGeneratorService.generateNextCode(roleDisplayName));
             role.setRoleName(roleDisplayName);
-            role.setRoleType("EXTERNAL");
+            // Self-documenting marker (was the generic "EXTERNAL") — ReconRoleMasterServiceImpl
+            // reads this to know which menus in this role are the system-default set a Bank Admin
+            // may add to but never remove, and to decide the role's Role List visibility.
+            role.setRoleType(isBranch ? "BRANCH_ADMIN_DEFAULT" : "BANK_ADMIN_DEFAULT");
             role.setRoleDesc("Default " + (isBranch ? "Branch" : "Bank") + " Admin role for " + bankCode);
             role.setStatus("ACTIVE");
             role.setCreatedBy(createdBy);

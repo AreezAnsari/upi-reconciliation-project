@@ -3,11 +3,13 @@ package com.jpb.reconciliation.reconciliation.service.v2;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.CRoleMenuMap;
+import com.jpb.reconciliation.reconciliation.entity.v2.ReconBankMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleMaster;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconRoleProductMap;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconUser;
 import com.jpb.reconciliation.reconciliation.repository.MenuMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.CRoleMenuMapRepository;
+import com.jpb.reconciliation.reconciliation.repository.v2.ReconBankMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleMasterRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconRoleProductMapRepository;
 import com.jpb.reconciliation.reconciliation.repository.v2.ReconUserRepository;
@@ -40,6 +42,20 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
     private static final Logger logger = LoggerFactory.getLogger(ReconRoleMasterServiceImpl.class);
 
+    // Menu names ReconBankMasterServiceImpl.createDefaultAdminMenus grants a bootstrap
+    // Bank/Branch Admin role at onboarding time — the Master/Main container names ("Dashboard",
+    // "My Organization", "Administration") plus every item under them. A Bank Admin may add MORE
+    // menus to a BRANCH_ADMIN_DEFAULT role, but never remove one of these — see
+    // resolveLockedMenuIds/savePrivileges/getLockedPrivileges.
+    private static final Set<String> BOOTSTRAP_ADMIN_MENU_NAMES = new LinkedHashSet<>(Arrays.asList(
+            "Dashboard", "My Organization", "Administration",
+            "Overview", "My Hierarchy", "User Status", "Branches", "Branch Onboarding", "Branch Admin Status",
+            "Add User", "Add Role", "Add Menu", "User List", "Role List", "Menu List",
+            "Handover & Delegation History", "Approval Request History", "Checker Dashboard"
+    ));
+    private static final Set<String> BOOTSTRAP_ROLE_TYPES = new LinkedHashSet<>(Arrays.asList(
+            "BRANCH_ADMIN_DEFAULT", "BANK_ADMIN_DEFAULT"));
+
     @Autowired
     private ReconRoleMasterRepository reconRoleMasterRepository;
 
@@ -60,6 +76,9 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
     @Autowired
     private ReconUserRepository reconUserRepository;
+
+    @Autowired
+    private ReconBankMasterRepository reconBankMasterRepository;
 
     @Autowired
     private RoleCodeGeneratorService roleCodeGeneratorService;
@@ -236,7 +255,23 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
                     .body(new RestWithStatusList("FAILURE", "Role not found with ID: " + roleId, null));
         }
         ReconRoleMaster existing = opt.get();
-        existing.setStatus("ACTIVE");
+        String priorStatus = existing.getStatus();
+        // approveRole doubles as "approve a PENDING role" (Checker decision) AND "reactivate an
+        // INACTIVE role" (an unrelated Admin action) — both flip TO ACTIVE, so only the two
+        // terminal-decision states are blocked here. A role a Checker already rejected cannot then
+        // be approved by a second Checker; an already-ACTIVE role cannot be double-approved.
+        if ("ACTIVE".equals(priorStatus) || "REJECTED".equals(priorStatus)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new RestWithStatusList("FAILURE", "This request has already been processed.", null));
+        }
+        // Atomic claim: if another Checker's decision landed between our read above and this write,
+        // rowsUpdated is 0 and we must not proceed (first completed decision always wins).
+        int rowsUpdated = reconRoleMasterRepository.compareAndSetStatus(roleId, priorStatus, "ACTIVE");
+        if (rowsUpdated == 0) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new RestWithStatusList("FAILURE", "This request has already been processed.", null));
+        }
+        existing = reconRoleMasterRepository.findById(roleId).orElse(existing);
         existing.setApprovedBy(approvedBy);
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(approvedBy);
@@ -256,14 +291,34 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         }
         ReconRoleMaster existing = opt.get();
         String submittedBy = existing.getSubmittedBy();
+        if ("REJECTED".equalsIgnoreCase(status)) {
+            // This is a Checker's disapprove decision on a pending role — only valid from PENDING.
+            // Guards both the sequential race (a second Checker rejecting an already-decided role)
+            // and the true-concurrent race (CAS below) so the first completed decision always wins.
+            String priorStatus = existing.getStatus();
+            if (!"PENDING".equals(priorStatus)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(new RestWithStatusList("FAILURE", "This request has already been processed.", null));
+            }
+            int rowsUpdated = reconRoleMasterRepository.compareAndSetStatus(roleId, "PENDING", "REJECTED");
+            if (rowsUpdated == 0) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(new RestWithStatusList("FAILURE", "This request has already been processed.", null));
+            }
+            existing = reconRoleMasterRepository.findById(roleId).orElse(existing);
+            existing.setUpdatedAt(LocalDateTime.now());
+            existing.setUpdatedBy(updatedBy);
+            reconRoleMasterRepository.save(existing);
+            approvalAuditRecorder.recordDecision(ApprovalAuditRecorder.ENTITY_ROLE, roleId, updatedBy, "REJECTED", null);
+            notifyMakerOfDecision(submittedBy, existing.getRoleName(), existing.getRoleCode(), "Rejected", updatedBy);
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role status updated.", null));
+        }
+        // Every other transition (e.g. an Admin's ACTIVE <-> INACTIVE toggle from ViewRole) is
+        // unrelated to a Checker decision and keeps its original unconditional behaviour.
         existing.setStatus(status);
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(updatedBy);
         reconRoleMasterRepository.save(existing);
-        if ("REJECTED".equalsIgnoreCase(status)) {
-            approvalAuditRecorder.recordDecision(ApprovalAuditRecorder.ENTITY_ROLE, roleId, updatedBy, "REJECTED", null);
-            notifyMakerOfDecision(submittedBy, existing.getRoleName(), existing.getRoleCode(), "Rejected", updatedBy);
-        }
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role status updated.", null));
     }
 
@@ -302,6 +357,65 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Privileges fetched.", displayIds));
     }
 
+    /**
+     * True only when updatedBy is a BANK_ADMIN whose own bank is the parent of the branch that
+     * owns this BRANCH_ADMIN_DEFAULT role. RECON_ROLE_MASTER carries no BANK_ID of its own, so the
+     * branch is derived the only way it can be: from the branch-admin user(s) actually holding this
+     * roleId (there is exactly one branch per bootstrap role, by construction — see
+     * ReconBankMasterServiceImpl.createDefaultAdminMenus).
+     */
+    @Override
+    public ResponseEntity<RestWithStatusList> getOwningBank(Long roleId) {
+        List<ReconUser> holders = reconUserRepository.findByRoleId(roleId);
+        if (holders.isEmpty() || holders.get(0).getBankId() == null) {
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role has no holder yet.", Collections.emptyList()));
+        }
+        Optional<ReconBankMaster> bankOpt = reconBankMasterRepository.findById(holders.get(0).getBankId());
+        if (!bankOpt.isPresent()) {
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Role has no holder yet.", Collections.emptyList()));
+        }
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Owning bank fetched.",
+                Collections.singletonList(bankOpt.get())));
+    }
+
+    private boolean callerIsParentBankAdminOf(ReconRoleMaster role, String updatedBy) {
+        Optional<ReconUser> callerOpt = reconUserRepository.findByUsername(updatedBy);
+        if (!callerOpt.isPresent() || !"BANK_ADMIN".equals(callerOpt.get().getUserType())) return false;
+        List<ReconUser> holders = reconUserRepository.findByRoleId(role.getRoleId());
+        if (holders.isEmpty() || holders.get(0).getBankId() == null) return false;
+        Optional<ReconBankMaster> branchOpt = reconBankMasterRepository.findById(holders.get(0).getBankId());
+        return branchOpt.isPresent() && callerOpt.get().getBankId() != null
+                && callerOpt.get().getBankId().equals(branchOpt.get().getParentBankId());
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getLockedPrivileges(Long roleId) {
+        Optional<ReconRoleMaster> roleOpt = reconRoleMasterRepository.findById(roleId);
+        if (!roleOpt.isPresent()) {
+            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Locked privileges fetched.", Collections.emptyList()));
+        }
+        List<Long> locked = new ArrayList<>(resolveLockedMenuIds(roleOpt.get()));
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Locked privileges fetched.", locked));
+    }
+
+    /**
+     * Menu IDs this role can never be edited to drop — the system-default set it was bootstrapped
+     * with at onboarding (see ReconBankMasterServiceImpl.createDefaultAdminMenus). Only applies to
+     * a BRANCH_ADMIN_DEFAULT/BANK_ADMIN_DEFAULT role; every other role has no locked menus at all.
+     * Derived by name match against BOOTSTRAP_ADMIN_MENU_NAMES over the role's CURRENT grants,
+     * rather than a stored flag — the bootstrap set is fixed and small, and this way it never goes
+     * stale if the grant rows get recreated (savePrivileges always deletes+reinserts).
+     */
+    private Set<Long> resolveLockedMenuIds(ReconRoleMaster role) {
+        if (role == null || !BOOTSTRAP_ROLE_TYPES.contains(role.getRoleType())) return Collections.emptySet();
+        List<Long> currentMenuIds = roleMenuMapRepository.findMenuIdsByRoleId(role.getRoleId());
+        if (currentMenuIds.isEmpty()) return Collections.emptySet();
+        return menuMasterRepository.findAllById(currentMenuIds).stream()
+                .filter(m -> BOOTSTRAP_ADMIN_MENU_NAMES.contains(m.getMenuName()))
+                .map(ReconMenuMaster::getMenuId)
+                .collect(Collectors.toSet());
+    }
+
     @Override
     @Transactional
     public ResponseEntity<RestWithStatusList> savePrivileges(Long roleId, List<Long> menuIds, String updatedBy) {
@@ -311,11 +425,40 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
                     .body(new RestWithStatusList("FAILURE", "Role not found with ID: " + roleId, null));
         }
 
+        // A branch's own Branch_Admin bootstrap role is managed exclusively by that branch's
+        // parent Bank Admin — never by the Branch Admin themselves, and never by anyone else. This
+        // is a hard server-side gate, not just a UI omission: without it, a Branch Admin (or
+        // anyone else who learns the roleId) could call this endpoint directly and edit their own
+        // role's privileges regardless of what Role List / Privileges Assign choose to show them.
+        if ("BRANCH_ADMIN_DEFAULT".equals(roleOpt.get().getRoleType())
+                && !callerIsParentBankAdminOf(roleOpt.get(), updatedBy)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new RestWithStatusList("FAILURE",
+                    "Only that branch's Bank Admin can manage this role's privileges.", null));
+        }
+
+        // Captured before deleteByRoleId below wipes the current grants — a BRANCH_ADMIN_DEFAULT/
+        // BANK_ADMIN_DEFAULT role's system-default menus are always kept regardless of what the
+        // caller submitted; a Bank Admin can add menus to this role but can never remove one of
+        // these. Every other role type resolves to an empty set. Deliberately unioned in AFTER the
+        // SOD check below, not before: the bootstrap set itself already contains both Checker
+        // Dashboard and the Maker-side Add User/Role/Menu (createDefaultAdminMenus grants both,
+        // bypassing this check entirely since bootstrap creation never goes through
+        // savePrivileges) — validating the locked baseline against SOD here would make it
+        // impossible to save ANY change to the role, forever. SOD only needs to stop the Admin's
+        // OWN new additions from creating a fresh conflict; it was never enforced against — and
+        // can't retroactively fix — the pre-existing bootstrap set they didn't create.
+        Set<Long> lockedMenuIds = resolveLockedMenuIds(roleOpt.get());
+
         // Checker Dashboard and Maker-side menus (Maker Dashboard / Add Role / Add Menu / Add User)
         // are mutually exclusive — same SOD rule as product capability: a Checker can never also
         // be able to create records. Enforced here as the server-side source of truth; the
         // Privileges-assign screen also disables the opposing checkboxes for UX.
-        if (menuIds != null) {
+        // Exempt for BRANCH_ADMIN_DEFAULT/BANK_ADMIN_DEFAULT: a branch/bank's own Admin role is
+        // deliberately both Maker and Checker by design (it already runs both sides of every
+        // workflow for its institution — the bootstrap set itself grants Checker Dashboard AND
+        // Add User/Role/Menu together), so SOD simply doesn't apply to this role type at all.
+        boolean sodExempt = BOOTSTRAP_ROLE_TYPES.contains(roleOpt.get().getRoleType());
+        if (menuIds != null && !sodExempt) {
             Set<String> requestedNames = menuIds.stream()
                     .map(menuMasterRepository::findById)
                     .filter(Optional::isPresent)
@@ -342,6 +485,17 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
                             "Only a Bank or Branch Admin can create or assign a Checker role.", null));
                 }
             }
+        }
+
+        // Now union the locked baseline back in, after SOD has already judged only what the Admin
+        // actually submitted.
+        if (!lockedMenuIds.isEmpty()) {
+            Set<Long> submitted = menuIds == null ? Collections.emptySet() : new LinkedHashSet<>(menuIds);
+            List<Long> merged = new ArrayList<>(submitted);
+            for (Long lockedId : lockedMenuIds) {
+                if (!submitted.contains(lockedId)) merged.add(lockedId);
+            }
+            menuIds = merged;
         }
 
         roleMenuMapRepository.deleteByRoleId(roleId);
@@ -479,7 +633,39 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
 
         // An Admin owns the institution and must be able to manage Checker roles too.
         if (hierarchyScopeService.isAdmin(caller)) {
-            return caller.getBankId() == null ? getAllRoles() : getRolesByBankId(caller.getBankId());
+            if (caller.getBankId() == null) return getAllRoles();
+            ResponseEntity<RestWithStatusList> ownBankRoles = getRolesByBankId(caller.getBankId());
+
+            // A Bank Admin also manages each of their branches' Branch_Admin role directly (add
+            // extra menus; the bootstrap set stays locked — see resolveLockedMenuIds) even though
+            // it's otherwise a system/bootstrap role hidden everywhere else (isSystemAdminRole).
+            // Nobody but this bank's own Bank Admin sees these rows: not Kal Admin (getAllRoles
+            // above never calls this branch), not the Branch Admin themselves (they're not an
+            // Admin-of-their-own-institution from this method's point of view the way a Bank Admin
+            // is — they fall through to the "everyone else" path below), and not another bank.
+            if ("BANK_ADMIN".equals(caller.getUserType())) {
+                List<ReconBankMaster> branches = reconBankMasterRepository.findByParentBankId(caller.getBankId());
+                if (!branches.isEmpty()) {
+                    List<Long> branchIds = branches.stream().map(ReconBankMaster::getBankId).collect(Collectors.toList());
+                    Set<Long> branchAdminRoleIds = reconUserRepository.findByBankIdIn(branchIds).stream()
+                            .map(ReconUser::getRoleId).filter(Objects::nonNull)
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                    if (!branchAdminRoleIds.isEmpty()) {
+                        List<ReconRoleMaster> branchAdminRoles = reconRoleMasterRepository.findByRoleIdIn(new ArrayList<>(branchAdminRoleIds)).stream()
+                                .filter(r -> "BRANCH_ADMIN_DEFAULT".equals(r.getRoleType()))
+                                .collect(Collectors.toList());
+                        if (!branchAdminRoles.isEmpty()) {
+                            List<Object> combined = new ArrayList<>();
+                            if (ownBankRoles.getBody() != null && ownBankRoles.getBody().getData() != null) {
+                                combined.addAll(ownBankRoles.getBody().getData());
+                            }
+                            combined.addAll(branchAdminRoles);
+                            return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Roles fetched.", combined));
+                        }
+                    }
+                }
+            }
+            return ownBankRoles;
         }
 
         // Everyone else sees only their own subtree. Never a parent's or an Admin's role — the

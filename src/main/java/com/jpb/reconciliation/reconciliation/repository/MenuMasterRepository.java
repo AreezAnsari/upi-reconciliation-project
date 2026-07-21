@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,6 +15,15 @@ import com.jpb.reconciliation.reconciliation.entity.ReconMenuMaster;
 public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Long> {
 
     Optional<ReconMenuMaster> findByMenuId(Long menuId);
+
+    /**
+     * Atomically claims a Checker's approval of a pending menu: only flips PENDING -> the new
+     * status, and only if it is still PENDING at the moment of the write. Two Checkers racing on
+     * the same menu cannot both succeed — the loser gets 0 rows affected.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ReconMenuMaster m SET m.status = :newStatus WHERE m.menuId = :menuId AND m.status = :expectedStatus")
+    int compareAndSetStatus(@Param("menuId") Long menuId, @Param("expectedStatus") String expectedStatus, @Param("newStatus") String newStatus);
 
     ReconMenuMaster findByMenuName(String menuName);
 

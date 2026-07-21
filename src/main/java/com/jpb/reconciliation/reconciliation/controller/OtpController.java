@@ -229,37 +229,9 @@ public class OtpController {
         }
     }
 
-    // ───────────────── SET PASSWORD ─────────────────
-
-    @PostMapping("/set-password")
-    public ResponseEntity<Map<String, Object>> setPassword(
-            @RequestBody Map<String, String> request) {
-
-        try {
-            String bankId   = request.get("bankId");
-            String username = request.get("username");
-            String email    = request.get("email");
-            String password = request.get("password");
-
-            System.out.println("======================================");
-            System.out.println("Bank Admin PASSWORD SET");
-            System.out.println("Bank ID  : " + bankId);
-            System.out.println("Username : " + username);
-            System.out.println("Email    : " + email);
-            System.out.println("Password : " + password);
-            System.out.println("======================================");
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Password Saved Successfully");
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(500)
-                    .body(errorResponse(e.getMessage()));
-        }
-    }
+    // NOTE: the former POST /api/otp/set-password stub was removed. It had no caller (the real
+    // password-set flow is POST /api/v2/auth/user/set-password in BankAuthController), persisted
+    // nothing, always returned a fake "success", and printed the plaintext password to the console.
 
     // ───────────────── HELPERS ─────────────────
 

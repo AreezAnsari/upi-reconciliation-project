@@ -111,6 +111,17 @@ public class ReconRoleMasterController {
         return reconRoleMasterService.getPrivileges(roleId);
     }
 
+    @GetMapping("/{roleId}/locked-privileges")
+    public ResponseEntity<RestWithStatusList> getLockedPrivileges(@PathVariable Long roleId) {
+        return reconRoleMasterService.getLockedPrivileges(roleId);
+    }
+
+    /** The Bank/Branch that actually owns this role — see ReconRoleMasterService#getOwningBank. */
+    @GetMapping("/{roleId}/owning-bank")
+    public ResponseEntity<RestWithStatusList> getOwningBank(@PathVariable Long roleId) {
+        return reconRoleMasterService.getOwningBank(roleId);
+    }
+
     @PutMapping("/{roleId}/privileges")
     public ResponseEntity<RestWithStatusList> savePrivileges(
             @PathVariable Long roleId,

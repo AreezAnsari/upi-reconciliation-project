@@ -40,6 +40,9 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
     private ReconUserRepository reconUserRepository;
 
     @Autowired
+    private EmailRegistryService emailRegistry;
+
+    @Autowired
     private ReconPasswordManagerRepository reconPasswordManagerRepository;
 
     @Autowired
@@ -69,11 +72,15 @@ public class KalAdminAuthServiceImpl implements KalAdminAuthService {
                     .body(new RestWithStatusList("FAILURE",
                             "Username '" + dto.getUsername() + "' already exists.", null));
         }
-        if (reconUserRepository.existsByEmail(dto.getEmail().trim().toLowerCase())) {
+        String emailLc = dto.getEmail().trim().toLowerCase();
+        // A BLOCKED account is effectively deleted, so its email may be reused; every other status
+        // still blocks reuse (EmailRegistryService = single source of truth).
+        if (emailRegistry.isActivelyRegistered(emailLc)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new RestWithStatusList("FAILURE",
                             "Email '" + dto.getEmail() + "' is already registered.", null));
         }
+        emailRegistry.releaseBlockedHolders(emailLc);
 
         // ── Derive full name from username (e.g. "john.doe" → "John Doe") ────
         String username = dto.getUsername().trim().toLowerCase();

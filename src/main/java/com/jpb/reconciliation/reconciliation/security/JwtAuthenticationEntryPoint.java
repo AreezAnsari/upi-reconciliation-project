@@ -30,8 +30,13 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             return;
         }
 
+        // JSON, matching RestWithStatusList — every other error response in the app uses this
+        // envelope; this was the one place still sending a misspelled plain-text body, which the
+        // frontend never parses on this path (it short-circuits on the 401 status alone) but showed
+        // up as an eyesore in devtools/logs.
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
         PrintWriter writer = response.getWriter();
-        writer.println("unathorized !!");
+        writer.print("{\"status\":\"FAILURE\",\"statusMsg\":\"Unauthorized. Please log in again.\",\"data\":null}");
     }
 }

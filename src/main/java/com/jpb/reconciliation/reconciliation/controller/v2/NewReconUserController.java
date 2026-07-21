@@ -105,6 +105,15 @@ public class NewReconUserController {
         return newReconUserService.updateUser(userId, user, updatedBy);
     }
 
+    @Operation(summary = "Self-service Profile page: update the logged-in user's own mobile number — the only field a user may edit about themselves. Applies immediately, no admin/maker-checker gate.")
+    @PatchMapping(value = "/update-mobile", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> updateMyMobile(
+            @RequestBody java.util.Map<String, String> body,
+            Authentication authentication) {
+        String username = resolveUser(authentication);
+        return newReconUserService.updateOwnMobileNumber(username, body.get("mobileNumber"));
+    }
+
     @Operation(summary = "Update user status")
     @PatchMapping(value = "/update-status/{userId}", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<RestWithStatusList> updateStatus(

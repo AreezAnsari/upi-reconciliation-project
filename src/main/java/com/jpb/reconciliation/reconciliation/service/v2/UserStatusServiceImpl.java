@@ -35,6 +35,23 @@ public class UserStatusServiceImpl implements UserStatusService {
     @Autowired private AuditReplacementService replacementService;
     @Autowired private DelegationService delegationService;
     @Autowired private EmailService emailService;
+    @Autowired private HierarchyScopeService hierarchyScope;
+
+    /**
+     * Gate an undo/override of a pending action. Only the user who initiated the pending action
+     * ({@code actioner}) or one of their ancestors may reverse it — never a child, and never an
+     * unrelated ancestor of the target. Returns a 403 response to short-circuit with when the
+     * caller is not authorised, or {@code null} when they may proceed.
+     */
+    private ResponseEntity<RestWithStatusList> denyOverride(String actioner, String callerUsername) {
+        ReconUser caller = hierarchyScope.caller(callerUsername).orElse(null);
+        if (!hierarchyScope.canOverrideActionBy(caller, actioner)) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE",
+                    "Only the user who initiated this action, or someone above them, can undo it.",
+                    null), HttpStatus.FORBIDDEN);
+        }
+        return null;
+    }
 
     // ── Schedule Inactivate ──────────────────────────────────────────────────────
     @Override
@@ -88,6 +105,8 @@ public class UserStatusServiceImpl implements UserStatusService {
         if (!"INACTIVE_PENDING".equals(user.getStatus())) {
             return fail("No pending inactivation found for this user.");
         }
+        ResponseEntity<RestWithStatusList> denied = denyOverride(user.getInactivateScheduledBy(), undoneBy);
+        if (denied != null) return denied;
 
         user.setStatus("ACTIVE");
         user.setInactivateScheduledAt(null);
@@ -176,6 +195,8 @@ public class UserStatusServiceImpl implements UserStatusService {
         if (!"ACTIVE_PENDING".equals(user.getStatus()) || user.getReactivateScheduledAt() == null) {
             return fail("No pending reactivation found for this user.");
         }
+        ResponseEntity<RestWithStatusList> denied = denyOverride(user.getReactivateScheduledBy(), undoneBy);
+        if (denied != null) return denied;
 
         user.setStatus("INACTIVE");
         user.setReactivateScheduledAt(null);
@@ -262,6 +283,8 @@ public class UserStatusServiceImpl implements UserStatusService {
         if (!"BLOCK_PENDING".equals(user.getStatus())) {
             return fail("No pending block found for this user.");
         }
+        ResponseEntity<RestWithStatusList> denied = denyOverride(user.getBlockScheduledBy(), undoneBy);
+        if (denied != null) return denied;
 
         String restore = user.getPreBlockStatus() != null ? user.getPreBlockStatus() : "ACTIVE";
         user.setStatus(restore);

@@ -59,6 +59,13 @@ public interface ReconBankMasterRepository extends JpaRepository<ReconBankMaster
 
     boolean existsByEmail(String email);
 
+    /** A contact email counts as taken only if a NON-blocked bank/branch contact row holds it —
+     *  a BLOCKED institution is effectively deleted and its contact email may be reused. */
+    boolean existsByEmailAndStatusNot(String email, String status);
+
+    /** All contact rows holding this email — used to release a blocked holder's email on reuse. */
+    List<ReconBankMaster> findAllByEmail(String email);
+
     // ── Raw access (needed for internal ops: SECONDARY row saves, etc.) ──────
 
     Optional<ReconBankMaster> findByBankCodeAndContactRank(String bankCode, String contactRank);

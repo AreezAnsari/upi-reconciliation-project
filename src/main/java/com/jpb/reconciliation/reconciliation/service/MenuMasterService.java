@@ -36,6 +36,15 @@ public interface MenuMasterService {
      *  menus they or their own subtree created (never a parent's). Scope comes from the JWT. */
     ResponseEntity<RestWithStatusList> getMenusVisibleTo(String username);
 
+    /** Menu List's own unfiltered view: every appended Master/Main/Submenu for this bank, including
+     *  ones with no URL/process mapping yet. Deliberately separate from getMenusByBankId, which the
+     *  Privilege tree also calls and whose "hide until mapped" rule must not change. */
+    ResponseEntity<RestWithStatusList> getAllMenusByBankId(Long bankId);
+
+    /** Same scope rule as getMenusVisibleTo, but built on getAllMenusByBankId's unfiltered list —
+     *  used only by Menu List for a non-admin caller. */
+    ResponseEntity<RestWithStatusList> getAllMenusVisibleTo(String username);
+
     ResponseEntity<ResponseDto> removeMenu(Long menuId);
 
     ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId);

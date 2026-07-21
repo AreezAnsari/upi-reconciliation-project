@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.service.v2;
 
+import com.jpb.reconciliation.reconciliation.constants.PasswordPolicy;
 import com.jpb.reconciliation.reconciliation.dto.AuthResponse;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.v2.ReconAuthToken;
@@ -122,9 +123,9 @@ public class BankAuthServiceImpl implements BankAuthService {
             return ResponseEntity.badRequest()
                     .body(new RestWithStatusList("FAILURE", "Passwords do not match.", null));
         }
-        if (newPassword.length() < 8) {
+        if (!PasswordPolicy.isValid(newPassword)) {
             return ResponseEntity.badRequest()
-                    .body(new RestWithStatusList("FAILURE", "Password must be at least 8 characters.", null));
+                    .body(new RestWithStatusList("FAILURE", PasswordPolicy.REQUIREMENT, null));
         }
 
         Optional<ReconUser> userOpt = findUser(username);
@@ -390,9 +391,9 @@ public class BankAuthServiceImpl implements BankAuthService {
             return ResponseEntity.badRequest()
                     .body(new RestWithStatusList("FAILURE", "Passwords do not match.", null));
         }
-        if (newPassword.length() < 8) {
+        if (!PasswordPolicy.isValid(newPassword)) {
             return ResponseEntity.badRequest()
-                    .body(new RestWithStatusList("FAILURE", "Password must be at least 8 characters.", null));
+                    .body(new RestWithStatusList("FAILURE", PasswordPolicy.REQUIREMENT, null));
         }
 
         Optional<ReconUser> userOpt = reconUserRepository.findByEmail(email.trim().toLowerCase());

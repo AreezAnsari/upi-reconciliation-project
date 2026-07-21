@@ -2,7 +2,9 @@ package com.jpb.reconciliation.reconciliation.constants;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The permanent identity codes of the bootstrap menus (Dashboard / My Organization /
@@ -58,5 +60,14 @@ public final class SystemMenuCodes {
     /** The code for a bootstrap menu, or null when the name isn't one of them. */
     public static String of(String menuName) {
         return menuName == null ? null : BY_NAME.get(menuName.trim());
+    }
+
+    private static final Set<String> ALL_CODES = Collections.unmodifiableSet(new HashSet<>(BY_NAME.values()));
+
+    /** True when this SYSTEM_MENU_CODE identifies a bootstrap admin menu (Dashboard / My
+     *  Organization / Administration and everything under them) rather than a feature-catalog one.
+     *  Keyed on the code (the permanent identity), not the — renamable — display name. */
+    public static boolean isBootstrapCode(String systemMenuCode) {
+        return systemMenuCode != null && ALL_CODES.contains(systemMenuCode);
     }
 }

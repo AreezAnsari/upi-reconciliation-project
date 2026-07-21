@@ -33,6 +33,11 @@ public interface NewReconUserService {
 
     ResponseEntity<RestWithStatusList> updateUser(Long userId, ReconUser user, String updatedBy);
 
+    /** Self-service Profile page: the ONLY field a logged-in user may edit about themselves. Applies
+     *  immediately for every role (no admin/maker-checker gate) — unlike updateUser, this never
+     *  touches role, name, email or any other field, so there is nothing here to route to a Checker. */
+    ResponseEntity<RestWithStatusList> updateOwnMobileNumber(String username, String mobileNumber);
+
     ResponseEntity<RestWithStatusList> updateStatus(Long userId, String status, String updatedBy);
 
     ResponseEntity<RestWithStatusList> approveUser(Long userId, String approvedBy);
