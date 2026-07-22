@@ -156,4 +156,11 @@ public class ReconMenuMaster {
     // the DTO, never client-writable), kept in sync at every write site that sets MENU_URL.
     @Column(name = "IS_CLICKABLE")
     private String isClickable;
+
+    // Soft-delete flag, deliberately separate from STATUS (the maker-checker lifecycle field —
+    // DRAFT/PENDING/ACTIVE/Y/REJECTED). "Y" = normal (default); "N" = deleted from Menu List's
+    // point of view and from every duplicate-validation check, so the same menu can be freely
+    // recreated. See sql/menu_active_yn_migration.sql.
+    @Column(name = "ACTIVE_YN")
+    private String activeYn;
 }

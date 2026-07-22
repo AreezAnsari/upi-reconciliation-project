@@ -114,6 +114,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menu found successfully", menuData), HttpStatus.OK);
     }
 
+    /**
+     * Soft delete: flips ACTIVE_YN to "N" instead of removing the row. An "N" menu disappears from
+     * Menu List and is invisible to every duplicate-validation check (as if it never existed), but
+     * the row itself — and its history — is kept. See sql/menu_active_yn_migration.sql.
+     */
     @Override
     public ResponseEntity<ResponseDto> removeMenu(Long menuId) {
         ReconMenuMaster menu = menuMasterRepository.findByMenuId(menuId)
@@ -122,21 +127,28 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ResponseDto(MenuConstants.STATUS_417, CATALOG_IMMUTABLE));
         }
+        if ("N".equals(menu.getActiveYn())) {
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(new ResponseDto(MenuConstants.STATUS_200, "Menu already deleted."));
+        }
         // Was: findByParentMenuCode(menu.getMenuType()) — compared the menu's own TYPE STRING
         // ("Master"/"Main"/"Submenu") against every row's MENU_PARENT, which no real row's value
         // ever equals, so this silently returned empty regardless of real children. Fixed to use
         // the reliable PARENT_MENU_ID pointer (see sql/menu_parent_id_migration.sql) — this can
         // only make deletion MORE cautious (blocks what should never have been allowed), never
-        // reject a delete that correctly succeeds today.
-        List<ReconMenuMaster> existsParentMenuList = menuMasterRepository.findByParentMenuId(menu.getMenuId());
-        if (existsParentMenuList.isEmpty()) {
-            menuMasterRepository.deleteById(menu.getMenuId());
-        } else {
+        // reject a delete that correctly succeeds today. Only still-active (ACTIVE_YN='Y')
+        // children count — a parent whose children are all already soft-deleted is free to go too.
+        List<ReconMenuMaster> existsParentMenuList = menuMasterRepository.findByParentMenuId(menu.getMenuId())
+                .stream().filter(c -> !"N".equals(c.getActiveYn())).collect(Collectors.toList());
+        if (!existsParentMenuList.isEmpty()) {
             return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
                     .body(new ResponseDto(MenuConstants.STATUS_417, "Please delete the submenu first."));
         }
+        menu.setActiveYn("N");
+        menu.setModifiedDate(new java.sql.Timestamp(System.currentTimeMillis()));
+        menuMasterRepository.save(menu);
         return ResponseEntity.status(HttpStatus.OK)
-                .body(new ResponseDto(MenuConstants.STATUS_200, "Menu Removed Successfully"));
+                .body(new ResponseDto(MenuConstants.STATUS_200, "Menu deleted successfully."));
     }
 
     @Override
@@ -415,10 +427,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         }
 
         // Duplicate guard — same parent + name (case-insensitive) + bank + product, regardless of
-        // the existing row's status (ACTIVE/DRAFT/REJECTED/INACTIVE all count), so nobody ends up
-        // with three "Reports" under the same parent.
-        if (!menuMasterRepository.findByParentMenuIdAndMenuNameIgnoreCaseAndBankIdAndProductId(
-                parentId, name, bankId, productId).isEmpty()) {
+        // the existing row's STATUS (ACTIVE/DRAFT/REJECTED/INACTIVE all count), so nobody ends up
+        // with three "Reports" under the same parent. A soft-deleted row (ACTIVE_YN='N') is the one
+        // exception — it's meant to be invisible to the system, so it never blocks recreation.
+        if (menuMasterRepository.findByParentMenuIdAndMenuNameIgnoreCaseAndBankIdAndProductId(
+                parentId, name, bankId, productId).stream().anyMatch(m -> !"N".equals(m.getActiveYn()))) {
             return "A menu named '" + name + "' already exists under this parent.";
         }
         return null;
@@ -469,6 +482,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setInsertDate(new Date());
         m.setMenuSource(MENU_SOURCE_CUSTOM);
         m.setIsClickable(m.getMenuUrl() != null && !m.getMenuUrl().trim().isEmpty() ? "Y" : "N");
+        // Explicit, not left to the column's DB-level DEFAULT — Hibernate's generated INSERT always
+        // includes every mapped column, so an unset Java field inserts NULL and bypasses the
+        // DEFAULT 'Y' entirely.
+        m.setActiveYn("Y");
         // SYSTEM_MENU_CODE is NOT NULL at the DB level, so the first insert needs a placeholder —
         // MENU_ID isn't known until after this save (sequence-generated). Overwritten with the
         // real, permanent "CUS_<bankId>_<menuId>" code immediately below.
@@ -555,7 +572,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         String code = resolveCatalogCode(req);
         if (code == null || bankId == null) return null;
 
+        // A soft-deleted row (ACTIVE_YN='N') is excluded entirely, not just treated as "dead" — it's
+        // meant to be invisible to the system, so it never even offers the "reactivate?" prompt,
+        // only a clean append as if it never existed.
         List<ReconMenuMaster> sameKey = menuMasterRepository.findBankMappingsByCode(bankId, code).stream()
+                .filter(m -> !"N".equals(m.getActiveYn()))
                 .filter(m -> Objects.equals(m.getProductId(), req.getProductId()))
                 .filter(m -> Objects.equals(m.getMenuProcessId(), req.getMenuProcessId()))
                 .collect(Collectors.toList());
@@ -639,8 +660,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
      */
     private String validateProcessIdUnique(Long menuProcessId) {
         if (menuProcessId == null) return null;
+        // A soft-deleted (ACTIVE_YN='N') row never counts as a clash — same reasoning as
+        // resolveExistingMapping above, it's meant to be invisible to the system.
         boolean clash = menuMasterRepository.findByMenuProcessId(menuProcessId).stream()
-                .anyMatch(m -> !isDeadStatus(m.getStatus()));
+                .anyMatch(m -> !isDeadStatus(m.getStatus()) && !"N".equals(m.getActiveYn()));
         return clash ? "This Process is already mapped to another menu. Please select a different Process." : null;
     }
 
@@ -768,6 +791,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         copy.setParentMenuId(resolveParentMenuId(c.getMenuType(), c.getParentMenuCode(), bankId));
         copy.setMenuSource(MENU_SOURCE_CATALOG);
         copy.setIsClickable(copy.getMenuUrl() != null && !copy.getMenuUrl().trim().isEmpty() ? "Y" : "N");
+        copy.setActiveYn("Y");
         menuMasterRepository.save(copy);
         logger.info("Materialised catalog {} '{}' for bankId={}", menuType, menuName, bankId);
     }
@@ -836,6 +860,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setInsertDate(new Date());
         m.setMenuSource(MENU_SOURCE_CATALOG);
         m.setIsClickable(m.getMenuUrl() != null && !m.getMenuUrl().trim().isEmpty() ? "Y" : "N");
+        m.setActiveYn("Y");
         menuMasterRepository.save(m);
         return m;
     }
@@ -1156,6 +1181,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         List<ReconMenuMaster> visible = menus.stream()
                 .filter(m -> !"Y".equals(m.getIsPortalTwin()))
                 .filter(m -> !com.jpb.reconciliation.reconciliation.constants.SystemMenuCodes.isBootstrapCode(m.getSystemMenuCode()))
+                // Soft-deleted (ACTIVE_YN='N') — removed via Menu List's own Delete button — is
+                // basically gone from the system's point of view, so it never shows up here again.
+                .filter(m -> !"N".equals(m.getActiveYn()))
                 .collect(Collectors.toList());
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menus fetched for bank.", new ArrayList<>(visible)), HttpStatus.OK);
     }
