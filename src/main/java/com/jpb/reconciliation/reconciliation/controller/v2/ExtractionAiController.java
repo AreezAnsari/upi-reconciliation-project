@@ -17,12 +17,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.jpb.reconciliation.reconciliation.constants.CommonConstants;
 import com.jpb.reconciliation.reconciliation.controller.ExtractionController;
+import com.jpb.reconciliation.reconciliation.dto.RefreshRequestDto;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.entity.LoadMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.ReconBatchProcessEntity;
@@ -218,6 +221,29 @@ public class ExtractionAiController {
 		return new ResponseEntity<>(restWithStatusList, HttpStatus.OK);
 	}
 	
+	// V2 status refresh. Rows written by ExtractionAiServiceImpl only populate
+	// templateId (not processId, which is V1-only), so this looks up by
+	// templateId+sequenceNo instead of reusing V1's processId-keyed refresh endpoint.
+	// ProcessManager.getProcessId() is repurposed here to carry templateId.
+	@PostMapping(value = "/refresh-extraction-status", produces = CommonConstants.APPLICATION_JSON)
+	public ResponseEntity<RestWithStatusList> refreshExtractionStatus(
+			@RequestBody List<RefreshRequestDto.ProcessManager> requestProcess) {
+		List<Object> refreshList = new ArrayList<>();
+		for (RefreshRequestDto.ProcessManager data : requestProcess) {
+			ReconBatchProcessEntity process = reconBatchProcessEntityRepository
+					.findByTemplateIdAndSequenceNo(data.getProcessId(), data.getSequenceId());
+			if (process != null) {
+				refreshList.add(process);
+			}
+		}
+		if (refreshList.isEmpty()) {
+			return new ResponseEntity<>(new RestWithStatusList("FAILURE", "Process data not found", null),
+					HttpStatus.NOT_FOUND);
+		}
+		return new ResponseEntity<>(
+				new RestWithStatusList("SUCCESS", "Process data found successfully", refreshList), HttpStatus.OK);
+	}
+
 	public List<File> getFileListFromDirectory(Optional<ReconTmpltFieldDtls> reconTemplateFileDetails) {
 		List<File> fileList = new ArrayList<>();
 //			File manualFile = reportGenerationService.generateManualFileForProcess(fileDetails);

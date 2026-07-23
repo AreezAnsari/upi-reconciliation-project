@@ -52,4 +52,6 @@ public interface ReconBatchProcessEntityRepository extends JpaRepository<ReconBa
 
 	List<ReconBatchProcessEntity> findByTemplateIdAndStatus(Long templateId, String string);
 
+	ReconBatchProcessEntity findByTemplateIdAndSequenceNo(Long templateId, Long sequenceNo);
+
 }
