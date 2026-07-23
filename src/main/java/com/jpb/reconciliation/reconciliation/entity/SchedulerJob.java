@@ -1,7 +1,6 @@
 package com.jpb.reconciliation.reconciliation.entity;
 
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.LocalDateTime; 
 
 import javax.persistence.Column;
 import javax.persistence.Entity;

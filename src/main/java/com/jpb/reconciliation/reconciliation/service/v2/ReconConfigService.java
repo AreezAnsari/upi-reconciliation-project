@@ -22,7 +22,6 @@ import com.jpb.reconciliation.reconciliation.dto.ReconConfigResponse;
 import com.jpb.reconciliation.reconciliation.dto.ReconConfigResponse.FilterConditionInfo;
 import com.jpb.reconciliation.reconciliation.dto.ReconConfigResponse.MatchingRuleInfo;
 import com.jpb.reconciliation.reconciliation.dto.ReconConfigResponse.SourceFileInfo;
-import com.jpb.reconciliation.reconciliation.entity.ProcessMasterEntity;
 import com.jpb.reconciliation.reconciliation.entity.RcnRuleMast;
 import com.jpb.reconciliation.reconciliation.entity.ReconFileDetailsMaster;
 import com.jpb.reconciliation.reconciliation.entity.ReconProcessDefMaster;

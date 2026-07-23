@@ -45,7 +45,14 @@ public interface MenuMasterService {
      *  used only by Menu List for a non-admin caller. */
     ResponseEntity<RestWithStatusList> getAllMenusVisibleTo(String username);
 
+    /** Soft-deletes this menu AND every still-active descendant beneath it (a Master's Mains and
+     *  their Submenus, or a Main's Submenus) — see getDeleteChain to preview that list first. */
     ResponseEntity<ResponseDto> removeMenu(Long menuId);
+
+    /** The still-active descendants (Mains/Submenus) that removeMenu would cascade-delete along
+     *  with this menu — empty for a childless menu (a plain Submenu, or a Master/Main with none
+     *  mapped yet). Meant to be shown in a confirmation prompt before the actual delete call. */
+    ResponseEntity<RestWithStatusList> getDeleteChain(Long menuId);
 
     ResponseEntity<RestWithStatusList> getMenuByRole(Long roleId);
 

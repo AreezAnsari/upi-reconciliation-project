@@ -90,6 +90,12 @@ public class MenuController {
         return menuMasterService.removeMenu(menuId);
     }
 
+    @Operation(summary = "Preview the menus a delete would cascade to (a Master/Main's Mains/Submenus)")
+    @GetMapping(value = "/menu/{menuId}/delete-chain", produces = CommonConstants.APPLICATION_JSON)
+    public ResponseEntity<RestWithStatusList> getDeleteChain(@PathVariable Long menuId) {
+        return menuMasterService.getDeleteChain(menuId);
+    }
+
     @Operation(summary = "Update menu")
     @PutMapping(value = "/editmenu", produces = CommonConstants.APPLICATION_JSON)
     public ResponseEntity<ResponseDto> updateMenu(@RequestBody ReconMenuMasterDto menuDto,

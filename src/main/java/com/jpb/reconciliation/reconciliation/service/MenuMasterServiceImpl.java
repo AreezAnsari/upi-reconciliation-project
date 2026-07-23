@@ -115,9 +115,42 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     }
 
     /**
+     * Every still-active (ACTIVE_YN != 'N') descendant of a menu, walked recursively via
+     * PARENT_MENU_ID (see sql/menu_parent_id_migration.sql) — a Master's Mains and, for each of
+     * those, their own Submenus; a Main's Submenus; empty for a Submenu (leaf) or a childless
+     * Master/Main. Shared by getDeleteChain (preview) and removeMenu (the actual cascade).
+     */
+    private List<ReconMenuMaster> findActiveDescendants(Long menuId) {
+        List<ReconMenuMaster> children = menuMasterRepository.findByParentMenuId(menuId).stream()
+                .filter(c -> !"N".equals(c.getActiveYn()))
+                .collect(Collectors.toList());
+        List<ReconMenuMaster> all = new ArrayList<>(children);
+        for (ReconMenuMaster child : children) {
+            all.addAll(findActiveDescendants(child.getMenuId()));
+        }
+        return all;
+    }
+
+    @Override
+    public ResponseEntity<RestWithStatusList> getDeleteChain(Long menuId) {
+        if (!menuMasterRepository.findByMenuId(menuId).isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new RestWithStatusList("FAILURE", "MENU NOT FOUND :" + menuId, null));
+        }
+        return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Delete chain fetched.",
+                new ArrayList<>(findActiveDescendants(menuId))));
+    }
+
+    /**
      * Soft delete: flips ACTIVE_YN to "N" instead of removing the row. An "N" menu disappears from
      * Menu List and is invisible to every duplicate-validation check (as if it never existed), but
      * the row itself — and its history — is kept. See sql/menu_active_yn_migration.sql.
+     *
+     * Cascades to every still-active descendant (see findActiveDescendants) — deleting a Master or
+     * Main takes its whole chain (Mains/Submenus beneath it) down with it, rather than blocking the
+     * delete the way the old hard-delete's children-check used to. The frontend is expected to have
+     * already shown that chain to the user via getDeleteChain and gotten confirmation before calling
+     * this.
      */
     @Override
     public ResponseEntity<ResponseDto> removeMenu(Long menuId) {
@@ -131,24 +164,22 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseDto(MenuConstants.STATUS_200, "Menu already deleted."));
         }
-        // Was: findByParentMenuCode(menu.getMenuType()) — compared the menu's own TYPE STRING
-        // ("Master"/"Main"/"Submenu") against every row's MENU_PARENT, which no real row's value
-        // ever equals, so this silently returned empty regardless of real children. Fixed to use
-        // the reliable PARENT_MENU_ID pointer (see sql/menu_parent_id_migration.sql) — this can
-        // only make deletion MORE cautious (blocks what should never have been allowed), never
-        // reject a delete that correctly succeeds today. Only still-active (ACTIVE_YN='Y')
-        // children count — a parent whose children are all already soft-deleted is free to go too.
-        List<ReconMenuMaster> existsParentMenuList = menuMasterRepository.findByParentMenuId(menu.getMenuId())
-                .stream().filter(c -> !"N".equals(c.getActiveYn())).collect(Collectors.toList());
-        if (!existsParentMenuList.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
-                    .body(new ResponseDto(MenuConstants.STATUS_417, "Please delete the submenu first."));
+        List<ReconMenuMaster> descendants = findActiveDescendants(menu.getMenuId());
+        java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+        for (ReconMenuMaster d : descendants) {
+            d.setActiveYn("N");
+            d.setModifiedDate(now);
+        }
+        if (!descendants.isEmpty()) {
+            menuMasterRepository.saveAll(descendants);
         }
         menu.setActiveYn("N");
-        menu.setModifiedDate(new java.sql.Timestamp(System.currentTimeMillis()));
+        menu.setModifiedDate(now);
         menuMasterRepository.save(menu);
-        return ResponseEntity.status(HttpStatus.OK)
-                .body(new ResponseDto(MenuConstants.STATUS_200, "Menu deleted successfully."));
+
+        String msg = descendants.isEmpty() ? "Menu deleted successfully."
+                : "Menu and " + descendants.size() + " related menu(s) deleted successfully.";
+        return ResponseEntity.status(HttpStatus.OK).body(new ResponseDto(MenuConstants.STATUS_200, msg));
     }
 
     @Override
@@ -179,6 +210,14 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         // isClickable is always backend-derived, never trusted from the request — keep it synced
         // whenever menuUrl changes via Edit Menu, same as at creation time.
         m.setIsClickable(m.getMenuUrl() != null && !m.getMenuUrl().trim().isEmpty() ? "Y" : "N");
+        // PROCESS_TYPE is derived from the URL exactly the way createCustomMenu does — an edit that
+        // turns a plain menu into a File Processing one (or the reverse, or swaps Extraction ↔
+        // Reconciliation) must re-derive the module, or downstream consumers (ViewMenu's Template/
+        // Product panel, Add Menu's "already mapped" filter) would read a stale/null value.
+        String url = m.getMenuUrl();
+        if (url != null && url.startsWith(EXTRACTION_URL_PREFIX)) m.setProcessType("EXTRACTION");
+        else if (url != null && url.startsWith(RECONCILIATION_URL_PREFIX)) m.setProcessType("RECONCILIATION");
+        else m.setProcessType(null);
         menuMasterRepository.save(m);
         return "APPLIED";
     }
@@ -223,11 +262,14 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                 return new ResponseEntity<>(new RestWithStatusList("FAILURE", rejection, null), HttpStatus.BAD_REQUEST);
             }
 
-            // Product is never user input — auto-resolved from the catalog hierarchy the request
-            // already selected (Extraction/Reconciliation only; every other module stays NULL).
-            // Overwriting here means every downstream step (bank-ownership check, duplicate-key
-            // resolution, persistence) reads the correct value with no further changes needed.
-            menuRequest.setProductId(resolveAutoProductId(menuRequest));
+            // Product is an explicit Admin selection (Product dropdown, populated from the bank's
+            // own purchased products — see CBankProductMapController) for an Extraction/
+            // Reconciliation Submenu — honored directly when the request provides one. Falls back
+            // to the old name-matching guess (resolveAutoProductId) only when it doesn't, so a
+            // caller that still omits it resolves a product instead of silently going NULL.
+            if (menuRequest.getProductId() == null) {
+                menuRequest.setProductId(resolveAutoProductId(menuRequest));
+            }
 
             // One Process id may only ever back one live menu, system-wide.
             String dupProcess = validateProcessIdUnique(menuRequest.getMenuProcessId());
@@ -294,8 +336,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                 return new ResponseEntity<>(new RestWithStatusList("FAILURE", rejection, null), HttpStatus.BAD_REQUEST);
             }
 
-            // Product is never user input — see the matching comment in addMenu().
-            menuRequest.setProductId(resolveAutoProductId(menuRequest));
+            // Product is an explicit Admin selection — see the matching comment in addMenu().
+            if (menuRequest.getProductId() == null) {
+                menuRequest.setProductId(resolveAutoProductId(menuRequest));
+            }
 
             String dupProcess = validateProcessIdUnique(menuRequest.getMenuProcessId());
             if (dupProcess != null) {
@@ -375,13 +419,20 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         Long parentId = req.getParentMenuId();
         Long productId = req.getProductId();
 
+        // A Master, Main or Submenu that picked the bare Extraction/Reconciliation File Processing
+        // path is process-driven regardless of its type — the Admin picks a real RFD_FILE_ID/
+        // RPM_PROCESS_ID plus, now, the Product it belongs to (mandatory together, exactly like the
+        // Template Type picker they sit next to on every one of these screens). A menu of any type
+        // that ISN'T on that path keeps the old rule: no process, no product — a plain custom
+        // Master/Main/Submenu has nothing to derive either from.
+        boolean processDriven = req.getMenuProcessId() != null;
+
         if ("Master".equals(menuType)) {
-            // Root of the hierarchy — no parent, never product-scoped (matches the existing
-            // catalog convention: Master/Main rows always carry PRODUCT_ID = NULL).
-            if (productId != null) return "A Master menu cannot be mapped to a specific product.";
+            // Root of the hierarchy — no parent.
+            if (!processDriven && productId != null) return "A Master menu cannot be mapped to a specific product.";
         } else if ("Main".equals(menuType)) {
             if (parentId == null) return "A parent Master is required.";
-            if (productId != null) return "A Main menu cannot be mapped to a specific product.";
+            if (!processDriven && productId != null) return "A Main menu cannot be mapped to a specific product.";
             Optional<ReconMenuMaster> parentOpt = menuMasterRepository.findByMenuId(parentId);
             if (!parentOpt.isPresent() || !Objects.equals(parentOpt.get().getBankId(), bankId)) {
                 return "Parent menu not found.";
@@ -402,8 +453,18 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             // like its catalog counterpart — the Admin picks a real RFD_FILE_ID/RPM_PROCESS_ID, and
             // the fixed-prefix URL is composed internally (see createCustomMenu), never typed. Every
             // other module still has no process mapping at all, so the URL IS its identity there.
-            String customModule = resolveModuleByMasterId(parentOpt.get().getParentMenuId());
-            if (customModule != null) {
+            //
+            // customModule (ancestor-derived) is only ever a naming hint — a bank-named custom
+            // Master/Main (e.g. "Reconciliation Master Test") has no field that reliably says which
+            // module it belongs to. The real, always-correct signal is the URL itself: the frontend's
+            // Template Type/Process id picker only ever appears once the Admin has picked the bare
+            // Extraction/Reconciliation File Processing URL, at which point it sends a real
+            // menuProcessId directly — so req.getMenuProcessId() != null is trusted here exactly like
+            // it already is for Master/Main above, with the ancestor walk used only to pick a label
+            // for the "Select a Process" message when it happens to resolve.
+            String customModule = resolveModuleByMasterId(parentOpt.get().getMenuId());
+            boolean submenuProcessDriven = customModule != null || req.getMenuProcessId() != null;
+            if (submenuProcessDriven) {
                 if (req.getMenuProcessId() == null) {
                     return "Select a Process for this custom " + customModule + " submenu.";
                 }
@@ -411,15 +472,18 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                 if (dupProcess != null) return dupProcess;
             } else if (req.getMenuUrl() == null || req.getMenuUrl().trim().isEmpty()) {
                 return "Custom sub menus must have a URL — they have no process mapping to derive one from.";
-            }
-            // Product is never user input, anywhere — a custom submenu has no catalog/process
-            // hierarchy to auto-resolve one from (unlike a catalog Submenu, see resolveAutoProductId),
-            // so it is always rejected here rather than silently dropped in createCustomMenu.
-            if (productId != null) {
+            } else if (productId != null) {
                 return "Custom sub menus cannot be mapped to a product.";
             }
         } else {
             return "Unknown menu type.";
+        }
+
+        // Product is mandatory alongside a process — mirrors the Template Type picker being
+        // required on the same screen. Rejected outright (never silently dropped) so a request that
+        // somehow reaches here without one fails loudly instead of saving an unfiltered menu.
+        if (processDriven && productId == null) {
+            return "Select a Product for this Extraction/Reconciliation menu.";
         }
 
         if (req.getMenuUrl() != null && !req.getMenuUrl().trim().isEmpty() && !isValidCustomUrl(req.getMenuUrl())) {
@@ -451,32 +515,44 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setParentMenuId(req.getParentMenuId());
         m.setSubMenu("N");
 
-        // A custom Submenu under an Extraction/Reconciliation Main is process-driven — the fixed
-        // prefix + the chosen id is composed here, server-side, exactly like the catalog path;
-        // req.getMenuUrl() is never trusted for this case (validateCustomMenu already required
-        // menuProcessId instead of a manual URL for it). Every other module keeps the existing
-        // free-URL behavior untouched.
+        // A custom Submenu under an Extraction/Reconciliation Main is process-driven — when the
+        // module IS resolvable from its ancestor chain, the fixed prefix + chosen id is composed
+        // here, server-side, exactly like the catalog path, and req.getMenuUrl() is ignored. When it
+        // ISN'T resolvable (a bank-named custom Master/Main with no ancestor signal — see
+        // validateCustomMenu's submenuProcessDriven fallback), and for Master/Main (which have no
+        // parent chain to derive a module from at all), the row arrives with the URL already
+        // composed client-side from the same picked process id — taken as-is, and the module is read
+        // back out of ITS prefix instead so PROCESS_TYPE still gets populated correctly.
+        Long processId = req.getMenuProcessId();
         String customModule = "Submenu".equals(req.getMenuType())
-                ? resolveModuleByMasterId(menuMasterRepository.findByMenuId(req.getParentMenuId())
-                        .map(ReconMenuMaster::getParentMenuId).orElse(null))
+                ? resolveModuleByMasterId(req.getParentMenuId())
                 : null;
         if (customModule != null) {
-            Long processId = req.getMenuProcessId();
             String prefix = "Extraction".equals(customModule) ? EXTRACTION_URL_PREFIX : RECONCILIATION_URL_PREFIX;
             m.setMenuUrl(prefix + processId);
-            m.setMenuProcessId(processId);
             m.setProcessType(customModule.toUpperCase());
         } else {
             m.setMenuUrl(req.getMenuUrl() != null ? req.getMenuUrl().trim() : null);
+            if (processId != null && m.getMenuUrl() != null) {
+                if (m.getMenuUrl().startsWith(EXTRACTION_URL_PREFIX)) m.setProcessType("EXTRACTION");
+                else if (m.getMenuUrl().startsWith(RECONCILIATION_URL_PREFIX)) m.setProcessType("RECONCILIATION");
+            }
         }
         m.setStatus(status);
         m.setSubmittedBy(submittedBy);
         m.setApprovedBy(approvedBy);
         m.setBankId(bankId);
-        // Product is never user input for a custom menu — validateCustomMenu already rejects a
-        // non-null req.getProductId() before this is reached, so this is always null in practice;
-        // set explicitly (rather than relying on that) so the row's intent reads clearly here too.
-        m.setProductId(null);
+        // Process id + Product are stored as real structured columns whenever this menu is on the
+        // File Processing path — Master/Main included, not just Submenu — so the Privilege tree's
+        // own product filter (PrivilegesAssign.jsx) can key off MENU_PROCESS_ID/PRODUCT_ID
+        // regardless of type, not just parse them back out of the URL string. validateCustomMenu
+        // already enforced productId being non-null whenever processId is.
+        if (processId != null) {
+            m.setMenuProcessId(processId);
+            m.setProductId(req.getProductId());
+        } else {
+            m.setProductId(null);
+        }
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());
         m.setInsertDate(new Date());
@@ -641,16 +717,37 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     private static final String RECONCILIATION_URL_PREFIX = "/reconciliation/fileProcessing.extr?processid=";
 
     /**
-     * Resolves a custom Main's module ("Extraction"/"Reconciliation"/null) by walking up to its
-     * own parent Master's name — a custom Main never carries masterMenuParent (that's catalog-only
-     * wire), so this is the only way to know which module a custom Submenu's parent belongs to.
+     * Resolves a custom Submenu's module ("Extraction"/"Reconciliation"/null) given its parent
+     * Main's id. A custom Main/Master can be freely named by the Admin (e.g. "UPI Extractor"), so
+     * matching the literal name "Extraction"/"Reconciliation" only ever recognizes the built-in
+     * catalog Masters. Checked instead, in order: the Main's own PROCESS_TYPE (set when the Main
+     * itself was created via the File Processing path), then the grandparent Master's PROCESS_TYPE
+     * (same reasoning), then finally the literal name as a last-resort fallback for the catalog
+     * Masters, which never get PROCESS_TYPE populated on themselves.
      */
-    private String resolveModuleByMasterId(Long masterId) {
-        if (masterId == null) return null;
-        return menuMasterRepository.findByMenuId(masterId)
-                .map(ReconMenuMaster::getMenuName)
-                .filter(nm -> "Extraction".equals(nm) || "Reconciliation".equals(nm))
-                .orElse(null);
+    private String resolveModuleByMasterId(Long mainId) {
+        if (mainId == null) return null;
+        Optional<ReconMenuMaster> mainOpt = menuMasterRepository.findByMenuId(mainId);
+        if (!mainOpt.isPresent()) return null;
+        ReconMenuMaster main = mainOpt.get();
+        String fromMain = moduleFromProcessType(main.getProcessType());
+        if (fromMain != null) return fromMain;
+        if (main.getParentMenuId() != null) {
+            Optional<ReconMenuMaster> masterOpt = menuMasterRepository.findByMenuId(main.getParentMenuId());
+            if (masterOpt.isPresent()) {
+                String fromMaster = moduleFromProcessType(masterOpt.get().getProcessType());
+                if (fromMaster != null) return fromMaster;
+                String masterName = masterOpt.get().getMenuName();
+                if ("Extraction".equals(masterName) || "Reconciliation".equals(masterName)) return masterName;
+            }
+        }
+        return null;
+    }
+
+    private String moduleFromProcessType(String processType) {
+        if ("EXTRACTION".equals(processType)) return "Extraction";
+        if ("RECONCILIATION".equals(processType)) return "Reconciliation";
+        return null;
     }
 
     /**
@@ -877,6 +974,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                 ? new ArrayList<>()
                 : menuMasterRepository.findAllById(menuIds).stream()
                         .filter(m -> "Y".equals(m.getStatus()))
+                        // Soft-deleted (ACTIVE_YN='N') is basically gone from the system's point of
+                        // view — never surfaced here either, even though the row itself still exists.
+                        .filter(m -> !"N".equals(m.getActiveYn()))
                         .collect(Collectors.toList());
         logger.info("Menu data by role: " + menuByRole);
         if (menuByRole.isEmpty()) {
@@ -904,6 +1004,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         Set<Long> roleScope = resolveProductScope(roleId);
         List<ReconMenuMaster> mapped = menuMasterRepository.findAllById(menuIds).stream()
                 .filter(m -> "Y".equals(m.getStatus()))
+                // Soft-deleted (ACTIVE_YN='N') never reaches the Sidebar, even if some role's
+                // C_ROLE_MENU_MAP grant still points at it — as far as the system is concerned this
+                // menu no longer exists.
+                .filter(m -> !"N".equals(m.getActiveYn()))
                 .filter(m -> isInProductScope(m, resolveBankProductScope(m.getBankId())))
                 .filter(m -> m.getProductId() == null || roleScope.isEmpty() || roleScope.contains(m.getProductId()))
                 .collect(Collectors.toList());
@@ -932,7 +1036,8 @@ public class MenuMasterServiceImpl implements MenuMasterService {
             ReconMenuMaster main = m.getParentMenuId() != null
                     ? menuMasterRepository.findByMenuId(m.getParentMenuId()).orElse(null)
                     : menuMasterRepository.findByMenuNameAndBankId(m.getParentMenuCode(), m.getBankId());
-            if (main != null && "Y".equals(main.getStatus()) && byId.putIfAbsent(main.getMenuId(), main) == null) {
+            if (main != null && "Y".equals(main.getStatus()) && !"N".equals(main.getActiveYn())
+                    && byId.putIfAbsent(main.getMenuId(), main) == null) {
                 effective.add(main);
             }
         }
@@ -958,14 +1063,16 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                     parent = menuMasterRepository.findByMenuId(m.getParentMenuId()).orElse(null);
                     parentCacheById.put(m.getParentMenuId(), parent);
                 }
-                if (parent != null && "Y".equals(parent.getStatus())) byId.putIfAbsent(parent.getMenuId(), parent);
+                if (parent != null && "Y".equals(parent.getStatus()) && !"N".equals(parent.getActiveYn())) {
+                    byId.putIfAbsent(parent.getMenuId(), parent);
+                }
                 continue;
             }
             String parentCode = m.getParentMenuCode();
             ReconMenuMaster parent = parentCache.get(parentCode);
             if (parent == null && !parentCache.containsKey(parentCode)) {
                 parent = menuMasterRepository.findAllByMenuNameAndMenuType(parentCode, "Master")
-                        .stream().filter(p -> "Y".equals(p.getStatus())).findFirst().orElse(null);
+                        .stream().filter(p -> "Y".equals(p.getStatus()) && !"N".equals(p.getActiveYn())).findFirst().orElse(null);
                 if (parent == null) {
                     try {
                         parent = menuMasterRepository.findByMenuId(Long.parseLong(parentCode)).orElse(null);
@@ -975,7 +1082,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                 }
                 parentCache.put(parentCode, parent);
             }
-            if (parent != null && "Y".equals(parent.getStatus())) {
+            if (parent != null && "Y".equals(parent.getStatus()) && !"N".equals(parent.getActiveYn())) {
                 byId.putIfAbsent(parent.getMenuId(), parent);
             }
         }
@@ -1227,6 +1334,12 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         // privilege tree, so a catalog entry alone never makes anything visible.
         List<ReconMenuMaster> menus = menuMasterRepository.findByBankId(bankId);
 
+        // Soft-deleted (ACTIVE_YN='N') is invisible everywhere derived from this method — the
+        // Privilege tree (Menu Access Tree) and, through it, the Sidebar (see
+        // resolveUnmappedHiddenNames/getMenusByRolePrivileges) — same as Menu List. The row itself
+        // stays in the DB; the system just treats it as gone.
+        menus = menus.stream().filter(m -> !"N".equals(m.getActiveYn())).collect(Collectors.toList());
+
         // B5 — product isolation: a mapping for a product this bank hasn't purchased (or whose
         // subscription is no longer ACTIVE) must never be offered. NULL product = platform menu.
         Set<Long> productScope = resolveBankProductScope(bankId);
@@ -1256,6 +1369,15 @@ public class MenuMasterServiceImpl implements MenuMasterService {
      * rule above. A custom node is visible if it is itself clickable/process-bound, OR any of its
      * descendants (by PARENT_MENU_ID) is visible. Memoized so a Master with several Main children
      * is only ever evaluated once per node.
+     *
+     * childrenByParent is built over EVERY bank menu, not just the custom subset — a custom Master/
+     * Main can legitimately end up parenting a CATALOG-sourced Main/Submenu too: when a catalog
+     * Submenu is first mapped, materialiseCatalogParents resolves its Master/Main parent by NAME
+     * within this bank and reuses whatever row already has that name, regardless of whether that
+     * row itself is CATALOG or CUSTOM. A custom Master named e.g. "Extraction" that a Main Admin
+     * makes by hand can therefore end up as the real parent of the catalog "File Processing" chain.
+     * Missing that would make the custom parent look dead (no visible descendants) and hide it
+     * even though a real, live catalog submenu is hanging right off it.
      */
     private Set<Long> resolveCustomHiddenIds(List<ReconMenuMaster> bankMenus) {
         List<ReconMenuMaster> customMenus = bankMenus.stream()
@@ -1264,7 +1386,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         if (customMenus.isEmpty()) return Collections.emptySet();
 
         Map<Long, List<ReconMenuMaster>> childrenByParent = new HashMap<>();
-        for (ReconMenuMaster m : customMenus) {
+        for (ReconMenuMaster m : bankMenus) {
             if (m.getParentMenuId() != null) {
                 childrenByParent.computeIfAbsent(m.getParentMenuId(), k -> new ArrayList<>()).add(m);
             }
@@ -1283,6 +1405,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         Boolean cached = memo.get(m.getMenuId());
         if (cached != null) return cached;
         boolean selfVisible = "Y".equals(m.getIsClickable()) || m.getMenuProcessId() != null;
+        // Recurses through a child regardless of its own source (custom or catalog) — a catalog
+        // Main is frequently itself just a container (not clickable, no process of its own) whose
+        // own Submenu two levels down is what's actually live, so a shallow one-level check on the
+        // immediate child isn't enough; this has to walk all the way down either kind of chain.
         boolean visible = selfVisible || childrenByParent.getOrDefault(m.getMenuId(), Collections.emptyList())
                 .stream().anyMatch(child -> isCustomNodeVisible(child, childrenByParent, memo));
         memo.put(m.getMenuId(), visible);
