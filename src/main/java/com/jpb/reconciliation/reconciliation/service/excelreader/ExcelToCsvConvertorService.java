@@ -37,6 +37,7 @@ public class ExcelToCsvConvertorService {
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rowIterator = sheet.iterator();
             boolean startProcessing = false;
+            int columnCount = 0;
 
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
@@ -56,7 +57,8 @@ public class ExcelToCsvConvertorService {
                                 || cellVal.equalsIgnoreCase("SR_NO")
                                 || cellVal.equalsIgnoreCase("Description")) {
                             startProcessing = true;
-                            writeRowToCsv(row, writer);
+                            columnCount = row.getLastCellNum();
+                            writeRowToCsv(row, columnCount, writer);
                         }
                     }
                     continue;
@@ -65,7 +67,7 @@ public class ExcelToCsvConvertorService {
                     continue;
                 }
 
-                writeRowToCsv(row, writer);
+                writeRowToCsv(row, columnCount, writer);
             }
 
         } catch (Exception e) {
@@ -95,6 +97,7 @@ public class ExcelToCsvConvertorService {
             Iterator<Row> rowIterator = sheet.iterator();
             int rowIndex = 0;
             boolean headerWritten = false;
+            int columnCount = 0;
 
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
@@ -107,7 +110,8 @@ public class ExcelToCsvConvertorService {
                     // This is the real header row (row after the configured skip count).
                     // Written as-is to the CSV — the downstream SQL*Loader control file
                     // always uses skip=1 to skip exactly this one header line.
-                    writeRowToCsv(row, writer);
+                    columnCount = row.getLastCellNum();
+                    writeRowToCsv(row, columnCount, writer);
                     headerWritten = true;
                     rowIndex++;
                     continue;
@@ -117,7 +121,7 @@ public class ExcelToCsvConvertorService {
                     continue;
                 }
 
-                writeRowToCsv(row, writer);
+                writeRowToCsv(row, columnCount, writer);
                 rowIndex++;
             }
 
@@ -127,21 +131,24 @@ public class ExcelToCsvConvertorService {
         }
     }
 
-    private void writeRowToCsv(Row row, PrintWriter writer) {
+    /**
+     * Writes exactly columnCount comma-separated fields, one per column index.
+     * Row.cellIterator() (the old approach) only visits cells POI actually
+     * instantiated — a blank cell in the middle of a row (common for sparse
+     * data written by tools like openpyxl) can be entirely absent from the
+     * row's cell list, silently dropping that column and shifting every
+     * later field left by one. Iterating by fixed index and reading each
+     * cell with getCell() (returns null for missing/blank, rendered as "")
+     * guarantees column alignment regardless of which cells exist.
+     */
+    private void writeRowToCsv(Row row, int columnCount, PrintWriter writer) {
         StringBuilder line = new StringBuilder();
-        Iterator<Cell> cellIterator = row.cellIterator();
-        while (cellIterator.hasNext()) {
-            Cell cell = cellIterator.next();
-            String cellValue = getCellValueAsString(cell);
-            line.append(cellValue);
-            // This is the change: removed the double quotes
-            if (cellIterator.hasNext()) {
+        for (int i = 0; i < columnCount; i++) {
+            Cell cell = row.getCell(i);
+            line.append(getCellValueAsString(cell));
+            if (i < columnCount - 1) {
                 line.append(",");
             }
-        }
-        // This is the change: remove the last comma if it exists
-        if (line.length() > 0 && line.charAt(line.length() - 1) == ',') {
-            line.setLength(line.length() - 1);
         }
         writer.println(line.toString());
     }
