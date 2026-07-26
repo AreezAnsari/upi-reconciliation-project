@@ -89,12 +89,6 @@ public class ReconFieldDetailsMapper {
         // Legacy: shortName = field label
         field.setShortName(dto.getFieldName());
 
-        // Legacy: colPosn is NOT NULL Long — must always be set
-        field.setColPosition(null != dto.getFieldSequence()
-                ? Long.valueOf(dto.getFieldSequence()) : 0L);
-        
-             
-
         // Legacy: max length
         field.setFieldLength(null != dto.getFieldLength()
                 ? Long.valueOf(dto.getFieldLength()) : null);
@@ -115,10 +109,6 @@ public class ReconFieldDetailsMapper {
         field.setToPosition(null != dto.getPositionTo()
                 ? String.valueOf(dto.getPositionTo()) : null);
 
-        // Legacy: duplicate posn columns
-        field.setFromPosition(field.getFromPosition());
-        field.setToPosition(field.getToPosition());
-
         // Legacy: matching field = recon key, alter flag = trim flag
         field.setMatchingFieldFlag(normaliseFlag(dto.getIsReconKey()));
         field.setAlterFlag(normaliseFlag(dto.getTrimFlag()));
@@ -131,10 +121,11 @@ public class ReconFieldDetailsMapper {
         }
         
         
-        field.setColPosn(null != dto.getFieldSequence()
-                ? Long.valueOf(dto.getFieldSequence()) : 0L);
-        field.setSequenceOrder(null != dto.getFieldSequence()
-                ? Long.valueOf(dto.getFieldSequence()) : 0L);
+        Long seqVal = null != dto.getFieldSequence()
+                ? Long.valueOf(dto.getFieldSequence()) : 0L;
+        field.setColPosition(seqVal);
+        field.setColPosn(seqVal);
+        field.setSequenceOrder(seqVal);
         return field;
     }
 

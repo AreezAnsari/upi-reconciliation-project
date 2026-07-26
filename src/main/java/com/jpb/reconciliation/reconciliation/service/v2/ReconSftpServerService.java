@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
+import com.jpb.reconciliation.reconciliation.dto.v2.SftpDownloadRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.v2.SftpServerRequestDTO;
 
 public interface ReconSftpServerService {
@@ -20,4 +21,6 @@ public interface ReconSftpServerService {
     ResponseEntity<RestWithMapStatusList> deleteServer(Long serverId, String updatedBy);
 
     ResponseEntity<RestWithStatusList> testConnection(SftpTestConnectionRequestDTO request);
+    
+    ResponseEntity<RestWithMapStatusList> downloadFiles(SftpDownloadRequestDTO request, String actor);
 }

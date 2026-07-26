@@ -13,7 +13,10 @@ import java.util.Optional;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +62,20 @@ import com.jpb.reconciliation.reconciliation.repository.v2.ReconTmpltFieldDtlsRe
 import com.jpb.reconciliation.reconciliation.service.ReconFieldDtlMastService;
 import com.jpb.reconciliation.reconciliation.util.CommonUtil;
 import com.jpb.reconciliation.reconciliation.util.ResponseBuilder;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 @Service
 @Transactional(readOnly = true)
@@ -400,7 +417,455 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
                     ResponseBuilder.error("Error fetching template: " + e.getMessage()));
         }
     }
+    
+    
+    @Override
+    public ResponseEntity<RestWithMapStatusList> autoDetectFields(MultipartFile file) {
 
+        try {
+
+            // Validate uploaded file
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure("Please upload a valid CSV file."));
+            }
+
+            //// Validate supported file types
+            // Validate supported file types
+            String fileName = file.getOriginalFilename();
+
+            if (fileName == null) {
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure("Invalid file."));
+            }
+
+            fileName = fileName.toLowerCase();
+
+            if (!(fileName.endsWith(".csv")
+                    || fileName.endsWith(".xlsx")
+                    || fileName.endsWith(".xls")
+                    || fileName.endsWith(".xml")
+//                    || fileName.endsWith(".txt")
+//                    || fileName.endsWith(".dat")
+                    )) {
+
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure(
+                                "Unsupported file type. Allowed: CSV, Excel, XML, Fixed Width."));
+            }
+
+            // Parse CSV and build response
+            List<ReconFieldConfigurationDto> fieldConfigurations;
+
+            if (fileName.endsWith(".csv")) {
+
+                fieldConfigurations = parseCsv(file);
+
+            } else if (fileName.endsWith(".xlsx")
+                    || fileName.endsWith(".xls")) {
+
+                fieldConfigurations = parseExcel(file);
+
+            } else if (fileName.endsWith(".xml")) {
+
+                fieldConfigurations = parseXml(file);
+
+            }
+//              else if (fileName.endsWith(".txt")
+//                    || fileName.endsWith(".dat")) {
+//
+//                fieldConfigurations = parseFixedWidth(file);
+//          }
+               else {
+
+                return ResponseEntity.badRequest()
+                        .body(ResponseBuilder.failure(
+                                "Unsupported file type. Allowed: CSV, Excel, XML, Fixed Width."));
+            }
+
+            List<Map<String, Object>> rows =
+            		ResponseBuilder.toMapList(fieldConfigurations, objectMapper);
+
+            return ResponseEntity.ok(
+                    ResponseBuilder.ok(
+                            "Field detection completed successfully.",
+                            "fieldDetails",
+                            rows));
+
+        } catch (Exception e) {
+
+            logger.error("Error while reading uploaded CSV file.", e);
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ResponseBuilder.error("Failed to process uploaded CSV file."));
+        }
+    }
+    // =========================================================================
+    // PARSE CSV FILE
+    // =========================================================================
+    private List<ReconFieldConfigurationDto> parseCsv(MultipartFile file) throws IOException {
+
+        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
+
+             CSVParser csvParser = CSVFormat.DEFAULT.builder()
+                     .setHeader()
+                     .setSkipHeaderRecord(true)
+                     .build()
+                     .parse(reader)) {
+
+            Map<String, Integer> headers = csvParser.getHeaderMap();
+            List<CSVRecord> records = csvParser.getRecords();
+
+            int sequence = 1;
+
+            for (String header : headers.keySet()) {
+
+                List<String> columnValues = new ArrayList<>();
+
+                for (CSVRecord record : records) {
+                    String value = record.get(header);
+                    if (value != null && !value.trim().isEmpty()) {
+                        columnValues.add(value.trim());
+                    }
+                }
+
+                fieldConfigurations.add(
+                        buildFieldConfiguration(
+                                header,
+                                sequence++,
+                                columnValues));
+            }
+        }
+
+        return fieldConfigurations;
+    }
+    // =========================================================================
+    // PARSE EXCEL FILE
+    // =========================================================================
+    private List<ReconFieldConfigurationDto> parseExcel(MultipartFile file) throws IOException {
+
+        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
+                return fieldConfigurations;
+            }
+
+            Row headerRow = sheet.getRow(0);
+
+            int totalColumns = headerRow.getLastCellNum();
+
+            int sequence = 1;
+
+            for (int columnIndex = 0; columnIndex < totalColumns; columnIndex++) {
+
+                Cell headerCell = headerRow.getCell(columnIndex);
+
+                if (headerCell == null) {
+                    continue;
+                }
+
+                String header = headerCell.toString().trim();
+
+                List<String> columnValues = new ArrayList<>();
+
+                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+
+                    Row row = sheet.getRow(rowIndex);
+
+                    if (row == null) {
+                        continue;
+                    }
+
+                    Cell cell = row.getCell(columnIndex);
+
+                    columnValues.add(cell == null ? "" : cell.toString().trim());
+                }
+
+                fieldConfigurations.add(
+                        buildFieldConfiguration(
+                                header,
+                                sequence++,
+                                columnValues));
+            }
+        }
+
+        return fieldConfigurations;
+    }
+    // =========================================================================
+// PARSE XML FILE
+// =========================================================================
+    private List<ReconFieldConfigurationDto> parseXml(MultipartFile file) throws Exception {
+
+        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+
+        Document document = builder.parse(file.getInputStream());
+
+        document.getDocumentElement().normalize();
+
+        NodeList nodeList = document.getDocumentElement().getChildNodes();
+
+        Map<String, List<String>> fieldMap = new LinkedHashMap<>();
+
+        for (int i = 0; i < nodeList.getLength(); i++) {
+
+            Node node = nodeList.item(i);
+
+            if (node.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+
+            Element element = (Element) node;
+
+            NodeList childNodes = element.getChildNodes();
+
+            for (int j = 0; j < childNodes.getLength(); j++) {
+
+                Node child = childNodes.item(j);
+
+                if (child.getNodeType() != Node.ELEMENT_NODE) {
+                    continue;
+                }
+
+                String fieldName = child.getNodeName();
+                String value = child.getTextContent();
+
+                fieldMap.computeIfAbsent(fieldName, key -> new ArrayList<>())
+                        .add(value == null ? "" : value.trim());
+            }
+        }
+
+        int sequence = 1;
+
+        for (Map.Entry<String, List<String>> entry : fieldMap.entrySet()) {
+
+            fieldConfigurations.add(
+                    buildFieldConfiguration(
+                            entry.getKey(),
+                            sequence++,
+                            entry.getValue()));
+        }
+
+        return fieldConfigurations;
+    }
+    // =========================================================================
+    // PARSE FIXED WIDTH FILE
+    // =========================================================================
+//    private List<ReconFieldConfigurationDto> parseFixedWidth(MultipartFile file) throws IOException {
+//
+//        List<ReconFieldConfigurationDto> fieldConfigurations = new ArrayList<>();
+//
+//        try (BufferedReader reader = new BufferedReader(
+//                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+//
+//            List<String> lines = reader.lines().collect(Collectors.toList());
+//
+//            if (lines.isEmpty()) {
+//                return fieldConfigurations;
+//            }
+//
+//            // First line contains field names separated by '|'
+//            String[] headers = lines.get(0).split("\\|");
+//
+//            int sequence = 1;
+//
+//            for (int columnIndex = 0; columnIndex < headers.length; columnIndex++) {
+//
+//                List<String> columnValues = new ArrayList<>();
+//
+//                for (int rowIndex = 1; rowIndex < lines.size(); rowIndex++) {
+//
+//                    String[] values = lines.get(rowIndex).split("\\|", -1);
+//
+//                    if (columnIndex < values.length) {
+//                        columnValues.add(values[columnIndex].trim());
+//                    }
+//                }
+//
+//                fieldConfigurations.add(
+//                        buildFieldConfiguration(
+//                                headers[columnIndex].trim(),
+//                                sequence++,
+//                                columnValues));
+//            }
+//        }
+//
+//        return fieldConfigurations;
+//    }
+    // =========================================================================
+    // BUILD FIELD CONFIGURATION
+    // =========================================================================
+    private ReconFieldConfigurationDto buildFieldConfiguration(
+            String header,
+            Integer sequence,
+            List<String> values) {
+
+        ReconFieldConfigurationDto dto = new ReconFieldConfigurationDto();
+
+        dto.setFieldName(header.trim());
+        dto.setFieldSequence(sequence);
+
+        dto.setFieldType(detectFieldType(values));
+        dto.setFieldFormat(detectFieldFormat(values));
+        dto.setFieldLength(detectFieldLength(values));
+        dto.setFieldScale(detectFieldScale(values));
+
+        dto.setIsMandatory("N");
+        dto.setIsPrimaryKey("N");
+        dto.setIsReconKey("N");
+        dto.setTrimFlag("Y");
+
+        return dto;
+    }
+    private Integer detectFieldLength(List<String> values) {
+
+        int maxLength = 0;
+
+        for (String value : values) {
+
+            if (value != null && value.length() > maxLength) {
+                maxLength = value.length();
+            }
+        }
+
+        return maxLength;
+    }
+    private Integer detectFieldScale(List<String> values) {
+
+        int maxScale = 0;
+
+        for (String value : values) {
+
+            if (value != null && value.contains(".")) {
+
+                String[] parts = value.split("\\.");
+
+                if (parts.length == 2) {
+                    maxScale = Math.max(maxScale, parts[1].length());
+                }
+            }
+        }
+
+        return maxScale == 0 ? null : maxScale;
+    }
+    // =========================================================================
+    // DETECT FIELD TYPE
+    // =========================================================================
+    private String detectFieldType(List<String> values) {
+
+        // Filter out null and empty values first
+        List<String> nonEmpty = new ArrayList<>();
+        for (String v : values) {
+            if (v != null && !v.trim().isEmpty()) {
+                nonEmpty.add(v.trim());
+            }
+        }
+
+        // If all values are empty — default to String
+        if (nonEmpty.isEmpty()) {
+            return "String";
+        }
+
+        boolean isNumber  = true;
+        boolean isDecimal = true;
+        boolean isBoolean = true;
+        boolean isDate    = true;
+
+        for (String value : nonEmpty) {
+
+            // Number — only digits, no decimal point
+            if (!value.matches("\\d+")) {
+                isNumber = false;
+            }
+
+            // Decimal — digits with optional decimal point
+            if (!value.matches("\\d+(\\.\\d+)?")) {
+                isDecimal = false;
+            }
+
+            // Boolean — true/false/yes/no/1/0
+            if (!(value.equalsIgnoreCase("true")
+                    || value.equalsIgnoreCase("false")
+                    || value.equalsIgnoreCase("yes")
+                    || value.equalsIgnoreCase("no")
+                    || value.equals("1")
+                    || value.equals("0"))) {
+                isBoolean = false;
+            }
+
+            // Date — dd-MM-yyyy / dd/MM/yyyy / yyyy-MM-dd
+            if (!(value.matches("\\d{2}-\\d{2}-\\d{4}")
+                    || value.matches("\\d{2}/\\d{2}/\\d{4}")
+                    || value.matches("\\d{4}-\\d{2}-\\d{2}"))) {
+                isDate = false;
+            }
+        }
+
+        // Priority order matters:
+        // Boolean before Number (1/0 matches both)
+        // Date before String
+        // Number before Decimal (123 matches both)
+        if (isBoolean) return "Boolean";
+        if (isDate)    return "Date";
+        if (isNumber)  return "Number";
+        if (isDecimal) return "Decimal";
+
+        return "String";
+    }
+    // =========================================================================
+    // DETECT FIELD FORMAT
+    // =========================================================================
+    private String detectFieldFormat(List<String> values) {
+
+        String fieldType = detectFieldType(values);
+
+        switch (fieldType) {
+
+            case "Date":
+
+                for (String value : values) {
+
+                    if (value == null || value.trim().isEmpty()) {
+                        continue;
+                    }
+
+                    if (value.matches("\\d{2}-\\d{2}-\\d{4}")) {
+                        return "dd-MM-yyyy";
+                    }
+
+                    if (value.matches("\\d{2}/\\d{2}/\\d{4}")) {
+                        return "dd/MM/yyyy";
+                    }
+
+                    if (value.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                        return "yyyy-MM-dd";
+                    }
+                }
+
+                return "Date";
+
+            case "Decimal":
+                return "##.##";
+
+            case "Number":
+                return "NUMBER";
+
+            case "Boolean":
+                return "BOOLEAN";
+
+            default:
+                return "VARCHAR";
+        }
+    }
     // =========================================================================
     // INNER TRANSACTIONAL HELPERS (called via self-proxy)
     // =========================================================================
@@ -828,13 +1293,13 @@ public class ReconFileTemplateConfigServiceImpl implements ReconFileTemplateConf
         for (ReconFieldConfigurationDto dto : dtos) {
             // fieldType  → always uppercase (DB stores STRING, DATE, NUMBER, DECIMAL, BOOLEAN)
             // fieldFormat → keep as-is  (DB stores mixed-case: "dd-MM-yyyy", "yyyy-MM-dd" etc.)
-            String fieldTypeInput   = null != dto.getFieldtype() ? dto.getFieldtype().trim().toUpperCase() : null;
+            String fieldTypeInput   = null != dto.getFieldType() ? dto.getFieldType().trim().toUpperCase() : null;
             String fieldFormatInput = null != dto.getFieldFormat() ? dto.getFieldFormat().trim()             : null;
 
             ReconFieldTypeMast type = fieldTypeRepository
                     .findByFieldTypeDes(fieldTypeInput)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Invalid Field Type: " + dto.getFieldtype()
+                            "Invalid Field Type: " + dto.getFieldType()
                             + ". Valid values: STRING, NUMBER, DATE, DECIMAL, BOOLEAN"));
             ReconFieldFormatMast format = fieldFormatRepository
                     .findByReconFieldFormatDesc(fieldFormatInput)

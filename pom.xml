@@ -206,6 +206,13 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- SFTP file pickup (ReconSftpServerServiceImpl.downloadFiles) — merged from
+		     feature/wazdan-config. Maintained fork of JCraft JSch. -->
+		<dependency>
+			<groupId>com.github.mwiede</groupId>
+			<artifactId>jsch</artifactId>
+			<version>0.2.17</version>
+		</dependency>
 	</dependencies>
 
 	<build>

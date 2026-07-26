@@ -1,5 +1,6 @@
 package com.jpb.reconciliation.reconciliation.controller.v2;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,6 +23,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping(path = "/api/v2/template/")
@@ -114,5 +116,18 @@ public class ReconFileTemplateConfigController {
     public ResponseEntity<RestWithMapStatusList> deleteTemplate(
             @PathVariable Long templateId) {
         return templateConfigService.deleteTemplate(templateId);
+    }
+    
+    
+    @PostMapping(
+    	    value = "/auto-detect-fields",
+    	    consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+    	    produces = CommonConstants.APPLICATION_JSON
+    	)
+    @Operation(summary = "Read uploaded CSV file and auto detect field configuration")
+    public ResponseEntity<RestWithMapStatusList> autoDetectFields(
+    	    @RequestParam("file") MultipartFile file,
+    	    @AuthenticationPrincipal UserDetails userDetails) {
+        return templateConfigService.autoDetectFields(file);
     }
 }

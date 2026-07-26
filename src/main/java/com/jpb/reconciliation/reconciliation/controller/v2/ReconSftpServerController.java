@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.jpb.reconciliation.reconciliation.dto.RestWithMapStatusList;
 import com.jpb.reconciliation.reconciliation.dto.RestWithStatusList;
 import com.jpb.reconciliation.reconciliation.dto.SftpTestConnectionRequestDTO;
+import com.jpb.reconciliation.reconciliation.dto.v2.SftpDownloadRequestDTO;
 import com.jpb.reconciliation.reconciliation.dto.v2.SftpServerRequestDTO;
 import com.jpb.reconciliation.reconciliation.service.v2.ReconSftpServerService;
 
@@ -95,4 +96,19 @@ public class ReconSftpServerController {
             @RequestBody SftpTestConnectionRequestDTO request) {
         return sftpServerService.testConnection(request);
     }
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/v2/recon/sftp-servers/download-files
+    // ─────────────────────────────────────────────────────────────────────────
+    @PostMapping("/download-files")
+    @Operation(summary = "Connect to an SFTP server, download files matching filePattern from remotePath into localPath, "
+            + "then move successfully downloaded files to archivePath")
+    public ResponseEntity<RestWithMapStatusList> downloadFiles(
+            @RequestBody SftpDownloadRequestDTO request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+ 
+        String actor = null != userDetails ? userDetails.getUsername() : "SYSTEM";
+        return sftpServerService.downloadFiles(request, actor);
+    }
+    
 }

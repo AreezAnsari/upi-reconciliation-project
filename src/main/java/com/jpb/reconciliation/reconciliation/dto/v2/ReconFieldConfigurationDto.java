@@ -2,6 +2,7 @@ package com.jpb.reconciliation.reconciliation.dto.v2;
 
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -16,6 +17,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class ReconFieldConfigurationDto {
 
     /**
@@ -29,7 +31,7 @@ public class ReconFieldConfigurationDto {
      * e.g. "String", "Number", "Date", "Decimal", "Boolean"
      * Looked up via: ReconFieldTypeMastRepository.findByFieldTypeDes()
      */
-    private String fieldtype;
+    private String fieldType;
 
     /**
      * Field format description — must match recon_field_format_mast.field_format_desc
