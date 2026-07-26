@@ -163,4 +163,18 @@ public class ReconMenuMaster {
     // recreated. See sql/menu_active_yn_migration.sql.
     @Column(name = "ACTIVE_YN")
     private String activeYn;
+
+    // "Y" marks a system menu — a row that is NOT a real application menu: it is hidden from every
+    // list / tree / count / sidebar, is immutable (no edit/delete/approve from any screen), and is
+    // managed only by the backend. Default Dashboard is the first; future ones (Maintenance /
+    // License-Expired / …) reuse the same flag. Always backend-derived, never client-writable.
+    // Use isSystemMenu()/isApplicationMenu() helpers rather than checking this directly.
+    // See sql/default_dashboard_system_menu.sql.
+    @Column(name = "IS_SYSTEM_MENU")
+    private String isSystemMenu;
+
+    // Which kind of system menu this is (NULL for a normal application menu). 'FALLBACK' = the
+    // Default Dashboard. Lets the framework distinguish future system menus without new columns.
+    @Column(name = "SYSTEM_MENU_TYPE")
+    private String systemMenuType;
 }

@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -102,6 +103,12 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     @Autowired
     com.jpb.reconciliation.reconciliation.service.v2.HierarchyScopeService hierarchyScopeService;
 
+    // Used only to re-run the Default Dashboard fallback for roles affected by a menu deletion —
+    // reconcileDefaultDashboard is the single owner of that grant. Safe (no cycle): the role service
+    // depends on MenuMasterRepository, never on this service.
+    @Autowired
+    com.jpb.reconciliation.reconciliation.service.v2.ReconRoleMasterService reconRoleMasterService;
+
     Logger logger = LoggerFactory.getLogger(MenuMasterServiceImpl.class);
 
     @Override
@@ -153,12 +160,19 @@ public class MenuMasterServiceImpl implements MenuMasterService {
      * this.
      */
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<ResponseDto> removeMenu(Long menuId) {
         ReconMenuMaster menu = menuMasterRepository.findByMenuId(menuId)
                 .orElseThrow(() -> new ResourceNotFoundException("MENU NOT FOUND :" + menuId));
         if (isCatalogRow(menu)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ResponseDto(MenuConstants.STATUS_417, CATALOG_IMMUTABLE));
+        }
+        // System menus (e.g. Default Dashboard) are platform-managed and never deletable — even by a
+        // direct API call that bypasses the UI (the UI hides them entirely).
+        if (isSystemMenu(menu)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ResponseDto(MenuConstants.STATUS_417, SYSTEM_MENU_IMMUTABLE));
         }
         if ("N".equals(menu.getActiveYn())) {
             return ResponseEntity.status(HttpStatus.OK)
@@ -177,6 +191,23 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         menu.setModifiedDate(now);
         menuMasterRepository.save(menu);
 
+        // A role whose only application menu(s) just got deleted must fall back to the Default
+        // Dashboard. The fallback grant is normally already present (it is preserved across every
+        // save), so this is a safety ensure-exists — it re-adds DD only if somehow missing, and skips
+        // non-business roles. Runs in this same @Transactional as the soft-deletes above, so a
+        // half-failed delete rolls the whole thing back rather than leaving a role with nothing.
+        Set<Long> affectedRoleIds = new LinkedHashSet<>();
+        List<Long> deletedMenuIds = new ArrayList<>();
+        deletedMenuIds.add(menu.getMenuId());
+        for (ReconMenuMaster d : descendants) deletedMenuIds.add(d.getMenuId());
+        for (Long deletedId : deletedMenuIds) {
+            roleMenuMapRepository.findByMenuId(deletedId)
+                    .forEach(m -> affectedRoleIds.add(m.getId().getRoleId()));
+        }
+        for (Long roleId : affectedRoleIds) {
+            reconRoleMasterService.reconcileDefaultDashboard(roleId);
+        }
+
         String msg = descendants.isEmpty() ? "Menu deleted successfully."
                 : "Menu and " + descendants.size() + " related menu(s) deleted successfully.";
         return ResponseEntity.status(HttpStatus.OK).body(new ResponseDto(MenuConstants.STATUS_200, msg));
@@ -188,6 +219,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         if (!opt.isPresent()) return "FAILED";
         // Catalog rows are system metadata — never editable from any screen.
         if (isCatalogRow(opt.get())) return "CATALOG_IMMUTABLE";
+        // System menus (e.g. Default Dashboard) are platform-managed — never editable, even via a
+        // direct API call.
+        if (isSystemMenu(opt.get())) return "SYSTEM_MENU_IMMUTABLE";
 
         // Maker-checker on UPDATE: Admin applies immediately; a Maker's edit is held as a PENDING
         // approval request (proposed changes stashed, live menu untouched) until a Checker approves.
@@ -224,7 +258,11 @@ public class MenuMasterServiceImpl implements MenuMasterService {
 
     @Override
     public ResponseEntity<RestWithStatusList> getAllMenus() {
-        List<ReconMenuMaster> fetchMenuData = menuMasterRepository.findAll();
+        // System menus (e.g. Default Dashboard, BANK_ID NULL) are never real menus — excluded from
+        // this raw list so they can't surface in any consumer (name lookups, Add Menu dropdowns, etc.).
+        List<ReconMenuMaster> fetchMenuData = menuMasterRepository.findAll().stream()
+                .filter(this::isApplicationMenu)
+                .collect(Collectors.toList());
         List<Object> menuList = new ArrayList<>(fetchMenuData);
         if (!fetchMenuData.isEmpty()) {
             return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Menu details found successfully", menuList), HttpStatus.OK);
@@ -415,6 +453,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         String name = req.getMenuName() == null ? "" : req.getMenuName().trim();
         if (name.isEmpty()) return "Menu name is required.";
 
+        // A custom menu can never reuse a reserved system code / URL (e.g. /default-dashboard).
+        String reserved = reservedSystemMenuRejection(req);
+        if (reserved != null) return reserved;
+
         String menuType = req.getMenuType();
         Long parentId = req.getParentMenuId();
         Long productId = req.getProductId();
@@ -562,6 +604,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         // includes every mapped column, so an unset Java field inserts NULL and bypasses the
         // DEFAULT 'Y' entirely.
         m.setActiveYn("Y");
+        // Every Add-Menu row is an application menu, never a system menu (same Hibernate-INSERT
+        // reasoning as activeYn above — set it explicitly so it lands 'N', not NULL).
+        m.setIsSystemMenu("N");
         // SYSTEM_MENU_CODE is NOT NULL at the DB level, so the first insert needs a placeholder —
         // MENU_ID isn't known until after this save (sequence-generated). Overwritten with the
         // real, permanent "CUS_<bankId>_<menuId>" code immediately below.
@@ -578,6 +623,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
     private String validateAgainstCatalog(ReconMenuMasterDto req) {
         String name = req.getMenuName() == null ? "" : req.getMenuName().trim();
         if (name.isEmpty()) return "Menu name is required.";
+
+        // A catalog-appended menu can never reuse a reserved system code / URL (e.g. /default-dashboard).
+        String reserved = reservedSystemMenuRejection(req);
+        if (reserved != null) return reserved;
 
         if ("Submenu".equals(req.getMenuType())) {
             Optional<ReconMenuMaster> catalogOpt = menuMasterRepository
@@ -770,6 +819,49 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         return m != null && m.getBankId() == null && "CATALOG".equals(m.getCreatedBy());
     }
 
+    // ── System menus (IS_SYSTEM_MENU='Y') ───────────────────────────────────────
+    static final String SYSTEM_MENU_IMMUTABLE =
+            "This is a system menu. It is managed by the platform and cannot be edited, deleted or approved.";
+
+    // Routes owned by system menus — a normal Add Menu request can never claim one of these as its
+    // MENU_URL, or it would create routing ambiguity with the real system page. Grows as more system
+    // menus are added.
+    private static final java.util.Set<String> RESERVED_SYSTEM_URLS =
+            java.util.Collections.singleton("/default-dashboard");
+
+    // SYSTEM_MENU_CODEs owned by the platform — an Add Menu request can never reuse one.
+    private static final java.util.Set<String> RESERVED_SYSTEM_CODES =
+            java.util.Collections.singleton("DEFAULT_DASHBOARD");
+
+    /** A system menu is not a real application menu: hidden everywhere, immutable, backend-managed.
+     *  Every fallback / count / list / sidebar / immutability decision keys on this helper, never on
+     *  the raw column, so future system menus (Maintenance / License-Expired / …) need only this one
+     *  place changed. */
+    private boolean isSystemMenu(ReconMenuMaster m) {
+        return m != null && "Y".equals(m.getIsSystemMenu());
+    }
+
+    /** The complement of isSystemMenu — a genuine, user-facing application menu. This is what
+     *  "does the role have any menus?" (fallback/count) decisions must use. */
+    private boolean isApplicationMenu(ReconMenuMaster m) {
+        return m != null && !isSystemMenu(m);
+    }
+
+    /** Reject an Add-Menu request that tries to collide with a system menu — a reserved
+     *  SYSTEM_MENU_CODE or a reserved URL. (IS_SYSTEM_MENU itself is not part of the DTO, so a client
+     *  can never set it; every create path also hard-sets it to 'N'.) Returns the rejection message,
+     *  or null when the request is a normal application menu. */
+    private String reservedSystemMenuRejection(ReconMenuMasterDto req) {
+        if (req.getSystemMenuCode() != null && RESERVED_SYSTEM_CODES.contains(req.getSystemMenuCode().trim())) {
+            return "This menu code is reserved by the system and cannot be reused.";
+        }
+        String url = req.getMenuUrl() == null ? null : req.getMenuUrl().trim();
+        if (url != null && RESERVED_SYSTEM_URLS.contains(url)) {
+            return "The URL '" + url + "' is reserved by the system and cannot be used.";
+        }
+        return null;
+    }
+
     /**
      * B5, write side — a menu may only ever be mapped to a product the institution actually holds.
      *
@@ -889,6 +981,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         copy.setMenuSource(MENU_SOURCE_CATALOG);
         copy.setIsClickable(copy.getMenuUrl() != null && !copy.getMenuUrl().trim().isEmpty() ? "Y" : "N");
         copy.setActiveYn("Y");
+        copy.setIsSystemMenu("N");
         menuMasterRepository.save(copy);
         logger.info("Materialised catalog {} '{}' for bankId={}", menuType, menuName, bankId);
     }
@@ -958,6 +1051,7 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         m.setMenuSource(MENU_SOURCE_CATALOG);
         m.setIsClickable(m.getMenuUrl() != null && !m.getMenuUrl().trim().isEmpty() ? "Y" : "N");
         m.setActiveYn("Y");
+        m.setIsSystemMenu("N");
         menuMasterRepository.save(m);
         return m;
     }
@@ -977,6 +1071,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                         // Soft-deleted (ACTIVE_YN='N') is basically gone from the system's point of
                         // view — never surfaced here either, even though the row itself still exists.
                         .filter(m -> !"N".equals(m.getActiveYn()))
+                        // System menus (e.g. Default Dashboard) are never real menus of a role — the
+                        // fallback grant exists only so the frontend can land on /default-dashboard.
+                        .filter(this::isApplicationMenu)
                         .collect(Collectors.toList());
         logger.info("Menu data by role: " + menuByRole);
         if (menuByRole.isEmpty()) {
@@ -1008,6 +1105,10 @@ public class MenuMasterServiceImpl implements MenuMasterService {
                 // C_ROLE_MENU_MAP grant still points at it — as far as the system is concerned this
                 // menu no longer exists.
                 .filter(m -> !"N".equals(m.getActiveYn()))
+                // System menus (e.g. Default Dashboard) never render in the Sidebar — the DD grant is
+                // pure bookkeeping; when a role has no application menu the frontend simply falls back
+                // to /default-dashboard. So the Sidebar sees an empty list, exactly as intended.
+                .filter(this::isApplicationMenu)
                 .filter(m -> isInProductScope(m, resolveBankProductScope(m.getBankId())))
                 .filter(m -> m.getProductId() == null || roleScope.isEmpty() || roleScope.contains(m.getProductId()))
                 .collect(Collectors.toList());
@@ -1132,6 +1233,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         if (isCatalogRow(existing)) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", CATALOG_IMMUTABLE, null), HttpStatus.FORBIDDEN);
         }
+        if (isSystemMenu(existing)) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", SYSTEM_MENU_IMMUTABLE, null), HttpStatus.FORBIDDEN);
+        }
         existing.setStatus("PENDING");
         existing.setSubmittedBy(submittedBy);
         existing.setModifiedBy(submittedBy);
@@ -1156,6 +1260,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         // B6 — a Checker only ever decides on an appended bank row; catalog rows are metadata.
         if (isCatalogRow(existing)) {
             return new ResponseEntity<>(new RestWithStatusList("FAILURE", CATALOG_IMMUTABLE, null), HttpStatus.FORBIDDEN);
+        }
+        if (isSystemMenu(existing)) {
+            return new ResponseEntity<>(new RestWithStatusList("FAILURE", SYSTEM_MENU_IMMUTABLE, null), HttpStatus.FORBIDDEN);
         }
         // B7 — the mapping is only meaningful while the catalog entry it was derived from still
         // exists. If it was removed/migrated away, activating this row would create an orphan.
@@ -1208,6 +1315,9 @@ public class MenuMasterServiceImpl implements MenuMasterService {
         ReconUser checker = checkerOpt.get();
         List<ReconMenuMaster> visible = menuMasterRepository.findAll().stream()
                 .filter(m -> "PENDING".equals(m.getStatus()))
+                // System menus never enter the approval flow (they are STATUS='Y' and immutable) —
+                // filtered anyway as defence-in-depth so one can never surface in a Checker queue.
+                .filter(this::isApplicationMenu)
                 .filter(m -> isVisibleToChecker(checker, m.getCreatedBy(), m.getProductId()))
                 .collect(Collectors.toList());
         return new ResponseEntity<>(new RestWithStatusList("SUCCESS", "Pending menus fetched.", visible), HttpStatus.OK);

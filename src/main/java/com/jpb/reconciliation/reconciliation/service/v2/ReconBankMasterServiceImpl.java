@@ -1854,6 +1854,9 @@ public class ReconBankMasterServiceImpl implements ReconBankMasterService {
         m.setSubMenu("N");
         m.setStatus("Y");
         m.setBankId(bankId);
+        // Bootstrap menus are ordinary application menus, never system menus — set explicitly so the
+        // generated INSERT lands 'N' rather than NULL (see sql/default_dashboard_system_menu.sql).
+        m.setIsSystemMenu("N");
         m.setParentMenuId(resolveParentMenuId(menuType, parentMenuCode, bankId));
         m.setCreatedBy(createdBy);
         m.setCreatedDate(new Date());

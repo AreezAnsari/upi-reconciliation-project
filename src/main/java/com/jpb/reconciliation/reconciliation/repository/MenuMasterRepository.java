@@ -108,4 +108,11 @@ public interface MenuMasterRepository extends JpaRepository<ReconMenuMaster, Lon
     // Process-uniqueness guard (catalog + custom Extraction/Reconciliation submenus): one
     // MENU_PROCESS_ID (RFD_FILE_ID / RPM_PROCESS_ID) may back only one live menu, system-wide.
     List<ReconMenuMaster> findByMenuProcessId(Long menuProcessId);
+
+    // ── System menus (IS_SYSTEM_MENU='Y') ───────────────────────────────────────
+    // Returns a LIST (not Optional) on purpose: exactly one row per system code is expected, and a
+    // >1 result is data corruption the caller must fail loudly on rather than silently pick the
+    // first (see resolveDefaultDashboardMenuId). Keyed on both code AND the system flag so it can
+    // never accidentally match an application row that happens to share the string.
+    List<ReconMenuMaster> findBySystemMenuCodeAndIsSystemMenu(String systemMenuCode, String isSystemMenu);
 }

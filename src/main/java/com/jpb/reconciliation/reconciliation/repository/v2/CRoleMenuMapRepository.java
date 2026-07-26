@@ -29,4 +29,15 @@ public interface CRoleMenuMapRepository extends JpaRepository<CRoleMenuMap, CRol
     @Modifying
     @Query("DELETE FROM CRoleMenuMap r WHERE r.id.roleId = :roleId")
     void deleteByRoleId(@Param("roleId") Long roleId);
+
+    // Wipe only a role's APPLICATION-menu grants, preserving any system-menu grant (e.g. the Default
+    // Dashboard fallback). savePrivileges re-inserts the submitted app menus after this; keeping the
+    // system grant here means the Default Dashboard is assigned once and never churned on every save.
+    // Single bulk DELETE (a subquery on RECON_MENU_MASTER), NOT a fetch-all-then-delete loop. The
+    // NOT EXISTS form deletes a grant whose menu is non-system OR has a NULL flag, and preserves only
+    // a menu explicitly flagged IS_SYSTEM_MENU='Y'.
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM CRoleMenuMap r WHERE r.id.roleId = :roleId AND NOT EXISTS ("
+         + "SELECT 1 FROM ReconMenuMaster m WHERE m.menuId = r.id.menuId AND m.isSystemMenu = 'Y')")
+    void deleteApplicationGrantsByRoleId(@Param("roleId") Long roleId);
 }

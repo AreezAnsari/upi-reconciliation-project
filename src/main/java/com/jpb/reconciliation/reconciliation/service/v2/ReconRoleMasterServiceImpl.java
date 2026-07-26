@@ -56,6 +56,22 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
     private static final Set<String> BOOTSTRAP_ROLE_TYPES = new LinkedHashSet<>(Arrays.asList(
             "BRANCH_ADMIN_DEFAULT", "BANK_ADMIN_DEFAULT"));
 
+    // The role types that receive the Default Dashboard fallback — the /user-portal business roles
+    // (same set as isUserPortalRole in savePrivileges). Admin/bootstrap roles
+    // (KAL_ADMIN_DEFAULT / BANK_ADMIN_DEFAULT / BRANCH_ADMIN_DEFAULT) always carry their own
+    // bootstrap menus and are deliberately excluded — they never get the fallback.
+    private static final Set<String> BUSINESS_ROLE_TYPES = new LinkedHashSet<>(Arrays.asList(
+            "RECON_USER", "BANK_USER", "BRANCH_USER"));
+
+    // The permanent identity code of the Default Dashboard system menu (see SystemMenuCodes and
+    // sql/default_dashboard_system_menu.sql).
+    private static final String DEFAULT_DASHBOARD_CODE = "DEFAULT_DASHBOARD";
+
+    // Lazily resolved once and cached for the process lifetime — the DD row's MENU_ID is a
+    // sequence PK that never changes. NOTE: if the DD row is ever deleted and re-seeded (getting a
+    // new MENU_ID), an application restart (or explicit reset) is required to refresh this.
+    private volatile Long defaultDashboardMenuId;
+
     @Autowired
     private ReconRoleMasterRepository reconRoleMasterRepository;
 
@@ -120,6 +136,9 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         role.setCreatedAt(LocalDateTime.now());
         role.setCreatedBy(createdBy);
         ReconRoleMaster saved = reconRoleMasterRepository.save(role);
+        // A brand-new business role has no application menus yet, so give it the Default Dashboard
+        // fallback immediately (runs in this @Transactional; skips admin/bootstrap role types).
+        reconcileDefaultDashboard(saved.getRoleId());
         logger.info("ReconRoleMaster created: {} by {}", saved.getRoleCode(), createdBy);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new RestWithStatusList("SUCCESS", "Role created successfully.", Collections.singletonList(saved)));
@@ -150,6 +169,9 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         role.setCreatedAt(LocalDateTime.now());
         role.setCreatedBy(createdBy);
         ReconRoleMaster saved = reconRoleMasterRepository.save(role);
+        // Give a brand-new business role the Default Dashboard fallback immediately (skips
+        // admin/bootstrap role types; runs in this @Transactional).
+        reconcileDefaultDashboard(saved.getRoleId());
         logger.info("ReconRoleMaster created by Admin (awaiting privileges): {} by {}", saved.getRoleCode(), createdBy);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new RestWithStatusList("SUCCESS", "Role created and activated.", Collections.singletonList(saved)));
@@ -227,7 +249,9 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new RestWithStatusList("FAILURE", "Role not found with ID: " + roleId, null));
         }
-        if (roleMenuMapRepository.findMenuIdsByRoleId(roleId).isEmpty()) {
+        // Only real application menus count — a role holding just the Default Dashboard fallback is
+        // still unprivileged and must not be submittable.
+        if (!hasApplicationMenuGrant(roleId)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new RestWithStatusList("FAILURE",
                             "Assign at least one privilege to this role before submitting for approval.", null));
@@ -352,9 +376,93 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
         // ID here, otherwise its checkbox would never show as checked even though the
         // privilege genuinely exists.
         List<Long> displayIds = menuMasterRepository.findAllById(menuIds).stream()
+                // A system menu (e.g. Default Dashboard) is a hidden fallback grant, never a real
+                // privilege — excluded so it never shows as a checked box or inflates the privilege
+                // count (a DD-only role must read as 0 privileges, not 1).
+                .filter(m -> !"Y".equals(m.getIsSystemMenu()))
                 .map(m -> "Y".equals(m.getIsPortalTwin()) && m.getTwinOfMenuId() != null ? m.getTwinOfMenuId() : m.getMenuId())
                 .collect(Collectors.toList());
         return ResponseEntity.ok(new RestWithStatusList("SUCCESS", "Privileges fetched.", displayIds));
+    }
+
+    /**
+     * True when this role holds at least one real APPLICATION menu grant. System menus (the Default
+     * Dashboard fallback, and any future system menu) do NOT count — a role holding only the Default
+     * Dashboard is effectively unprivileged, so it must never read as "has privileges" for
+     * submit-for-approval, activation, or any count. Keyed on IS_SYSTEM_MENU (via the menu rows), not
+     * a bare grant-count.
+     */
+    private boolean hasApplicationMenuGrant(Long roleId) {
+        List<Long> ids = roleMenuMapRepository.findMenuIdsByRoleId(roleId);
+        if (ids.isEmpty()) return false;
+        return menuMasterRepository.findAllById(ids).stream().anyMatch(m -> !"Y".equals(m.getIsSystemMenu()));
+    }
+
+    /**
+     * The Default Dashboard row's MENU_ID — lazily resolved once, then cached for the process
+     * lifetime (the id is a sequence PK that never changes). Fails LOUD if the row is missing or
+     * duplicated: a production deployment must have run sql/default_dashboard_system_menu.sql, and a
+     * silent null here would break login/sidebar for every zero-menu role with nobody knowing why.
+     */
+    private Long resolveDefaultDashboardMenuId() {
+        Long cached = defaultDashboardMenuId;
+        if (cached != null) return cached;
+        List<ReconMenuMaster> rows = menuMasterRepository
+                .findBySystemMenuCodeAndIsSystemMenu(DEFAULT_DASHBOARD_CODE, "Y");
+        if (rows.isEmpty()) {
+            logger.error("SYSTEM_MENU_NOT_FOUND: Default Dashboard row (SYSTEM_MENU_CODE={}) is missing "
+                    + "— run sql/default_dashboard_system_menu.sql", DEFAULT_DASHBOARD_CODE);
+            throw new IllegalStateException("SYSTEM_MENU_NOT_FOUND: Default Dashboard menu is not seeded.");
+        }
+        if (rows.size() > 1) {
+            logger.error("SYSTEM_MENU_DUPLICATE: {} Default Dashboard rows found (expected 1) — data corruption",
+                    rows.size());
+            throw new IllegalStateException("SYSTEM_MENU_DUPLICATE: more than one Default Dashboard menu exists.");
+        }
+        Long id = rows.get(0).getMenuId();
+        defaultDashboardMenuId = id;
+        return id;
+    }
+
+    /**
+     * Single source of truth for the Default Dashboard fallback grant. Churn-free: it ONLY ensures
+     * the grant EXISTS for a business role, never deletes it — while a role has application menus the
+     * fallback is simply hidden everywhere (IS_SYSTEM_MENU), not removed. Idempotent and
+     * concurrent-safe: existence is checked first, and a duplicate-key from a racing transaction is
+     * treated as success (the desired end state — "mapping exists" — has been reached).
+     *
+     * MUST run inside the caller's transaction (savePrivileges / createRole / removeMenu are all
+     * @Transactional) so the grant commits atomically with the change that triggered it.
+     *
+     * Any future feature that manipulates C_ROLE_MENU_MAP directly (Clone/Import/Bulk Role, scripts)
+     * must call this before commit rather than inserting the fallback by hand.
+     */
+    @Override
+    public void reconcileDefaultDashboard(Long roleId) {
+        Optional<ReconRoleMaster> roleOpt = reconRoleMasterRepository.findById(roleId);
+        if (!roleOpt.isPresent()) return;
+        // Only business/user roles get the fallback; admin & bootstrap roles never do.
+        if (!BUSINESS_ROLE_TYPES.contains(roleOpt.get().getRoleType())) return;
+
+        Long ddId = resolveDefaultDashboardMenuId();
+        CRoleMenuMap.RoleMenuMapId id = new CRoleMenuMap.RoleMenuMapId(roleId, ddId);
+        if (roleMenuMapRepository.existsById(id)) return;
+
+        Optional<ReconMenuMaster> ddMenu = menuMasterRepository.findById(ddId);
+        if (!ddMenu.isPresent()) return; // resolve already validated, but stay defensive
+        CRoleMenuMap map = new CRoleMenuMap();
+        map.setId(id);
+        map.setRole(roleOpt.get());
+        map.setMenu(ddMenu.get());
+        map.setCreatedAt(LocalDateTime.now());
+        map.setCreatedBy("SYSTEM");
+        try {
+            roleMenuMapRepository.save(map);
+        } catch (org.springframework.dao.DataIntegrityViolationException dup) {
+            // A concurrent transaction inserted the same DD mapping first. The end state we wanted
+            // ("mapping exists") is already true, so treat it as success rather than failing the save.
+            logger.debug("Default Dashboard mapping already present for roleId={} (concurrent insert)", roleId);
+        }
     }
 
     /**
@@ -498,7 +606,9 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
             menuIds = merged;
         }
 
-        roleMenuMapRepository.deleteByRoleId(roleId);
+        // Wipe only the APPLICATION-menu grants — the Default Dashboard system grant is preserved
+        // across every save, so it is assigned once (at role creation / backfill) and never churned.
+        roleMenuMapRepository.deleteApplicationGrantsByRoleId(roleId);
 
         // Custom roles (RECON_USER/BANK_USER/BRANCH_USER) sign in via the /user portal — but the
         // Menu Access Tree also offers Bank/Branch Admin's own bootstrap "My Organization"/
@@ -535,6 +645,13 @@ public class ReconRoleMasterServiceImpl implements ReconRoleMasterService {
                 roleMenuMapRepository.save(map);
             }
         }
+
+        // Keep the Default Dashboard fallback grant in sync for business roles — ensures it exists
+        // (idempotent, never re-inserts). Runs in this same @Transactional so it commits atomically
+        // with the grants above. ACTIVE logic below is deliberately untouched: DD is never part of
+        // `menuIds` (the submitted application-menu list), so a DD-only role still has an empty
+        // menuIds and stays DRAFT exactly as before.
+        reconcileDefaultDashboard(roleId);
 
         // A Bank/Branch/KAL Admin never goes through maker-checker approval — the moment they
         // assign at least one privilege to a role they created, it goes straight ACTIVE. Until

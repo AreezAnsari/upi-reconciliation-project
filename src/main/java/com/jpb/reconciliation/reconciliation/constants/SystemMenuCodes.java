@@ -29,6 +29,9 @@ public final class SystemMenuCodes {
         m.put("My Organization", "ORG");
         m.put("Administration", "ADM");
         m.put("Dashboard", "DASH");
+        // System fallback menu — a hidden, immutable row every business role falls back to when it
+        // has no accessible application menu. See sql/default_dashboard_system_menu.sql.
+        m.put("Default Dashboard", "DEFAULT_DASHBOARD");
         // My Organization
         m.put("Overview", "ORG_OVERVIEW");
         m.put("My Hierarchy", "ORG_HIERARCHY");

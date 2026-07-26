@@ -105,6 +105,10 @@ public class MenuController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ResponseDto(MenuConstants.STATUS_417,
                             "This is a system catalog menu and cannot be edited."));
+        } else if ("SYSTEM_MENU_IMMUTABLE".equals(result)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ResponseDto(MenuConstants.STATUS_417,
+                            "This is a system menu and cannot be edited."));
         } else if ("APPLIED".equals(result)) {
             return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseDto(MenuConstants.STATUS_200, MenuConstants.MESSAGE_200));

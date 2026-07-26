@@ -45,6 +45,12 @@ public interface ReconRoleMasterService {
      *  menus to the role but can never remove the ones it was bootstrapped with. */
     ResponseEntity<RestWithStatusList> savePrivileges(Long roleId, List<Long> menuIds, String updatedBy);
 
+    /** Ensures the Default Dashboard fallback grant exists for a business role (idempotent, never
+     *  removes it). Exposed so menu deletion (MenuMasterServiceImpl.removeMenu) can re-run it inside
+     *  its own transaction after a delete. Single source of truth for the fallback grant — no other
+     *  code should insert the Default Dashboard mapping by hand. Skips admin/bootstrap role types. */
+    void reconcileDefaultDashboard(Long roleId);
+
     /** Menu IDs in this role that are the system-default bootstrap set (Dashboard, My Organization,
      *  Administration, …) and therefore read-only — empty for any role that isn't a
      *  BRANCH_ADMIN_DEFAULT/BANK_ADMIN_DEFAULT bootstrap role. */
